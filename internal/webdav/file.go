@@ -98,7 +98,7 @@ func (f *file) Readdir(n int) ([]os.FileInfo, error) {
 			info := info
 			i := i
 			merr.Go(func() error {
-				infos[i], err = NewFileInfoWithMetadata(filepath.Join(f.rootFolder, info.Name()))
+				infos[i], err = NewFileInfoWithMetadata(filepath.Join(f.innerFile.Name(), info.Name()))
 				if err != nil {
 					return err
 				}
