@@ -14,6 +14,10 @@ import (
 	"github.com/javi11/usenet-drive/internal/utils"
 )
 
+const (
+	nzbTmpExtension = ".nzb.tmp"
+)
+
 type Uploader interface {
 	UploadFile(ctx context.Context, filePath string) (string, error)
 }
@@ -52,8 +56,8 @@ func NewUploader(options ...Option) (*uploader, error) {
 	}, nil
 }
 
-func (u *uploader) UploadFile(ctx context.Context, filePath string) (string, error) {
-	fileInfo, err := os.Stat(filePath)
+func (u *uploader) UploadFile(ctx context.Context, path string) (string, error) {
+	fileInfo, err := os.Stat(path)
 	if err != nil {
 		return "", err
 	}
@@ -63,7 +67,15 @@ func (u *uploader) UploadFile(ctx context.Context, filePath string) (string, err
 		return "", err
 	}
 
-	nzbFilePath := utils.ReplaceFileExtension(filePath, ".nzb.tmp")
+	nzbFilePath := utils.ReplaceFileExtension(path, nzbTmpExtension)
+	nzbFilePath = filepath.Join(
+		filepath.Dir(path),
+		utils.TruncateFileName(
+			filepath.Base(path),
+			// 255 is the max length of a file name in most filesystems
+			255-len(nzbTmpExtension),
+		),
+	)
 
 	args := append(
 		u.commonArgs,
@@ -76,7 +88,7 @@ func (u *uploader) UploadFile(ctx context.Context, filePath string) (string, err
 		"--subject=[{0filenum}/{files}] - \"{filename}\" - size={size} - yEnc ({part}/{parts}) {filesize}",
 		fmt.Sprintf("--from=%s", u.generateFrom()),
 		fmt.Sprintf("--out=%s", nzbFilePath),
-		filePath,
+		path,
 	)
 	cmd := exec.CommandContext(ctx, u.scriptPath, args...)
 	cmd.Stdout = os.Stdout
