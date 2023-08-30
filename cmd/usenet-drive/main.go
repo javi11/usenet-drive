@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/javi11/usenet-drive/internal/api"
 	"github.com/javi11/usenet-drive/internal/config"
 	uploadqueue "github.com/javi11/usenet-drive/internal/upload-queue"
 	"github.com/javi11/usenet-drive/internal/uploader"
@@ -84,13 +85,16 @@ var rootCmd = &cobra.Command{
 		// Start uploader queue
 		uploaderQueue.Start(cmd.Context(), time.Duration(config.Usenet.Upload.UploadIntervalInSeconds*float64(time.Second)))
 
+		api := api.NewApi(uploaderQueue, log)
+		api.Start(config.ApiPort)
+
 		// Call the handler function with the config
 		srv, err := webdav.StartServer(
 			webdav.WithLogger(log),
 			webdav.WithUploadFileWhitelist(config.Usenet.Upload.FileWhitelist),
 			webdav.WithUploadQueue(uploaderQueue),
 			webdav.WithNzbPath(config.NzbPath),
-			webdav.WithServerPort(config.ServerPort),
+			webdav.WithServerPort(config.WebDavPort),
 			webdav.WithUsenetConnectionPool(downloadConnPool),
 		)
 		if err != nil {
@@ -98,7 +102,7 @@ var rootCmd = &cobra.Command{
 		}
 
 		// Start the server
-		log.Printf("Server started at http://localhost:%v", config.ServerPort)
+		log.Printf("Server started at http://localhost:%v", config.WebDavPort)
 		defer srv.Close()
 		srv.ListenAndServe()
 	},

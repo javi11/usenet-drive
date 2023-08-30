@@ -1,5 +1,6 @@
 nzb_path: /nzbs
-server_port: 8080
+webdav_port: 8080
+api_port: 8081
 db_path: /config/usenet-drive.db
 usenet:
   download:

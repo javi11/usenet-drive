@@ -9,7 +9,8 @@ import (
 
 type Config struct {
 	NzbPath    string `yaml:"nzb_path"`
-	ServerPort string `yaml:"server_port" default:"8080"`
+	WebDavPort string `yaml:"web_dav_port" default:"8080"`
+	ApiPort    string `yaml:"api_port" default:"8081"`
 	Usenet     Usenet `yaml:"usenet"`
 	DBPath     string `yaml:"db_path" default:"/config/usenet-drive.db"`
 }

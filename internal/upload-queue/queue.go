@@ -40,6 +40,7 @@ func NewUploadQueue(engine sqllitequeue.SqlQueue, uploader uploader.Uploader, ma
 }
 
 func (q *uploadQueue) AddJob(ctx context.Context, filePath string) error {
+	q.log.Printf("Adding file %s to upload queue", filePath)
 	return q.engine.Enqueue(ctx, filePath)
 }
 
@@ -120,6 +121,8 @@ func (q *uploadQueue) Start(ctx context.Context, interval time.Duration) {
 								q.mx.Unlock()
 							}()
 							return q.ProcessJob(ctx, job)
+
+							return nil
 						})
 					}
 

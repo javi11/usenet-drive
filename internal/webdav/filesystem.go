@@ -70,7 +70,6 @@ func (fs nzbFilesystem) OpenFile(ctx context.Context, name string, flag int, per
 	if flag == os.O_RDWR|os.O_CREATE|os.O_TRUNC && fs.hasAllowedExtension(name, fs.uploadFileWhitelist) {
 		// If the file is an allowed upload file, and was opened for writing, when close, add it to the upload queue
 		onClose = func() {
-			fs.log.Printf("New file found %s, adding to upload queue", name)
 			fs.queue.AddJob(ctx, name)
 		}
 	}
