@@ -1,6 +1,7 @@
 package webdav
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sync"
@@ -9,52 +10,83 @@ import (
 	"github.com/hashicorp/go-multierror"
 )
 
-type customFile struct {
-	*os.File
-	folderName string
-	mutex      *sync.RWMutex
+type file struct {
+	innerFile  *os.File
+	rootFolder string
+	fsMutex    *sync.RWMutex
+	onClose    func()
 }
 
-func (f *customFile) Chdir() error {
-	return f.File.Chdir()
+func OpenFile(
+	name string,
+	flag int,
+	perm fs.FileMode,
+	rootFolder string,
+	fsMutex *sync.RWMutex,
+	onClose func(),
+) (*file, error) {
+	f, err := os.OpenFile(name, flag, perm)
+	if err != nil {
+		return nil, err
+	}
+
+	return &file{
+		innerFile:  f,
+		rootFolder: rootFolder,
+		fsMutex:    fsMutex,
+		onClose:    onClose,
+	}, nil
 }
 
-func (f *customFile) Chmod(mode os.FileMode) error {
-	return f.File.Chmod(mode)
+func (f *file) Chdir() error {
+	return f.innerFile.Chdir()
 }
 
-func (f *customFile) Chown(uid, gid int) error {
-	return f.File.Chown(uid, gid)
+func (f *file) Chmod(mode os.FileMode) error {
+	return f.innerFile.Chmod(mode)
 }
 
-func (f *customFile) Close() error {
-	return f.File.Close()
+func (f *file) Chown(uid, gid int) error {
+	return f.innerFile.Chown(uid, gid)
 }
 
-func (f *customFile) Fd() uintptr {
-	return f.File.Fd()
+func (f *file) Close() error {
+	err := f.innerFile.Close()
+	if err != nil {
+		return err
+	}
+
+	if f.onClose != nil {
+		f.onClose()
+	}
+
+	return err
 }
 
-func (f *customFile) Name() string {
-	return f.File.Name()
+func (f *file) Fd() uintptr {
+	return f.innerFile.Fd()
 }
 
-func (f *customFile) Read(b []byte) (int, error) {
-	f.mutex.RLock()
-	defer f.mutex.RUnlock()
-	return f.File.Read(b)
+func (f *file) Name() string {
+	return f.innerFile.Name()
 }
 
-func (f *customFile) ReadAt(b []byte, off int64) (int, error) {
-	f.mutex.RLock()
-	defer f.mutex.RUnlock()
-	return f.File.ReadAt(b, off)
+func (f *file) Read(b []byte) (int, error) {
+	f.fsMutex.RLock()
+	defer f.fsMutex.RUnlock()
+	return f.innerFile.Read(b)
 }
 
-func (f *customFile) Readdir(n int) ([]os.FileInfo, error) {
-	f.mutex.RLock()
-	defer f.mutex.RUnlock()
-	infos, err := f.File.Readdir(n)
+func (f *file) ReadAt(b []byte, off int64) (int, error) {
+	f.fsMutex.RLock()
+	defer f.fsMutex.RUnlock()
+	return f.innerFile.ReadAt(b, off)
+}
+
+func (f *file) Readdir(n int) ([]os.FileInfo, error) {
+	f.fsMutex.RLock()
+	defer f.fsMutex.RUnlock()
+	infos, err := f.innerFile.Readdir(n)
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +98,7 @@ func (f *customFile) Readdir(n int) ([]os.FileInfo, error) {
 			info := info
 			i := i
 			merr.Go(func() error {
-				infos[i], err = NewFileInfoWithMetadata(filepath.Join(f.folderName, info.Name()))
+				infos[i], err = NewFileInfoWithMetadata(filepath.Join(f.rootFolder, info.Name()))
 				if err != nil {
 					return err
 				}
@@ -83,70 +115,70 @@ func (f *customFile) Readdir(n int) ([]os.FileInfo, error) {
 	return infos, nil
 }
 
-func (f *customFile) Readdirnames(n int) ([]string, error) {
-	f.mutex.RLock()
-	defer f.mutex.RUnlock()
-	return f.File.Readdirnames(n)
+func (f *file) Readdirnames(n int) ([]string, error) {
+	f.fsMutex.RLock()
+	defer f.fsMutex.RUnlock()
+	return f.innerFile.Readdirnames(n)
 }
 
-func (f *customFile) Seek(offset int64, whence int) (int64, error) {
-	f.mutex.RLock()
-	defer f.mutex.RUnlock()
-	return f.File.Seek(offset, whence)
+func (f *file) Seek(offset int64, whence int) (int64, error) {
+	f.fsMutex.RLock()
+	defer f.fsMutex.RUnlock()
+	return f.innerFile.Seek(offset, whence)
 }
 
-func (f *customFile) SetDeadline(t time.Time) error {
-	return f.File.SetDeadline(t)
+func (f *file) SetDeadline(t time.Time) error {
+	return f.innerFile.SetDeadline(t)
 }
 
-func (f *customFile) SetReadDeadline(t time.Time) error {
-	return f.File.SetReadDeadline(t)
+func (f *file) SetReadDeadline(t time.Time) error {
+	return f.innerFile.SetReadDeadline(t)
 }
 
-func (f *customFile) SetWriteDeadline(t time.Time) error {
-	return f.File.SetWriteDeadline(t)
+func (f *file) SetWriteDeadline(t time.Time) error {
+	return f.innerFile.SetWriteDeadline(t)
 }
 
-func (f *customFile) Stat() (os.FileInfo, error) {
-	f.mutex.RLock()
-	defer f.mutex.RUnlock()
-	return f.File.Stat()
+func (f *file) Stat() (os.FileInfo, error) {
+	f.fsMutex.RLock()
+	defer f.fsMutex.RUnlock()
+	return f.innerFile.Stat()
 }
 
-func (f *customFile) Sync() error {
-	return f.File.Sync()
+func (f *file) Sync() error {
+	return f.innerFile.Sync()
 }
 
-func (f *customFile) Truncate(size int64) error {
+func (f *file) Truncate(size int64) error {
 	if isNzbFile(f.Name()) {
 		return os.ErrPermission
 	}
-	return f.File.Truncate(size)
+	return f.innerFile.Truncate(size)
 }
 
-func (f *customFile) Write(b []byte) (int, error) {
-	f.mutex.Lock()
-	defer f.mutex.Unlock()
+func (f *file) Write(b []byte) (int, error) {
+	f.fsMutex.Lock()
+	defer f.fsMutex.Unlock()
 	if isNzbFile(f.Name()) {
 		return 0, os.ErrPermission
 	}
-	return f.File.Write(b)
+	return f.innerFile.Write(b)
 }
 
-func (f *customFile) WriteAt(b []byte, off int64) (int, error) {
-	f.mutex.Lock()
-	defer f.mutex.Unlock()
+func (f *file) WriteAt(b []byte, off int64) (int, error) {
+	f.fsMutex.Lock()
+	defer f.fsMutex.Unlock()
 	if isNzbFile(f.Name()) {
 		return 0, os.ErrPermission
 	}
-	return f.File.WriteAt(b, off)
+	return f.innerFile.WriteAt(b, off)
 }
 
-func (f *customFile) WriteString(s string) (int, error) {
-	f.mutex.Lock()
-	defer f.mutex.Unlock()
+func (f *file) WriteString(s string) (int, error) {
+	f.fsMutex.Lock()
+	defer f.fsMutex.Unlock()
 	if isNzbFile(f.Name()) {
 		return 0, os.ErrPermission
 	}
-	return f.File.WriteString(s)
+	return f.innerFile.WriteString(s)
 }

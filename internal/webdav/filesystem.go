@@ -2,26 +2,40 @@ package webdav
 
 import (
 	"context"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 
+	uploadqueue "github.com/javi11/usenet-drive/internal/upload-queue"
 	"github.com/javi11/usenet-drive/internal/utils"
 	"golang.org/x/net/webdav"
 )
 
 type nzbFilesystem struct {
-	root string
-	cn   UsenetConnectionPool
-	lock *sync.RWMutex
+	root                string
+	cn                  UsenetConnectionPool
+	lock                *sync.RWMutex
+	queue               uploadqueue.UploadQueue
+	log                 *log.Logger
+	uploadFileWhitelist []string
 }
 
-func NewNzbFilesystem(root string, cn UsenetConnectionPool) webdav.FileSystem {
+func NewNzbFilesystem(
+	root string,
+	cn UsenetConnectionPool,
+	queue uploadqueue.UploadQueue,
+	log *log.Logger,
+	uploadFileWhitelist []string,
+) webdav.FileSystem {
 	return nzbFilesystem{
-		root: root,
-		cn:   cn,
-		lock: &sync.RWMutex{},
+		root:                root,
+		cn:                  cn,
+		lock:                &sync.RWMutex{},
+		queue:               queue,
+		log:                 log,
+		uploadFileWhitelist: uploadFileWhitelist,
 	}
 }
 
@@ -43,21 +57,25 @@ func (fs nzbFilesystem) OpenFile(ctx context.Context, name string, flag int, per
 
 	if isNzbFile(name) {
 		// If file is a nzb file return a custom file that will mask the nzb
-		return NewNzbFile(name, flag, perm, fs.cn, fs.lock)
+		return OpenNzbFile(name, flag, perm, fs.cn, fs.lock)
 	}
 
 	originalName := getOriginalNzb(name)
 	if originalName != nil {
 		// If the file is a masked call the original nzb file
-		return NewNzbFile(*originalName, flag, perm, fs.cn, fs.lock)
+		return OpenNzbFile(*originalName, flag, perm, fs.cn, fs.lock)
 	}
 
-	f, err := os.OpenFile(name, flag, perm)
-	if err != nil {
-		return nil, err
+	onClose := func() {}
+	if flag == os.O_RDWR|os.O_CREATE|os.O_TRUNC && fs.hasAllowedExtension(name, fs.uploadFileWhitelist) {
+		// If the file is an allowed upload file, and was opened for writing, when close, add it to the upload queue
+		onClose = func() {
+			fs.log.Printf("New file found %s, adding to upload queue", name)
+			fs.queue.AddJob(ctx, name)
+		}
 	}
 
-	return &customFile{File: f, folderName: name, mutex: fs.lock}, nil
+	return OpenFile(name, flag, perm, fs.root, fs.lock, onClose)
 }
 
 func (fs nzbFilesystem) RemoveAll(ctx context.Context, name string) error {
@@ -139,4 +157,13 @@ func (fs nzbFilesystem) resolve(name string) string {
 		dir = "."
 	}
 	return filepath.Join(dir, filepath.FromSlash(slashClean(name)))
+}
+
+func (fs nzbFilesystem) hasAllowedExtension(path string, extensions []string) bool {
+	for _, ext := range extensions {
+		if strings.HasSuffix(path, ext) {
+			return true
+		}
+	}
+	return false
 }

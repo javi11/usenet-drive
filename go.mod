@@ -7,7 +7,6 @@ require (
 	github.com/chrisfarms/nzb v0.0.0-20151202172059-f7cdf7f0e051
 	github.com/chrisfarms/yenc v0.0.0-20140520125709-00bca2f8b3cb
 	github.com/creasty/defaults v1.7.0
-	github.com/fsnotify/fsnotify v1.6.0
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hraban/lrucache v0.0.0-20201130153820-17052bf09781
 	github.com/mattn/go-sqlite3 v1.14.17

@@ -17,7 +17,7 @@ type NzbFile struct {
 	mutex *sync.RWMutex
 }
 
-func NewNzbFile(name string, flag int, perm os.FileMode, cp UsenetConnectionPool, rwMutex *sync.RWMutex) (*NzbFile, error) {
+func OpenNzbFile(name string, flag int, perm os.FileMode, cp UsenetConnectionPool, rwMutex *sync.RWMutex) (*NzbFile, error) {
 	var err error
 
 	file, err := os.OpenFile(name, flag, perm)

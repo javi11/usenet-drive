@@ -7,14 +7,14 @@ import (
 	"golang.org/x/net/webdav"
 )
 
-func StartServer(cp UsenetConnectionPool, options ...Option) (*http.Server, error) {
+func StartServer(options ...Option) (*http.Server, error) {
 	config := defaultConfig()
 	for _, option := range options {
 		option(config)
 	}
 
 	handler := &webdav.Handler{
-		FileSystem: NewNzbFilesystem(config.NzbPath, cp),
+		FileSystem: NewNzbFilesystem(config.NzbPath, config.cp, config.queue, config.log, config.uploadFileWhitelist),
 		LockSystem: webdav.NewMemLS(),
 	}
 

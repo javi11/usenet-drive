@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/javi11/usenet-drive/internal/config"
-	filewatcher "github.com/javi11/usenet-drive/internal/file-watcher"
 	uploadqueue "github.com/javi11/usenet-drive/internal/upload-queue"
 	"github.com/javi11/usenet-drive/internal/uploader"
 	"github.com/javi11/usenet-drive/internal/usenet"
@@ -54,12 +53,6 @@ var rootCmd = &cobra.Command{
 			log.Fatalf("Failed to connect to Usenet: %v", err)
 		}
 
-		// Call the handler function with the config
-		srv, err := webdav.StartServer(downloadConnPool, webdav.WithNzbPath(config.NzbPath), webdav.WithServerPort(config.ServerPort))
-		if err != nil {
-			log.Fatalf("Failed to handle config: %v", err)
-		}
-
 		// Create uploader
 		u, err := uploader.NewUploader(
 			uploader.WithHost(config.Usenet.Upload.Provider.Host),
@@ -91,17 +84,18 @@ var rootCmd = &cobra.Command{
 		// Start uploader queue
 		uploaderQueue.Start(cmd.Context(), time.Duration(config.Usenet.Upload.UploadIntervalInSeconds*float64(time.Second)))
 
-		// Start uploader watcher
-		watcher, err := filewatcher.NewWatcher(uploaderQueue, log, config.Usenet.Upload.FileWhitelist)
+		// Call the handler function with the config
+		srv, err := webdav.StartServer(
+			webdav.WithLogger(log),
+			webdav.WithUploadFileWhitelist(config.Usenet.Upload.FileWhitelist),
+			webdav.WithUploadQueue(uploaderQueue),
+			webdav.WithNzbPath(config.NzbPath),
+			webdav.WithServerPort(config.ServerPort),
+			webdav.WithUsenetConnectionPool(downloadConnPool),
+		)
 		if err != nil {
-			log.Fatalf("Failed to create file watcher: %v", err)
+			log.Fatalf("Failed to handle config: %v", err)
 		}
-		err = watcher.Add(config.NzbPath)
-		if err != nil {
-			log.Fatalf("Failed to add path to file watcher: %v", err)
-		}
-		watcher.Start(cmd.Context())
-		defer watcher.Close()
 
 		// Start the server
 		log.Printf("Server started at http://localhost:%v", config.ServerPort)
