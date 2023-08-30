@@ -40,7 +40,7 @@ func (w *Watcher) Start(ctx context.Context) {
 	go func() {
 		var (
 			// Wait 5000ms for new events; each new event resets the timer.
-			waitFor = 1000 * time.Millisecond
+			waitFor = 5000 * time.Millisecond
 
 			// Keep track of the timers, as path → timer.
 			mu     sync.Mutex
@@ -53,25 +53,9 @@ func (w *Watcher) Start(ctx context.Context) {
 				delete(timers, e.Name)
 				mu.Unlock()
 
-				info, err := os.Stat(e.Name)
-				if err != nil {
-					// Fail silently if the file was removed.
-					if os.IsNotExist(err) {
-						return
-					}
-					w.log.Printf("file watcher error: %v", err)
-					return
-				}
-
-				if info.IsDir() {
-					w.log.Printf("Directory %s created, adding to file watcher", e.Name)
-					w.watcher.Add(e.Name)
-					return
-				}
-
 				if hasAllowedExtension(e.Name, w.fileWhitelist) {
 					w.log.Printf("File %s created, adding to upload queue", e.Name)
-					w.queue.AddJob(ctx, e.Name)
+					//w.queue.AddJob(ctx, e.Name)
 				}
 
 				return
@@ -97,14 +81,42 @@ func (w *Watcher) Start(ctx context.Context) {
 					return
 				}
 
-				// We just want to watch for file creation, so ignore everything
-				// outside of Create and Write and files that don't have an allowed extension.
-				if e.Has(fsnotify.Create) || e.Has(fsnotify.Write) {
+				if e.Has(fsnotify.Create) {
+					info, err := os.Stat(e.Name)
+					if err != nil {
+						// Fail silently if the file was removed.
+						if os.IsNotExist(err) {
+							return
+						}
+						w.log.Printf("file watcher error: %v", err)
+						return
+					}
+					if info.IsDir() {
+						w.log.Printf("Directory %s created, adding to file watcher", e.Name)
+						w.watcher.Add(e.Name)
+						return
+					}
+
+					continue
+				}
+
+				if e.Has(fsnotify.Remove) {
+					w.watcher.Remove(e.Name)
+					_, ok := timers[e.Name]
+					if ok {
+						mu.Lock()
+						delete(timers, e.Name)
+						mu.Unlock()
+					}
+
+					continue
+				}
+
+				if e.Has(fsnotify.Write) {
 					// Get timer.
 					mu.Lock()
 					t, ok := timers[e.Name]
 					mu.Unlock()
-
 					// No timer yet, so create one.
 					if !ok {
 						t = time.AfterFunc(math.MaxInt64, func() { addToQueue(e) })
@@ -115,10 +127,8 @@ func (w *Watcher) Start(ctx context.Context) {
 						mu.Unlock()
 					}
 
-					// Reset the timer for this path, so it will start from 100ms again.
+					// Reset the timer for this path.
 					t.Reset(waitFor)
-				} else if e.Has(fsnotify.Remove) {
-					w.watcher.Remove(e.Name)
 				}
 			}
 		}
