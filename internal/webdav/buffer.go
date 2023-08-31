@@ -27,13 +27,13 @@ type Buf struct {
 	nzbFile   *nzb.NzbFile
 	ptr       int64
 	cache     *lrucache.Cache
-	cp        UsenetConnectionPool
+	cp        usenet.UsenetConnectionPool
 	mx        sync.RWMutex
 	chunkSize int
 }
 
 // NewBuffer creates a new data volume based on a buffer
-func NewBuffer(nzbFile *nzb.NzbFile, size int, chunkSize int, cp UsenetConnectionPool) *Buf {
+func NewBuffer(nzbFile *nzb.NzbFile, size int, chunkSize int, cp usenet.UsenetConnectionPool) *Buf {
 	return &Buf{
 		chunkSize: chunkSize,
 		size:      size,

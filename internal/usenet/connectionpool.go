@@ -15,6 +15,12 @@ import (
 	"github.com/silenceper/pool"
 )
 
+type UsenetConnectionPool interface {
+	Get() (*nntp.Conn, error)
+	Close(c *nntp.Conn) error
+	Free(c *nntp.Conn) error
+}
+
 type connectionPool struct {
 	pool pool.Pool
 }
@@ -31,17 +37,27 @@ func NewConnectionPool(options ...Option) (*connectionPool, error) {
 	// close Specify the method to close the connection
 	close := func(v interface{}) error { return v.(*nntp.Conn).Quit() }
 
+	// ping Specify the method to detect whether the connection is normal
+	ping := func(v interface{}) error {
+		if _, err := v.(*nntp.Conn).Help(); err != nil {
+			return err
+		}
+
+		return nil
+	}
+
 	twentyPercent := int(float64(config.MaxConnections) * 0.2)
 
 	poolConfig := &pool.Config{
 		InitialCap: twentyPercent,
-		MaxIdle:    20,
+		MaxIdle:    twentyPercent,
 		MaxCap:     config.MaxConnections,
 		Factory:    factory,
 		Close:      close,
 		//Ping:       ping,
 		//The maximum idle time of the connection, the connection exceeding this time will be closed, which can avoid the problem of automatic failure when connecting to EOF when idle
-		IdleTimeout: 60 * time.Second,
+		IdleTimeout: 15 * time.Second,
+		Ping:        ping,
 	}
 	p, err := pool.NewChannelPool(poolConfig)
 	if err != nil {

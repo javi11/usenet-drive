@@ -9,13 +9,14 @@ import (
 	"sync"
 
 	uploadqueue "github.com/javi11/usenet-drive/internal/upload-queue"
+	"github.com/javi11/usenet-drive/internal/usenet"
 	"github.com/javi11/usenet-drive/internal/utils"
 	"golang.org/x/net/webdav"
 )
 
 type nzbFilesystem struct {
 	root                string
-	cn                  UsenetConnectionPool
+	cn                  usenet.UsenetConnectionPool
 	lock                *sync.RWMutex
 	queue               uploadqueue.UploadQueue
 	log                 *log.Logger
@@ -24,7 +25,7 @@ type nzbFilesystem struct {
 
 func NewNzbFilesystem(
 	root string,
-	cn UsenetConnectionPool,
+	cn usenet.UsenetConnectionPool,
 	queue uploadqueue.UploadQueue,
 	log *log.Logger,
 	uploadFileWhitelist []string,

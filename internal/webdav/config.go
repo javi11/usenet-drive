@@ -4,12 +4,13 @@ import (
 	"log"
 
 	uploadqueue "github.com/javi11/usenet-drive/internal/upload-queue"
+	"github.com/javi11/usenet-drive/internal/usenet"
 )
 
 type Config struct {
 	NzbPath             string
 	ServerPort          string
-	cp                  UsenetConnectionPool
+	cp                  usenet.UsenetConnectionPool
 	queue               uploadqueue.UploadQueue
 	log                 *log.Logger
 	uploadFileWhitelist []string
@@ -35,7 +36,7 @@ func WithServerPort(serverPort string) Option {
 	}
 }
 
-func WithUsenetConnectionPool(cp UsenetConnectionPool) Option {
+func WithUsenetConnectionPool(cp usenet.UsenetConnectionPool) Option {
 	return func(c *Config) {
 		c.cp = cp
 	}
