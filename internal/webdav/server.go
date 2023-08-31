@@ -2,12 +2,18 @@ package webdav
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 
 	"golang.org/x/net/webdav"
 )
 
-func StartServer(options ...Option) (*http.Server, error) {
+type webdavServer struct {
+	handler *webdav.Handler
+	log     *log.Logger
+}
+
+func NewServer(options ...Option) (*webdavServer, error) {
 	config := defaultConfig()
 	for _, option := range options {
 		option(config)
@@ -18,14 +24,18 @@ func StartServer(options ...Option) (*http.Server, error) {
 		LockSystem: webdav.NewMemLS(),
 	}
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		handler.ServeHTTP(w, r)
-	})
+	return &webdavServer{
+		log:     config.log,
+		handler: handler,
+	}, nil
+}
 
-	srv := &http.Server{
-		Addr:    fmt.Sprintf(":%v", config.ServerPort),
-		Handler: http.DefaultServeMux,
+func (s *webdavServer) Start(port string) {
+	addr := fmt.Sprintf(":%s", port)
+
+	log.Printf("WebDav server started at http://localhost:%v", port)
+	err := http.ListenAndServe(addr, s.handler)
+	if err != nil {
+		log.Fatalf("failed to start WebDav server: %v", err)
 	}
-
-	return srv, nil
 }

@@ -83,28 +83,25 @@ var rootCmd = &cobra.Command{
 		uploaderQueue := uploadqueue.NewUploadQueue(sqlLiteEngine, u, config.Usenet.Upload.MaxActiveUploads, log)
 
 		// Start uploader queue
-		uploaderQueue.Start(cmd.Context(), time.Duration(config.Usenet.Upload.UploadIntervalInSeconds*float64(time.Second)))
+		go uploaderQueue.Start(cmd.Context(), time.Duration(config.Usenet.Upload.UploadIntervalInSeconds*float64(time.Second)))
 
 		api := api.NewApi(uploaderQueue, log)
-		api.Start(config.ApiPort)
+		go api.Start(config.ApiPort)
 
 		// Call the handler function with the config
-		srv, err := webdav.StartServer(
+		webdav, err := webdav.NewServer(
 			webdav.WithLogger(log),
 			webdav.WithUploadFileWhitelist(config.Usenet.Upload.FileWhitelist),
 			webdav.WithUploadQueue(uploaderQueue),
 			webdav.WithNzbPath(config.NzbPath),
-			webdav.WithServerPort(config.WebDavPort),
 			webdav.WithUsenetConnectionPool(downloadConnPool),
 		)
 		if err != nil {
-			log.Fatalf("Failed to handle config: %v", err)
+			log.Fatalf("Failed to create WebDAV server: %v", err)
 		}
 
-		// Start the server
-		log.Printf("Server started at http://localhost:%v", config.WebDavPort)
-		defer srv.Close()
-		srv.ListenAndServe()
+		// Start webdav server
+		webdav.Start(config.WebDavPort)
 	},
 }
 

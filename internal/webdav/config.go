@@ -9,7 +9,6 @@ import (
 
 type Config struct {
 	NzbPath             string
-	ServerPort          string
 	cp                  usenet.UsenetConnectionPool
 	queue               uploadqueue.UploadQueue
 	log                 *log.Logger
@@ -19,20 +18,12 @@ type Config struct {
 type Option func(*Config)
 
 func defaultConfig() *Config {
-	return &Config{
-		ServerPort: "8080",
-	}
+	return &Config{}
 }
 
 func WithNzbPath(nzbPath string) Option {
 	return func(c *Config) {
 		c.NzbPath = nzbPath
-	}
-}
-
-func WithServerPort(serverPort string) Option {
-	return func(c *Config) {
-		c.ServerPort = serverPort
 	}
 }
 

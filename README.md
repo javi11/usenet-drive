@@ -33,22 +33,15 @@ Add a new webdav remote with the following parameters:
 rclone mount --allow-other --async-read=true --dir-cache-time=1000h --buffer-size=32M --poll-interval=15s --rc --rc-no-auth --rc-addr=localhost:5572 --use-mmap --vfs-read-ahead=128M --vfs-read-chunk-size=32M --vfs-read-chunk-size-limit=2G --vfs-cache-max-age=504h --vfs-cache-mode=full --vfs-cache-poll-interval=30s --vfs-cache-max-size=50G --timeout=10m usenet: ${PATH_TO_MOUNT} --umask=002
 ```
 
+***When mounting it's high recommended to use a vfs cache to avoid problems with uploads and downloads.***
+
 ### API
 
-The api is available at `http://localhost:8081/api/v1/`.
+An API to control the server, is available at `http://localhost:8081/api/v1/`.
 
 #### Endpoints
 
-- `POST /api/v1/manual-upload`: Allows to upload a file manually from the webdav filesystem to usenet and saved in the nzb folder. Usefull when a file was not uploaded because of some error.
-  Body:
-
-  ```json
-  {
-    "file_path": "/${nzb_path}/path/to/file.mkv"
-  }
-  ```
-
-***When mounting it's high recommended to use a vfs cache to avoid problems with uploads and downloads.***
+See the endpoints at [api.yaml](./internal/api/api.go).
 
 ## Features
 
