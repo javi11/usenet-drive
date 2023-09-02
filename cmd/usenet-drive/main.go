@@ -3,7 +3,8 @@ package main
 import (
 	"database/sql"
 	"fmt"
-	"log"
+	"io"
+	"log/slog"
 	"os"
 	"time"
 
@@ -14,30 +15,45 @@ import (
 	"github.com/javi11/usenet-drive/internal/usenet"
 	"github.com/javi11/usenet-drive/internal/webdav"
 	sqllitequeue "github.com/javi11/usenet-drive/pkg/sqllite-queue"
+	"github.com/natefinch/lumberjack"
 	"github.com/spf13/cobra"
 
 	_ "github.com/mattn/go-sqlite3"
 )
 
 var configFile string
+var logPath string
 
 var rootCmd = &cobra.Command{
 	Use:   "usenet-drive",
 	Short: "A WebDAV server for Usenet",
 	Run: func(cmd *cobra.Command, _ []string) {
-		log := log.Default()
+		ctx := cmd.Context()
 		// Read the config file
 		config, err := config.FromFile(configFile)
 		if err != nil {
-			log.Fatalf("Failed to load config file: %v", err)
+			slog.ErrorContext(ctx, "Failed to load config file: %v", err)
+			os.Exit(1)
 		}
+
+		jsonHandler := slog.NewJSONHandler(
+			io.MultiWriter(
+				os.Stdout,
+				&lumberjack.Logger{
+					Filename:   config.LogPath,
+					MaxSize:    5,
+					MaxAge:     14,
+					MaxBackups: 5,
+				}), nil)
+		log := slog.New(jsonHandler)
 
 		_, err = os.Stat(config.Usenet.Upload.NyuuPath)
 		if os.IsNotExist(err) {
-			log.Printf("nyuu binary not found, downloading...")
+			log.InfoContext(ctx, "nyuu binary not found, downloading...")
 			err = uploader.DownloadNyuuRelease(config.Usenet.Upload.NyuuVersion, config.Usenet.Upload.NyuuPath)
 			if err != nil {
-				log.Fatalf("Failed to download nyuu: %v", err)
+				log.ErrorContext(ctx, "Failed to download nyuu: %v", err)
+				os.Exit(1)
 			}
 		}
 
@@ -51,7 +67,8 @@ var rootCmd = &cobra.Command{
 			usenet.WithMaxConnections(config.Usenet.Download.MaxConnections),
 		)
 		if err != nil {
-			log.Fatalf("Failed to connect to Usenet: %v", err)
+			log.ErrorContext(ctx, "Failed to connect to Usenet: %v", err)
+			os.Exit(1)
 		}
 
 		// Create uploader
@@ -64,29 +81,38 @@ var rootCmd = &cobra.Command{
 			uploader.WithNyuuPath(config.Usenet.Upload.NyuuPath),
 			uploader.WithGroups(config.Usenet.Upload.Provider.Groups),
 			uploader.WithMaxConnections(config.Usenet.Upload.Provider.MaxConnections),
+			uploader.WithLogger(log),
 		)
 		if err != nil {
-			log.Fatalf("Failed to create uploader: %v", err)
+			log.ErrorContext(ctx, "Failed to create uploader: %v", err)
+			os.Exit(1)
 		}
 
 		// Create upload queue
 		sqlLite, err := sql.Open("sqlite3", config.DBPath)
 		if err != nil {
-			log.Fatalf("Failed to open database: %v", err)
+			log.ErrorContext(ctx, "Failed to open database: %v", err)
+			os.Exit(1)
 		}
 		defer sqlLite.Close()
 
 		sqlLiteEngine, err := sqllitequeue.NewSQLiteQueue(sqlLite)
 		if err != nil {
-			log.Fatalf("Failed to create queue: %v", err)
+			log.ErrorContext(ctx, "Failed to create queue: %v", err)
+			os.Exit(1)
 		}
-		uploaderQueue := uploadqueue.NewUploadQueue(sqlLiteEngine, u, config.Usenet.Upload.MaxActiveUploads, log)
+		uploaderQueue := uploadqueue.NewUploadQueue(
+			uploadqueue.WithSqlLiteEngine(sqlLiteEngine),
+			uploadqueue.WithUploader(u),
+			uploadqueue.WithMaxActiveUploads(config.Usenet.Upload.MaxActiveUploads),
+			uploadqueue.WithLogger(log),
+		)
 
 		// Start uploader queue
-		go uploaderQueue.Start(cmd.Context(), time.Duration(config.Usenet.Upload.UploadIntervalInSeconds*float64(time.Second)))
+		go uploaderQueue.Start(ctx, time.Duration(config.Usenet.Upload.UploadIntervalInSeconds*float64(time.Second)))
 
 		api := api.NewApi(uploaderQueue, log)
-		go api.Start(config.ApiPort)
+		go api.Start(ctx, config.ApiPort)
 
 		// Call the handler function with the config
 		webdav, err := webdav.NewServer(
@@ -97,16 +123,18 @@ var rootCmd = &cobra.Command{
 			webdav.WithUsenetConnectionPool(downloadConnPool),
 		)
 		if err != nil {
-			log.Fatalf("Failed to create WebDAV server: %v", err)
+			log.ErrorContext(ctx, "Failed to create WebDAV server: %v", err)
+			os.Exit(1)
 		}
 
 		// Start webdav server
-		webdav.Start(config.WebDavPort)
+		webdav.Start(ctx, config.WebDavPort)
 	},
 }
 
 func init() {
-	rootCmd.PersistentFlags().StringVarP(&configFile, "config", "c", "", "path to YAML config file")
+	rootCmd.PersistentFlags().
+		StringVarP(&configFile, "config", "c", "", "path to YAML config file")
 	rootCmd.MarkPersistentFlagRequired("config")
 }
 

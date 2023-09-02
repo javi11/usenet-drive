@@ -7,7 +7,8 @@
 package usenet
 
 import (
-	"log"
+	"fmt"
+	"log/slog"
 	"net"
 	"time"
 
@@ -23,6 +24,7 @@ type UsenetConnectionPool interface {
 
 type connectionPool struct {
 	pool pool.Pool
+	log  *slog.Logger
 }
 
 func NewConnectionPool(options ...Option) (*connectionPool, error) {
@@ -46,12 +48,12 @@ func NewConnectionPool(options ...Option) (*connectionPool, error) {
 		return nil
 	}
 
-	twentyPercent := int(float64(config.MaxConnections) * 0.2)
+	twentyPercent := int(float64(config.maxConnections) * 0.2)
 
 	poolConfig := &pool.Config{
 		InitialCap: twentyPercent,
 		MaxIdle:    twentyPercent,
-		MaxCap:     config.MaxConnections,
+		MaxCap:     config.maxConnections,
 		Factory:    factory,
 		Close:      close,
 		//Ping:       ping,
@@ -66,6 +68,7 @@ func NewConnectionPool(options ...Option) (*connectionPool, error) {
 
 	return &connectionPool{
 		pool: p,
+		log:  config.log,
 	}, nil
 }
 
@@ -91,8 +94,8 @@ func dialNNTP(config *Config) (*nntp.Conn, error) {
 	var c *nntp.Conn
 
 	for {
-		if config.TLS {
-			c, err = nntp.DialTLS("tcp", dialStr, config.TLSConfig)
+		if config.tls {
+			c, err = nntp.DialTLS("tcp", dialStr, config.tlsConfig)
 		} else {
 			c, err = nntp.Dial("tcp", dialStr)
 		}
@@ -100,14 +103,14 @@ func dialNNTP(config *Config) (*nntp.Conn, error) {
 			// if it's a timeout, ignore and try again
 			e, ok := err.(net.Error)
 			if ok && e.Timeout() {
-				log.Default().Printf("timeout connecting to %s, retrying", dialStr)
+				config.log.Error(fmt.Sprintf("timeout connecting to %s, retrying", dialStr))
 				continue
 			}
 			return nil, err
 		}
 
 		// auth
-		if err := c.Authenticate(config.Username, config.Password); err != nil {
+		if err := c.Authenticate(config.username, config.password); err != nil {
 			return nil, err
 		}
 

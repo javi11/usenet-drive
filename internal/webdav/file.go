@@ -2,6 +2,7 @@ package webdav
 
 import (
 	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sync"
@@ -15,6 +16,7 @@ type file struct {
 	rootFolder string
 	fsMutex    *sync.RWMutex
 	onClose    func()
+	log        *slog.Logger
 }
 
 func OpenFile(
@@ -24,6 +26,7 @@ func OpenFile(
 	rootFolder string,
 	fsMutex *sync.RWMutex,
 	onClose func(),
+	log *slog.Logger,
 ) (*file, error) {
 	f, err := os.OpenFile(name, flag, perm)
 	if err != nil {
@@ -35,6 +38,7 @@ func OpenFile(
 		rootFolder: rootFolder,
 		fsMutex:    fsMutex,
 		onClose:    onClose,
+		log:        log,
 	}, nil
 }
 
@@ -98,8 +102,9 @@ func (f *file) Readdir(n int) ([]os.FileInfo, error) {
 			info := info
 			i := i
 			merr.Go(func() error {
-				infos[i], err = NewFileInfoWithMetadata(filepath.Join(f.innerFile.Name(), info.Name()))
+				infos[i], err = NewFileInfoWithMetadata(filepath.Join(f.innerFile.Name(), info.Name()), f.log)
 				if err != nil {
+					infos[i] = info
 					return err
 				}
 
@@ -109,7 +114,7 @@ func (f *file) Readdir(n int) ([]os.FileInfo, error) {
 	}
 
 	if err := merr.Wait(); err != nil {
-		return nil, err
+		return removeNzb(infos), nil
 	}
 
 	return infos, nil

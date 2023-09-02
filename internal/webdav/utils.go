@@ -1,6 +1,7 @@
 package webdav
 
 import (
+	"io/fs"
 	"os"
 	"path"
 	"strings"
@@ -35,4 +36,15 @@ func Max[T constraints.Ordered](a, b T) T {
 		return a
 	}
 	return b
+}
+
+func removeNzb(infos []fs.FileInfo) []fs.FileInfo {
+	var result []fs.FileInfo
+	for _, info := range infos {
+		if !isNzbFile(info.Name()) {
+			result = append(result, info)
+		}
+	}
+
+	return result
 }

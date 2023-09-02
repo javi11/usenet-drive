@@ -1,11 +1,13 @@
 package webdav
 
 import (
+	"fmt"
 	"io/fs"
+	"log/slog"
 	"os"
-	"sync"
 	"time"
 
+	"github.com/hashicorp/go-multierror"
 	"github.com/javi11/usenet-drive/internal/domain"
 	"github.com/javi11/usenet-drive/internal/utils"
 )
@@ -16,42 +18,45 @@ type nzbFileInfoWithMetadata struct {
 	metadata domain.Metadata
 }
 
-func NewFileInfoWithMetadata(name string) (fs.FileInfo, error) {
+func NewFileInfoWithMetadata(name string, log *slog.Logger) (fs.FileInfo, error) {
 	var nzbFileInfo os.FileInfo
 	var metadata domain.Metadata
-	var err error
+	var eg multierror.Group
 
-	var wg sync.WaitGroup
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	eg.Go(func() error {
 		file, err := os.OpenFile(name, os.O_RDONLY, 0)
 		if err != nil {
-			return
+			log.Error(fmt.Sprintf("Error opening file %s, this file will be ignored", name), "err", err)
+			return err
 		}
 
 		nzbFile, err := parseNzbFile(file)
 		if err != nil {
-			return
+			log.Error(fmt.Sprintf("Error parsing nzb file %s, this file will be ignored", name), "err", err)
+			return err
 		}
 
 		metadata, err = domain.LoadFromNzb(nzbFile)
 		if err != nil {
-			return
+			log.Error(fmt.Sprintf("Error getting metadata from file %s, this file will be ignored", name), "err", err)
+			return err
 		}
-	}()
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		nzbFileInfo, err = os.Stat(name)
-	}()
+		return nil
+	})
 
-	wg.Wait()
+	eg.Go(func() error {
+		info, err := os.Stat(name)
+		nzbFileInfo = info
+		if err != nil {
+			return err
+		}
 
-	if err != nil {
-		return nil, err
+		return nil
+	})
+
+	if err := eg.Wait(); err != nil {
+		return nil, os.ErrNotExist
 	}
 
 	fileName := nzbFileInfo.Name()

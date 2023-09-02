@@ -1,18 +1,21 @@
 package api
 
 import (
+	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
+	"os"
 
 	"github.com/gin-gonic/gin"
 	"github.com/javi11/usenet-drive/internal/api/handlers"
 	uploadqueue "github.com/javi11/usenet-drive/internal/upload-queue"
+	sloggin "github.com/samber/slog-gin"
 )
 
 type api struct {
 	r   *gin.Engine
-	log *log.Logger
+	log *slog.Logger
 }
 
 // NewApi returns a new instance of the API with the given upload queue and logger.
@@ -22,12 +25,9 @@ type api struct {
 // - GET /api/v1/jobs/pending: retrieves a list of pending upload jobs.
 // - DELETE /api/v1/jobs/failed/:id: deletes a failed upload job with the given ID.
 // - GET /api/v1/jobs/failed/:id/retry: retries a failed upload job with the given ID.
-func NewApi(queue uploadqueue.UploadQueue, log *log.Logger) *api {
-	gin.DisableConsoleColor()
-	gin.DefaultWriter = log.Writer()
-	gin.SetMode(gin.ReleaseMode)
-
-	r := gin.Default()
+func NewApi(queue uploadqueue.UploadQueue, log *slog.Logger) *api {
+	r := gin.New()
+	r.Use(sloggin.New(log))
 
 	v1 := r.Group("/api/v1")
 	{
@@ -44,10 +44,11 @@ func NewApi(queue uploadqueue.UploadQueue, log *log.Logger) *api {
 	}
 }
 
-func (a *api) Start(port string) {
-	log.Printf("Api controller started at http://localhost:%v", port)
+func (a *api) Start(ctx context.Context, port string) {
+	a.log.InfoContext(ctx, fmt.Sprintf("Api controller started at http://localhost:%v", port))
 	err := http.ListenAndServe(fmt.Sprintf(":%s", port), a.r.Handler())
 	if err != nil {
-		log.Fatalf("Failed to start API controller: %v", err)
+		a.log.ErrorContext(ctx, "Failed to start API controller", "err", err)
+		os.Exit(1)
 	}
 }

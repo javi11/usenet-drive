@@ -3,7 +3,8 @@ package uploadqueue
 import (
 	"context"
 	"database/sql"
-	"log"
+	"fmt"
+	"log/slog"
 	"os"
 	"sync"
 	"time"
@@ -28,40 +29,48 @@ type uploadQueue struct {
 	uploader         uploader.Uploader
 	activeUploads    int
 	maxActiveUploads int
-	log              *log.Logger
+	log              *slog.Logger
 	mx               *sync.Mutex
 	closed           bool
 }
 
-func NewUploadQueue(engine sqllitequeue.SqlQueue, uploader uploader.Uploader, maxActiveUploads int, log *log.Logger) UploadQueue {
+func NewUploadQueue(options ...Option) UploadQueue {
+	config := defaultConfig()
+	for _, option := range options {
+		option(config)
+	}
+
 	return &uploadQueue{
-		engine:           engine,
-		uploader:         uploader,
-		maxActiveUploads: maxActiveUploads,
-		log:              log,
+		engine:           config.SqlLiteEngine,
+		uploader:         config.Uploader,
+		maxActiveUploads: config.MaxActiveUploads,
+		log:              config.Log,
 		mx:               &sync.Mutex{},
 		closed:           false,
 	}
 }
 
 func (q *uploadQueue) AddJob(ctx context.Context, filePath string) error {
-	q.log.Printf("Adding file %s to upload queue", filePath)
+	q.log.InfoContext(ctx, "Adding file %s to upload queue", filePath)
 	return q.engine.Enqueue(ctx, filePath)
 }
 
 func (q *uploadQueue) ProcessJob(ctx context.Context, job sqllitequeue.Job) error {
-	q.log.Printf("Uploading file %v...", job.Data)
+	log := q.log.With("job_id", job.ID).With("file_path", job.Data)
+
+	log.InfoContext(ctx, "Uploading file...")
+
 	nzbFilePath, err := q.uploader.UploadFile(ctx, job.Data)
 	if err != nil {
 		if os.IsNotExist(err) {
 			// Corrupted files
-			q.log.Printf("File %v does not exist, removing job...", job.Data)
+			log.ErrorContext(ctx, "File does not exist, removing job...")
 			if err != nil {
 				return err
 			}
 		}
 
-		q.log.Printf("Failed to upload file %v: %v. Adding to failed queue...", job.Data, err)
+		log.ErrorContext(ctx, "Failed to upload file: %v. Adding to failed queue...", "err", err)
 		return q.engine.PushToFailedQueue(ctx, job.Data, err.Error())
 	}
 
@@ -87,7 +96,7 @@ func (q *uploadQueue) ProcessJob(ctx context.Context, job sqllitequeue.Job) erro
 }
 
 func (q *uploadQueue) Start(ctx context.Context, interval time.Duration) {
-	q.log.Printf("Upload queue started with interval of %v seconds...", interval.Seconds())
+	q.log.InfoContext(ctx, fmt.Sprintf("Upload queue started with interval of %v seconds...", interval.Seconds()))
 
 	ticker := time.NewTicker(interval)
 
@@ -100,7 +109,7 @@ func (q *uploadQueue) Start(ctx context.Context, interval time.Duration) {
 			if q.activeUploads < q.maxActiveUploads {
 				jobs, err := q.engine.Dequeue(ctx, q.maxActiveUploads-q.activeUploads)
 				if err != nil {
-					q.log.Printf("Failed to dequeue jobs: %v", err)
+					q.log.InfoContext(ctx, "Failed to dequeue jobs", "err", err)
 					continue
 				}
 
@@ -108,7 +117,7 @@ func (q *uploadQueue) Start(ctx context.Context, interval time.Duration) {
 					continue
 				}
 
-				q.log.Printf("Processing %d jobs...", len(jobs))
+				q.log.InfoContext(ctx, fmt.Sprintf("Processing %d jobs...", len(jobs)))
 				var merr multierror.Group
 
 				for _, job := range jobs {
@@ -129,7 +138,7 @@ func (q *uploadQueue) Start(ctx context.Context, interval time.Duration) {
 
 				err = merr.Wait().ErrorOrNil()
 				if err != nil {
-					q.log.Printf("Failed to process jobs: %v", err)
+					q.log.ErrorContext(ctx, "Failed to process jobs", "err", err)
 				}
 			}
 		}

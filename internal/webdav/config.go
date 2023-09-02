@@ -1,7 +1,7 @@
 package webdav
 
 import (
-	"log"
+	"log/slog"
 
 	uploadqueue "github.com/javi11/usenet-drive/internal/upload-queue"
 	"github.com/javi11/usenet-drive/internal/usenet"
@@ -11,7 +11,7 @@ type Config struct {
 	NzbPath             string
 	cp                  usenet.UsenetConnectionPool
 	queue               uploadqueue.UploadQueue
-	log                 *log.Logger
+	log                 *slog.Logger
 	uploadFileWhitelist []string
 }
 
@@ -39,7 +39,7 @@ func WithUploadQueue(queue uploadqueue.UploadQueue) Option {
 	}
 }
 
-func WithLogger(log *log.Logger) Option {
+func WithLogger(log *slog.Logger) Option {
 	return func(c *Config) {
 		c.log = log
 	}

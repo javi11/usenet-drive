@@ -5,6 +5,7 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"fmt"
+	"log/slog"
 	"math/rand"
 	"os"
 	"os/exec"
@@ -25,6 +26,7 @@ type Uploader interface {
 type uploader struct {
 	scriptPath string
 	commonArgs []string
+	log        *slog.Logger
 }
 
 func NewUploader(options ...Option) (*uploader, error) {
@@ -34,25 +36,26 @@ func NewUploader(options ...Option) (*uploader, error) {
 	}
 
 	args := []string{
-		fmt.Sprintf("--host=%s", config.Host),
-		fmt.Sprintf("--user=%s", config.Username),
-		fmt.Sprintf("--password=%s", config.Password),
+		fmt.Sprintf("--host=%s", config.host),
+		fmt.Sprintf("--user=%s", config.username),
+		fmt.Sprintf("--password=%s", config.password),
 		fmt.Sprintf("--groups=%s", config.getGroups()),
 		fmt.Sprintf("--article-size=%v", config.articleSize),
-		fmt.Sprintf("--port=%v", config.Port),
-		fmt.Sprintf("--connections=%v", config.MaxConnections),
+		fmt.Sprintf("--port=%v", config.port),
+		fmt.Sprintf("--connections=%v", config.maxConnections),
 		// overwirte nzb if exists
 		"--overwrite",
 		"--progress=log:5s",
 	}
 
-	if config.SSL {
+	if config.ssl {
 		args = append(args, "--ssl")
 	}
 
 	return &uploader{
 		scriptPath: config.nyuuPath,
 		commonArgs: args,
+		log:        config.log,
 	}, nil
 }
 
@@ -94,6 +97,7 @@ func (u *uploader) UploadFile(ctx context.Context, path string) (string, error) 
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
+	u.log.DebugContext(ctx, fmt.Sprintf("Uploading file %s with given args", path), "args", args)
 	err = cmd.Run()
 	if err != nil {
 		return "", err

@@ -8,6 +8,7 @@ import (
 )
 
 type Config struct {
+	LogPath    string `yaml:"log_path" default:"/config/activity.log"`
 	NzbPath    string `yaml:"nzb_path"`
 	WebDavPort string `yaml:"web_dav_port" default:"8080"`
 	ApiPort    string `yaml:"api_port" default:"8081"`

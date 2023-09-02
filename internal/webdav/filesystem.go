@@ -2,7 +2,7 @@ package webdav
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -19,7 +19,7 @@ type nzbFilesystem struct {
 	cn                  usenet.UsenetConnectionPool
 	lock                *sync.RWMutex
 	queue               uploadqueue.UploadQueue
-	log                 *log.Logger
+	log                 *slog.Logger
 	uploadFileWhitelist []string
 }
 
@@ -27,7 +27,7 @@ func NewNzbFilesystem(
 	root string,
 	cn usenet.UsenetConnectionPool,
 	queue uploadqueue.UploadQueue,
-	log *log.Logger,
+	log *slog.Logger,
 	uploadFileWhitelist []string,
 ) webdav.FileSystem {
 	return nzbFilesystem{
@@ -58,13 +58,13 @@ func (fs nzbFilesystem) OpenFile(ctx context.Context, name string, flag int, per
 
 	if isNzbFile(name) {
 		// If file is a nzb file return a custom file that will mask the nzb
-		return OpenNzbFile(name, flag, perm, fs.cn, fs.lock)
+		return OpenNzbFile(ctx, name, flag, perm, fs.cn, fs.lock, fs.log)
 	}
 
 	originalName := getOriginalNzb(name)
 	if originalName != nil {
 		// If the file is a masked call the original nzb file
-		return OpenNzbFile(*originalName, flag, perm, fs.cn, fs.lock)
+		return OpenNzbFile(ctx, *originalName, flag, perm, fs.cn, fs.lock, fs.log)
 	}
 
 	onClose := func() {}
@@ -75,7 +75,7 @@ func (fs nzbFilesystem) OpenFile(ctx context.Context, name string, flag int, per
 		}
 	}
 
-	return OpenFile(name, flag, perm, fs.root, fs.lock, onClose)
+	return OpenFile(name, flag, perm, fs.root, fs.lock, onClose, fs.log)
 }
 
 func (fs nzbFilesystem) RemoveAll(ctx context.Context, name string) error {
@@ -133,13 +133,13 @@ func (fs nzbFilesystem) Stat(ctx context.Context, name string) (os.FileInfo, err
 
 	if isNzbFile(name) {
 		// If file is a nzb file return a custom file that will mask the nzb
-		return NewFileInfoWithMetadata(name)
+		return NewFileInfoWithMetadata(name, fs.log)
 	}
 
 	originalName := getOriginalNzb(name)
 	if originalName != nil {
 		// If the file is a masked call the original nzb file
-		return NewFileInfoWithMetadata(*originalName)
+		return NewFileInfoWithMetadata(*originalName, fs.log)
 	}
 
 	// Build a new os.FileInfo with a mix of nzbFileInfo and metadata
