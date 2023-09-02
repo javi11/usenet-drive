@@ -114,6 +114,12 @@ var rootCmd = &cobra.Command{
 		api := api.NewApi(uploaderQueue, log)
 		go api.Start(ctx, config.ApiPort)
 
+		nzbLoader, err := usenet.NewNzbLoader(config.NzbCacheSize)
+		if err != nil {
+			log.ErrorContext(ctx, "Failed to create nzb loader: %v", err)
+			os.Exit(1)
+		}
+
 		// Call the handler function with the config
 		webdav, err := webdav.NewServer(
 			webdav.WithLogger(log),
@@ -121,6 +127,7 @@ var rootCmd = &cobra.Command{
 			webdav.WithUploadQueue(uploaderQueue),
 			webdav.WithNzbPath(config.NzbPath),
 			webdav.WithUsenetConnectionPool(downloadConnPool),
+			webdav.WithNzbLoader(nzbLoader),
 		)
 		if err != nil {
 			log.ErrorContext(ctx, "Failed to create WebDAV server: %v", err)

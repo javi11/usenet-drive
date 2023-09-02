@@ -17,10 +17,11 @@ import (
 type nzbFilesystem struct {
 	root                string
 	cn                  usenet.UsenetConnectionPool
-	lock                *sync.RWMutex
+	lock                sync.RWMutex
 	queue               uploadqueue.UploadQueue
 	log                 *slog.Logger
 	uploadFileWhitelist []string
+	nzbLoader           *usenet.NzbLoader
 }
 
 func NewNzbFilesystem(
@@ -29,18 +30,19 @@ func NewNzbFilesystem(
 	queue uploadqueue.UploadQueue,
 	log *slog.Logger,
 	uploadFileWhitelist []string,
+	nzbLoader *usenet.NzbLoader,
 ) webdav.FileSystem {
-	return nzbFilesystem{
+	return &nzbFilesystem{
 		root:                root,
 		cn:                  cn,
-		lock:                &sync.RWMutex{},
 		queue:               queue,
 		log:                 log,
 		uploadFileWhitelist: uploadFileWhitelist,
+		nzbLoader:           nzbLoader,
 	}
 }
 
-func (fs nzbFilesystem) Mkdir(ctx context.Context, name string, perm os.FileMode) error {
+func (fs *nzbFilesystem) Mkdir(ctx context.Context, name string, perm os.FileMode) error {
 	fs.lock.Lock()
 	defer fs.lock.Unlock()
 	if name = fs.resolve(name); name == "" {
@@ -49,7 +51,7 @@ func (fs nzbFilesystem) Mkdir(ctx context.Context, name string, perm os.FileMode
 	return os.Mkdir(name, perm)
 }
 
-func (fs nzbFilesystem) OpenFile(ctx context.Context, name string, flag int, perm os.FileMode) (webdav.File, error) {
+func (fs *nzbFilesystem) OpenFile(ctx context.Context, name string, flag int, perm os.FileMode) (webdav.File, error) {
 	fs.lock.RLock()
 	defer fs.lock.RUnlock()
 	if name = fs.resolve(name); name == "" {
@@ -58,13 +60,13 @@ func (fs nzbFilesystem) OpenFile(ctx context.Context, name string, flag int, per
 
 	if isNzbFile(name) {
 		// If file is a nzb file return a custom file that will mask the nzb
-		return OpenNzbFile(ctx, name, flag, perm, fs.cn, fs.lock, fs.log)
+		return OpenNzbFile(ctx, name, flag, perm, fs.cn, fs.log, fs.nzbLoader)
 	}
 
 	originalName := getOriginalNzb(name)
 	if originalName != nil {
 		// If the file is a masked call the original nzb file
-		return OpenNzbFile(ctx, *originalName, flag, perm, fs.cn, fs.lock, fs.log)
+		return OpenNzbFile(ctx, *originalName, flag, perm, fs.cn, fs.log, fs.nzbLoader)
 	}
 
 	onClose := func() {}
@@ -75,10 +77,10 @@ func (fs nzbFilesystem) OpenFile(ctx context.Context, name string, flag int, per
 		}
 	}
 
-	return OpenFile(name, flag, perm, fs.root, fs.lock, onClose, fs.log)
+	return OpenFile(name, flag, perm, fs.root, onClose, fs.log, fs.nzbLoader)
 }
 
-func (fs nzbFilesystem) RemoveAll(ctx context.Context, name string) error {
+func (fs *nzbFilesystem) RemoveAll(ctx context.Context, name string) error {
 	fs.lock.Lock()
 	defer fs.lock.Unlock()
 	if name = fs.resolve(name); name == "" {
@@ -98,7 +100,7 @@ func (fs nzbFilesystem) RemoveAll(ctx context.Context, name string) error {
 	return os.RemoveAll(name)
 }
 
-func (fs nzbFilesystem) Rename(ctx context.Context, oldName, newName string) error {
+func (fs *nzbFilesystem) Rename(ctx context.Context, oldName, newName string) error {
 	fs.lock.Lock()
 	defer fs.lock.Unlock()
 
@@ -123,7 +125,7 @@ func (fs nzbFilesystem) Rename(ctx context.Context, oldName, newName string) err
 	return os.Rename(oldName, newName)
 }
 
-func (fs nzbFilesystem) Stat(ctx context.Context, name string) (os.FileInfo, error) {
+func (fs *nzbFilesystem) Stat(ctx context.Context, name string) (os.FileInfo, error) {
 	fs.lock.RLock()
 	defer fs.lock.RUnlock()
 	if name = fs.resolve(name); name == "" {
@@ -133,20 +135,20 @@ func (fs nzbFilesystem) Stat(ctx context.Context, name string) (os.FileInfo, err
 
 	if isNzbFile(name) {
 		// If file is a nzb file return a custom file that will mask the nzb
-		return NewFileInfoWithMetadata(name, fs.log)
+		return NewNZBFileInfo(name, fs.log, fs.nzbLoader)
 	}
 
 	originalName := getOriginalNzb(name)
 	if originalName != nil {
 		// If the file is a masked call the original nzb file
-		return NewFileInfoWithMetadata(*originalName, fs.log)
+		return NewNZBFileInfo(*originalName, fs.log, fs.nzbLoader)
 	}
 
 	// Build a new os.FileInfo with a mix of nzbFileInfo and metadata
 	return os.Stat(name)
 }
 
-func (fs nzbFilesystem) resolve(name string) string {
+func (fs *nzbFilesystem) resolve(name string) string {
 	// This implementation is based on Dir.Open's code in the standard net/http package.
 	if filepath.Separator != '/' && strings.ContainsRune(name, filepath.Separator) ||
 		strings.Contains(name, "\x00") {
@@ -159,7 +161,7 @@ func (fs nzbFilesystem) resolve(name string) string {
 	return filepath.Join(dir, filepath.FromSlash(slashClean(name)))
 }
 
-func (fs nzbFilesystem) hasAllowedExtension(path string, extensions []string) bool {
+func (fs *nzbFilesystem) hasAllowedExtension(path string, extensions []string) bool {
 	for _, ext := range extensions {
 		if strings.HasSuffix(path, ext) {
 			return true

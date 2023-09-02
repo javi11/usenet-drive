@@ -13,6 +13,7 @@ type Config struct {
 	queue               uploadqueue.UploadQueue
 	log                 *slog.Logger
 	uploadFileWhitelist []string
+	nzbLoader           *usenet.NzbLoader
 }
 
 type Option func(*Config)
@@ -48,5 +49,11 @@ func WithLogger(log *slog.Logger) Option {
 func WithUploadFileWhitelist(uploadFileWhitelist []string) Option {
 	return func(c *Config) {
 		c.uploadFileWhitelist = uploadFileWhitelist
+	}
+}
+
+func WithNzbLoader(nzbLoader *usenet.NzbLoader) Option {
+	return func(c *Config) {
+		c.nzbLoader = nzbLoader
 	}
 }

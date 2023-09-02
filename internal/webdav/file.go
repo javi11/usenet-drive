@@ -9,14 +9,16 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-multierror"
+	"github.com/javi11/usenet-drive/internal/usenet"
 )
 
 type file struct {
 	innerFile  *os.File
 	rootFolder string
-	fsMutex    *sync.RWMutex
+	fsMutex    sync.RWMutex
 	onClose    func()
 	log        *slog.Logger
+	nzbLoader  *usenet.NzbLoader
 }
 
 func OpenFile(
@@ -24,9 +26,9 @@ func OpenFile(
 	flag int,
 	perm fs.FileMode,
 	rootFolder string,
-	fsMutex *sync.RWMutex,
 	onClose func(),
 	log *slog.Logger,
+	nzbLoader *usenet.NzbLoader,
 ) (*file, error) {
 	f, err := os.OpenFile(name, flag, perm)
 	if err != nil {
@@ -36,9 +38,9 @@ func OpenFile(
 	return &file{
 		innerFile:  f,
 		rootFolder: rootFolder,
-		fsMutex:    fsMutex,
 		onClose:    onClose,
 		log:        log,
+		nzbLoader:  nzbLoader,
 	}, nil
 }
 
@@ -102,7 +104,11 @@ func (f *file) Readdir(n int) ([]os.FileInfo, error) {
 			info := info
 			i := i
 			merr.Go(func() error {
-				infos[i], err = NewFileInfoWithMetadata(filepath.Join(f.innerFile.Name(), info.Name()), f.log)
+				infos[i], err = NewNZBFileInfo(
+					filepath.Join(f.innerFile.Name(), info.Name()),
+					f.log,
+					f.nzbLoader,
+				)
 				if err != nil {
 					infos[i] = info
 					return err

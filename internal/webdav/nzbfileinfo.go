@@ -8,46 +8,36 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-multierror"
-	"github.com/javi11/usenet-drive/internal/domain"
+	"github.com/javi11/usenet-drive/internal/usenet"
 	"github.com/javi11/usenet-drive/internal/utils"
 )
 
-type nzbFileInfoWithMetadata struct {
-	nzbFile  os.FileInfo
-	name     string
-	metadata domain.Metadata
+type nzbFileInfo struct {
+	nzbFileStat          os.FileInfo
+	name                 string
+	originalFileMetadata usenet.Metadata
 }
 
-func NewFileInfoWithMetadata(name string, log *slog.Logger) (fs.FileInfo, error) {
-	var nzbFileInfo os.FileInfo
-	var metadata domain.Metadata
+func NewNZBFileInfo(name string, log *slog.Logger, nzbLoader *usenet.NzbLoader) (fs.FileInfo, error) {
+	var nzbFileStat os.FileInfo
+	var metadata usenet.Metadata
 	var eg multierror.Group
 
 	eg.Go(func() error {
-		file, err := os.OpenFile(name, os.O_RDONLY, 0)
+		n, err := nzbLoader.LoadFromFile(name)
 		if err != nil {
-			log.Error(fmt.Sprintf("Error opening file %s, this file will be ignored", name), "err", err)
+			log.Error(fmt.Sprintf("Error getting file %s, this file will be ignored", name), "err", err)
 			return err
 		}
 
-		nzbFile, err := parseNzbFile(file)
-		if err != nil {
-			log.Error(fmt.Sprintf("Error parsing nzb file %s, this file will be ignored", name), "err", err)
-			return err
-		}
-
-		metadata, err = domain.LoadFromNzb(nzbFile)
-		if err != nil {
-			log.Error(fmt.Sprintf("Error getting metadata from file %s, this file will be ignored", name), "err", err)
-			return err
-		}
+		metadata = n.Metadata
 
 		return nil
 	})
 
 	eg.Go(func() error {
 		info, err := os.Stat(name)
-		nzbFileInfo = info
+		nzbFileStat = info
 		if err != nil {
 			return err
 		}
@@ -59,37 +49,52 @@ func NewFileInfoWithMetadata(name string, log *slog.Logger) (fs.FileInfo, error)
 		return nil, os.ErrNotExist
 	}
 
-	fileName := nzbFileInfo.Name()
+	fileName := nzbFileStat.Name()
 
-	return &nzbFileInfoWithMetadata{
-		nzbFile:  nzbFileInfo,
-		metadata: metadata,
-		name:     utils.ReplaceFileExtension(fileName, metadata.FileExtension),
+	return &nzbFileInfo{
+		nzbFileStat:          nzbFileStat,
+		originalFileMetadata: metadata,
+		name:                 utils.ReplaceFileExtension(fileName, metadata.FileExtension),
 	}, nil
 }
 
-func (fi *nzbFileInfoWithMetadata) Size() int64 {
+func NewNZBFileInfoWithMetadata(metadata usenet.Metadata, name string) (fs.FileInfo, error) {
+	info, err := os.Stat(name)
+	if err != nil {
+		return nil, err
+	}
+
+	fileName := info.Name()
+
+	return &nzbFileInfo{
+		nzbFileStat:          info,
+		originalFileMetadata: metadata,
+		name:                 utils.ReplaceFileExtension(fileName, metadata.FileExtension),
+	}, nil
+}
+
+func (fi *nzbFileInfo) Size() int64 {
 	// We need the original file size to display it.
-	return fi.metadata.FileSize
+	return fi.originalFileMetadata.FileSize
 }
 
-func (fi *nzbFileInfoWithMetadata) ModTime() time.Time {
+func (fi *nzbFileInfo) ModTime() time.Time {
 	// We need the original file mod time in order to allow comparing when replace a file. Files will never be modified.
-	return fi.metadata.ModTime
+	return fi.originalFileMetadata.ModTime
 }
 
-func (fi *nzbFileInfoWithMetadata) IsDir() bool {
+func (fi *nzbFileInfo) IsDir() bool {
 	return false
 }
 
-func (fi *nzbFileInfoWithMetadata) Sys() any {
+func (fi *nzbFileInfo) Sys() any {
 	return nil
 }
 
-func (fi *nzbFileInfoWithMetadata) Name() string {
+func (fi *nzbFileInfo) Name() string {
 	return fi.name
 }
 
-func (fi *nzbFileInfoWithMetadata) Mode() fs.FileMode {
-	return fi.nzbFile.Mode()
+func (fi *nzbFileInfo) Mode() fs.FileMode {
+	return fi.nzbFileStat.Mode()
 }

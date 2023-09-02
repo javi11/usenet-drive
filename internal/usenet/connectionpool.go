@@ -39,15 +39,6 @@ func NewConnectionPool(options ...Option) (*connectionPool, error) {
 	// close Specify the method to close the connection
 	close := func(v interface{}) error { return v.(*nntp.Conn).Quit() }
 
-	// ping Specify the method to detect whether the connection is normal
-	ping := func(v interface{}) error {
-		if _, err := v.(*nntp.Conn).Help(); err != nil {
-			return err
-		}
-
-		return nil
-	}
-
 	twentyPercent := int(float64(config.maxConnections) * 0.2)
 
 	poolConfig := &pool.Config{
@@ -59,7 +50,6 @@ func NewConnectionPool(options ...Option) (*connectionPool, error) {
 		//Ping:       ping,
 		//The maximum idle time of the connection, the connection exceeding this time will be closed, which can avoid the problem of automatic failure when connecting to EOF when idle
 		IdleTimeout: 15 * time.Second,
-		Ping:        ping,
 	}
 	p, err := pool.NewChannelPool(poolConfig)
 	if err != nil {

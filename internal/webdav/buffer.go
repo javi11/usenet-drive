@@ -4,12 +4,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/textproto"
 	"os"
 	"sync"
 
 	"github.com/chrisfarms/nzb"
 	"github.com/chrisfarms/yenc"
-	"github.com/hraban/lrucache"
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/javi11/usenet-drive/internal/usenet"
 )
 
@@ -23,25 +24,31 @@ type Buffer interface {
 
 // Buf is a Buffer working on a slice of bytes.
 type Buf struct {
-	size      int
-	nzbFile   *nzb.NzbFile
-	ptr       int64
-	cache     *lrucache.Cache
-	cp        usenet.UsenetConnectionPool
-	mx        sync.RWMutex
-	chunkSize int
+	size               int
+	nzbFile            *nzb.NzbFile
+	ptr                int64
+	cache              *lru.Cache[string, *yenc.Part]
+	cp                 usenet.UsenetConnectionPool
+	mx                 sync.RWMutex
+	chunkSize          int
+	maxDownloadRetries int
 }
 
 // NewBuffer creates a new data volume based on a buffer
-func NewBuffer(nzbFile *nzb.NzbFile, size int, chunkSize int, cp usenet.UsenetConnectionPool) *Buf {
-	return &Buf{
-		chunkSize: chunkSize,
-		size:      size,
-		nzbFile:   nzbFile,
-		cache:     lrucache.New(int64(len(nzbFile.Segments))),
-		cp:        cp,
-		mx:        sync.RWMutex{},
+func NewBuffer(nzbFile *nzb.NzbFile, size int, chunkSize int, cp usenet.UsenetConnectionPool) (*Buf, error) {
+	cache, err := lru.New[string, *yenc.Part](len(nzbFile.Segments))
+	if err != nil {
+		return nil, err
 	}
+
+	return &Buf{
+		chunkSize:          chunkSize,
+		size:               size,
+		nzbFile:            nzbFile,
+		cache:              cache,
+		cp:                 cp,
+		maxDownloadRetries: 5,
+	}, nil
 }
 
 // Seek sets the offset for the next Read or Write on the buffer to offset,
@@ -99,7 +106,7 @@ func (v *Buf) Read(p []byte) (int, error) {
 		if n >= len(p) {
 			break
 		}
-		chunk, err := v.downloadSegment(segment, v.nzbFile.Groups)
+		chunk, err := v.downloadSegment(segment, v.nzbFile.Groups, 0)
 		if err != nil {
 			break
 		}
@@ -133,7 +140,7 @@ func (v *Buf) ReadAt(p []byte, off int64) (int, error) {
 		if n >= len(p) {
 			break
 		}
-		chunk, err := v.downloadSegment(segment, v.nzbFile.Groups)
+		chunk, err := v.downloadSegment(segment, v.nzbFile.Groups, 0)
 		if err != nil {
 			break
 		}
@@ -145,45 +152,63 @@ func (v *Buf) ReadAt(p []byte, off int64) (int, error) {
 	return n, nil
 }
 
-func (v *Buf) downloadSegment(segment nzb.NzbSegment, groups []string) (*yenc.Part, error) {
+func (v *Buf) downloadSegment(segment nzb.NzbSegment, groups []string, retryes int) (*yenc.Part, error) {
 	v.mx.RLock()
 	hit, _ := v.cache.Get(segment.Id)
 	v.mx.RUnlock()
 	var chunk *yenc.Part
-	if c, ok := hit.(*yenc.Part); ok {
-		chunk = c
+	if hit != nil {
+		chunk = hit
 	} else {
 		// Get the connection from the pool
 		conn, err := v.cp.Get()
-		defer v.cp.Free(conn)
 		if err != nil {
 			v.cp.Close(conn)
 			fmt.Fprintln(os.Stderr, "nntp error:", err)
 			return nil, err
 		}
+		defer v.cp.Free(conn)
+
 		err = usenet.FindGroup(conn, groups)
 		if err != nil {
-			v.cp.Close(conn)
+			if _, ok := err.(*textproto.Error); ok {
+				// if err is a response error free the connection
+				// Probably an that can not be solved by retrying
+				v.cp.Free(conn)
+			} else {
+				v.cp.Close(conn)
+				if retryes < v.maxDownloadRetries {
+					return v.downloadSegment(segment, groups, retryes+1)
+				}
+			}
 			fmt.Fprintln(os.Stderr, "nntp error:", err)
 			return nil, err
 		}
 
 		body, err := conn.Body(fmt.Sprintf("<%v>", segment.Id))
 		if err != nil {
-			v.cp.Close(conn)
+			if _, ok := err.(*textproto.Error); ok {
+				// if err is a response error free the connection
+				// Probably an that can not be solved by retrying
+				v.cp.Free(conn)
+			} else {
+				v.cp.Close(conn)
+				if retryes < v.maxDownloadRetries {
+					return v.downloadSegment(segment, groups, retryes+1)
+				}
+			}
 			fmt.Fprintln(os.Stderr, "nntp error:", err)
 			return nil, err
 		}
 		yread, err := yenc.Decode(body)
 		if err != nil {
-			v.cp.Close(conn)
 			fmt.Fprintln(os.Stderr, err)
 			return nil, err
 		}
 
 		chunk = yread
 		v.mx.Lock()
-		v.cache.Set(segment.Id, chunk)
+		v.cache.Add(segment.Id, chunk)
 		v.mx.Unlock()
 	}
 

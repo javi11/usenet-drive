@@ -1,4 +1,4 @@
-package domain
+package usenet
 
 import (
 	"fmt"
@@ -17,7 +17,7 @@ type Metadata struct {
 	ChunkSize     int64     `json:"chunk_size"`
 }
 
-func LoadFromNzb(nzbFile *nzb.Nzb) (Metadata, error) {
+func LoadMetadataFromNzb(nzbFile *nzb.Nzb) (Metadata, error) {
 	fileSize, err := strconv.ParseInt(nzbFile.Meta["file_size"], 10, 64)
 	if err != nil {
 		return Metadata{}, err

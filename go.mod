@@ -11,7 +11,7 @@ require (
 	github.com/creasty/defaults v1.7.0
 	github.com/gin-gonic/gin v1.9.1
 	github.com/hashicorp/go-multierror v1.1.1
-	github.com/hraban/lrucache v0.0.0-20201130153820-17052bf09781
+	github.com/hashicorp/golang-lru/v2 v2.0.6
 	github.com/mattn/go-sqlite3 v1.14.17
 	github.com/natefinch/lumberjack v2.0.0+incompatible
 	github.com/samber/slog-gin v1.0.0
