@@ -18,16 +18,18 @@ type UploadQueue interface {
 	Start(ctx context.Context, interval time.Duration)
 	AddJob(ctx context.Context, filePath string) error
 	ProcessJob(ctx context.Context, job sqllitequeue.Job) error
-	GetFailedJobs(ctx context.Context) ([]sqllitequeue.Job, error)
-	GetPendingJobs(ctx context.Context) ([]sqllitequeue.Job, error)
+	GetFailedJobs(ctx context.Context, limit, offset int) ([]sqllitequeue.Job, error)
+	GetPendingJobs(ctx context.Context, limit, offset int) ([]sqllitequeue.Job, error)
 	DeleteFailedJob(ctx context.Context, id int64) error
 	RetryJob(ctx context.Context, id int64) error
+	Close(ctx context.Context) error
+	GetJobsInProgress() map[int64]sqllitequeue.Job
 }
 
 type uploadQueue struct {
 	engine           sqllitequeue.SqlQueue
 	uploader         uploader.Uploader
-	activeUploads    int
+	activeJobs       map[int64]sqllitequeue.Job
 	maxActiveUploads int
 	log              *slog.Logger
 	mx               *sync.Mutex
@@ -106,8 +108,15 @@ func (q *uploadQueue) Start(ctx context.Context, interval time.Duration) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if q.activeUploads < q.maxActiveUploads {
-				jobs, err := q.engine.Dequeue(ctx, q.maxActiveUploads-q.activeUploads)
+			q.mx.Lock()
+			if q.closed {
+				q.mx.Unlock()
+				return
+			}
+
+			inProgress := len(q.activeJobs)
+			if inProgress < q.maxActiveUploads {
+				jobs, err := q.engine.Dequeue(ctx, q.maxActiveUploads-inProgress)
 				if err != nil {
 					q.log.InfoContext(ctx, "Failed to dequeue jobs", "err", err)
 					continue
@@ -122,14 +131,14 @@ func (q *uploadQueue) Start(ctx context.Context, interval time.Duration) {
 
 				for _, job := range jobs {
 					q.mx.Lock()
-					q.activeUploads++
+					q.activeJobs[job.ID] = job
 					q.mx.Unlock()
 					job := job
 
 					merr.Go(func() error {
 						defer func() {
 							q.mx.Lock()
-							q.activeUploads--
+							delete(q.activeJobs, job.ID)
 							q.mx.Unlock()
 						}()
 						return q.ProcessJob(ctx, job)
@@ -145,12 +154,12 @@ func (q *uploadQueue) Start(ctx context.Context, interval time.Duration) {
 	}
 }
 
-func (q *uploadQueue) GetFailedJobs(ctx context.Context) ([]sqllitequeue.Job, error) {
-	return q.engine.GetFailedJobs(ctx)
+func (q *uploadQueue) GetFailedJobs(ctx context.Context, limit, offset int) ([]sqllitequeue.Job, error) {
+	return q.engine.GetFailedJobs(ctx, limit, offset)
 }
 
-func (q *uploadQueue) GetPendingJobs(ctx context.Context) ([]sqllitequeue.Job, error) {
-	return q.engine.GetPendingJobs(ctx)
+func (q *uploadQueue) GetPendingJobs(ctx context.Context, limit, offset int) ([]sqllitequeue.Job, error) {
+	return q.engine.GetPendingJobs(ctx, limit, offset)
 }
 
 func (q *uploadQueue) DeleteFailedJob(ctx context.Context, id int64) error {
@@ -177,6 +186,32 @@ func (q *uploadQueue) RetryJob(ctx context.Context, id int64) error {
 	err = q.engine.Enqueue(ctx, job.Data)
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func (q *uploadQueue) GetJobsInProgress() map[int64]sqllitequeue.Job {
+	return q.activeJobs
+}
+
+func (q *uploadQueue) Close(ctx context.Context) error {
+	q.mx.Lock()
+	defer q.mx.Unlock()
+
+	if q.closed {
+		return nil
+	}
+
+	q.closed = true
+
+	// Mark all active jobs as failed with an error of closed
+	for _, job := range q.activeJobs {
+		job.Error = "upload failed: queue closed"
+		err := q.engine.PushToFailedQueue(ctx, job.Data, "upload failed: queue closed")
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

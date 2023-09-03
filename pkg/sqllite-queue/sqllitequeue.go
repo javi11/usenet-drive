@@ -13,9 +13,9 @@ type SqlQueue interface {
 	Dequeue(ctx context.Context, limit int) ([]Job, error)
 	Delete(ctx context.Context, id int64) error
 	PushToFailedQueue(ctx context.Context, data string, error string) error
-	GetFailedJobs(ctx context.Context) ([]Job, error)
+	GetFailedJobs(ctx context.Context, limit, offset int) ([]Job, error)
 	DeleteFailedJob(ctx context.Context, id int64) error
-	GetPendingJobs(ctx context.Context) ([]Job, error)
+	GetPendingJobs(ctx context.Context, limit, offset int) ([]Job, error)
 	DequeueFailedJobById(ctx context.Context, id int64) (Job, error)
 }
 
@@ -191,13 +191,16 @@ func (q *sQLiteQueue) PushToFailedQueue(ctx context.Context, data string, error 
 	return nil
 }
 
-func (q *sQLiteQueue) GetFailedJobs(ctx context.Context) ([]Job, error) {
+func (q *sQLiteQueue) GetFailedJobs(ctx context.Context, limit, offset int) ([]Job, error) {
 	tx, err := q.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	rows, err := tx.QueryContext(ctx, "SELECT id, data, created_at, error FROM failed_queue ORDER BY created_at ASC")
+	rows, err := tx.QueryContext(
+		ctx,
+		fmt.Sprintf("SELECT id, data, created_at, error FROM failed_queue ORDER BY created_at ASC LIMIT %v OFFSET %v", limit, offset),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -249,13 +252,16 @@ func (q *sQLiteQueue) DeleteFailedJob(ctx context.Context, id int64) error {
 	return nil
 }
 
-func (q *sQLiteQueue) GetPendingJobs(ctx context.Context) ([]Job, error) {
+func (q *sQLiteQueue) GetPendingJobs(ctx context.Context, limit, offset int) ([]Job, error) {
 	tx, err := q.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	rows, err := tx.QueryContext(ctx, "SELECT id, data, created_at FROM queue ORDER BY created_at ASC")
+	rows, err := tx.QueryContext(
+		ctx,
+		fmt.Sprintf("SELECT id, data, created_at FROM queue ORDER BY created_at ASC LIMIT %v OFFSET %v", limit, offset),
+	)
 	if err != nil {
 		return nil, err
 	}

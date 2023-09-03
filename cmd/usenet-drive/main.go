@@ -107,6 +107,7 @@ var rootCmd = &cobra.Command{
 			uploadqueue.WithMaxActiveUploads(config.Usenet.Upload.MaxActiveUploads),
 			uploadqueue.WithLogger(log),
 		)
+		defer uploaderQueue.Close(ctx)
 
 		// Start uploader queue
 		go uploaderQueue.Start(ctx, time.Duration(config.Usenet.Upload.UploadIntervalInSeconds*float64(time.Second)))
