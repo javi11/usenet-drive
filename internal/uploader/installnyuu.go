@@ -22,6 +22,11 @@ func DownloadNyuuRelease(version string, path string) error {
 		arch = "win32"
 	case "x64":
 		arch = "x64"
+	case "aarch64":
+		arch = "aarch64"
+	case "arm64":
+		fmt.Printf("WARNING: arm64 arch detected, falback to aarch64. The upload might won't work.\n")
+		arch = "aarch64"
 	default:
 		return fmt.Errorf("unsupported architecture: %s", arch)
 	}

@@ -2,8 +2,6 @@ module github.com/javi11/usenet-drive
 
 go 1.21
 
-toolchain go1.21.0
-
 require (
 	github.com/chrisfarms/nntp v0.0.0-20150609164919-115924d5d016
 	github.com/chrisfarms/nzb v0.0.0-20151202172059-f7cdf7f0e051
