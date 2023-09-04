@@ -8,7 +8,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/javi11/usenet-drive/internal/api"
+	adminpanel "github.com/javi11/usenet-drive/internal/admin-panel"
 	"github.com/javi11/usenet-drive/internal/config"
 	uploadqueue "github.com/javi11/usenet-drive/internal/upload-queue"
 	"github.com/javi11/usenet-drive/internal/uploader"
@@ -112,8 +112,8 @@ var rootCmd = &cobra.Command{
 		// Start uploader queue
 		go uploaderQueue.Start(ctx, time.Duration(config.Usenet.Upload.UploadIntervalInSeconds*float64(time.Second)))
 
-		api := api.NewApi(uploaderQueue, log)
-		go api.Start(ctx, config.ApiPort)
+		adminPanel := adminpanel.New(uploaderQueue, log)
+		go adminPanel.Start(ctx, config.ApiPort)
 
 		nzbLoader, err := usenet.NewNzbLoader(config.NzbCacheSize)
 		if err != nil {

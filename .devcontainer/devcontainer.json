@@ -11,6 +11,17 @@
 	"features": {
 		"ghcr.io/wxw-matt/devcontainer-features/command_runner:0": {},
 		"ghcr.io/wxw-matt/devcontainer-features/script_runner:0": {}
+	},
+	"runArgs": ["--platform=linux/amd64/v2" ],
+	"customizations": {
+		// Configure properties specific to VS Code.
+		"vscode": {
+	// Add Go extension
+			"extensions": [
+				"ms-vscode.Go",
+				"GitHub.copilot"
+			]
+		}
 	}
 
 	// Features to add to the dev container. More info: https://containers.dev/features.
@@ -27,4 +38,5 @@
 
 	// Uncomment to connect as an existing user other than the container default. More info: https://aka.ms/dev-containers-non-root.
 	// "remoteUser": "devcontainer"
+	
 }
