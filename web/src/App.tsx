@@ -13,36 +13,36 @@ import {
   useDisclosure,
   BoxProps,
   FlexProps,
-  chakra,
-  SimpleGrid,
-  Stat,
-  StatLabel,
-  StatNumber,
+  Image,
 } from '@chakra-ui/react'
 import {
   FiHome,
-  FiTrendingUp,
-  FiCompass,
-  FiStar,
-  FiSettings,
   FiMenu,
-  FiServer,
 } from 'react-icons/fi'
+import {
+  TbProgressDown,
+  TbProgress,
+  TbProgressX,
+} from 'react-icons/tb'
 import { IconType } from 'react-icons'
-import { ReactText , ReactNode} from 'react'
-import { BsPerson } from 'react-icons/bs'
-import { GoLocation } from 'react-icons/go'
+import { Link, Routes, Route } from 'react-router-dom';
+import Home from './pages/Home'
+import FailedJobs from './pages/FailedJobs'
+import PendingJobs from './pages/PendingJobs'
+import InProgressJobs from './pages/InProgressJobs'
+import NotFound from './pages/NotFound'
+import reactLogo from './assets/logo.png'
 
 interface LinkItemProps {
   name: string
   icon: IconType
+  path: string
 }
 const LinkItems: Array<LinkItemProps> = [
-  { name: 'Home', icon: FiHome },
-  { name: 'Trending', icon: FiTrendingUp },
-  { name: 'Explore', icon: FiCompass },
-  { name: 'Favourites', icon: FiStar },
-  { name: 'Settings', icon: FiSettings },
+  { name: 'Home', icon: FiHome, path: '/' },
+  { name: 'In progress jobs', icon: TbProgressDown, path: '/in-progress' },
+  { name: 'Pending jobs', icon: TbProgress, path: '/pending' },
+  { name: 'Failed jobs', icon: TbProgressX, path: '/failed' },
 ]
 
 export default function App() {
@@ -64,7 +64,13 @@ export default function App() {
       {/* mobilenav */}
       <MobileNav display={{ base: 'flex', md: 'none' }} onOpen={onOpen} />
       <Box ml={{ base: 0, md: 60 }} p="4">
-        d<BasicStatistics />
+        <Routes>
+          <Route index path="/" element={<Home />} />
+          <Route path="/in-progress" element={<InProgressJobs />} />
+          <Route path="/pending" element={<PendingJobs />} />
+          <Route path="/failed" element={<FailedJobs />} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
       </Box>
     </Box>
   )
@@ -84,14 +90,12 @@ const SidebarContent = ({ onClose, ...rest }: SidebarProps) => {
       pos="fixed"
       h="full"
       {...rest}>
-      <Flex h="20" alignItems="center" mx="8" justifyContent="space-between">
-        <Text fontSize="2xl" fontFamily="monospace" fontWeight="bold">
-          Logo
-        </Text>
+      <Flex h="40" alignItems="center" mx="10" justifyContent="space-between">
+        <Image src={reactLogo} alt='Usenet drive' />
         <CloseButton display={{ base: 'flex', md: 'none' }} onClick={onClose} />
       </Flex>
       {LinkItems.map((link) => (
-        <NavItem key={link.name} icon={link.icon}>
+        <NavItem key={link.name} icon={link.icon} path={link.path}>
           {link.name}
         </NavItem>
       ))}
@@ -101,15 +105,13 @@ const SidebarContent = ({ onClose, ...rest }: SidebarProps) => {
 
 interface NavItemProps extends FlexProps {
   icon: IconType
-  children: ReactText
+  path: string
+  children: string
 }
-const NavItem = ({ icon, children, ...rest }: NavItemProps) => {
+
+const NavItem = ({ icon, children, path, ...rest }: NavItemProps) => {
   return (
-    <Box
-      as="a"
-      href="#"
-      style={{ textDecoration: 'none' }}
-      _focus={{ boxShadow: 'none' }}>
+    <Link to={path} style={{ textDecoration: 'none' }}>
       <Flex
         align="center"
         p="4"
@@ -134,7 +136,7 @@ const NavItem = ({ icon, children, ...rest }: NavItemProps) => {
         )}
         {children}
       </Flex>
-    </Box>
+    </Link>
   )
 }
 
@@ -164,56 +166,5 @@ const MobileNav = ({ onOpen, ...rest }: MobileProps) => {
         Logo
       </Text>
     </Flex>
-  )
-}
-
-interface StatsCardProps {
-  title: string
-  stat: string
-  icon: ReactNode
-}
-
-function StatsCard(props: StatsCardProps) {
-  const { title, stat, icon } = props
-  return (
-    <Stat
-      px={{ base: 2, md: 4 }}
-      py={'5'}
-      shadow={'xl'}
-      border={'1px solid'}
-      borderColor={useColorModeValue('gray.800', 'gray.500')}
-      rounded={'lg'}>
-      <Flex justifyContent={'space-between'}>
-        <Box pl={{ base: 2, md: 4 }}>
-          <StatLabel fontWeight={'medium'} isTruncated>
-            {title}
-          </StatLabel>
-          <StatNumber fontSize={'2xl'} fontWeight={'medium'}>
-            {stat}
-          </StatNumber>
-        </Box>
-        <Box
-          my={'auto'}
-          color={useColorModeValue('gray.800', 'gray.200')}
-          alignContent={'center'}>
-          {icon}
-        </Box>
-      </Flex>
-    </Stat>
-  )
-}
-
-function BasicStatistics() {
-  return (
-    <Box maxW="7xl" mx={'auto'} pt={5} px={{ base: 2, sm: 12, md: 17 }}>
-      <chakra.h1 textAlign={'center'} fontSize={'4xl'} py={10} fontWeight={'bold'}>
-        Our company is expanding, you could be too.
-      </chakra.h1>
-      <SimpleGrid columns={{ base: 1, md: 3 }} spacing={{ base: 5, lg: 8 }}>
-        <StatsCard title={'Users'} stat={'5,000'} icon={<BsPerson size={'3em'} />} />
-        <StatsCard title={'Servers'} stat={'1,000'} icon={<FiServer size={'3em'} />} />
-        <StatsCard title={'Datacenters'} stat={'7'} icon={<GoLocation size={'3em'} />} />
-      </SimpleGrid>
-    </Box>
   )
 }

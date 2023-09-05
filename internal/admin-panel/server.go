@@ -38,7 +38,7 @@ func New(queue uploadqueue.UploadQueue, log *slog.Logger) *adminPanel {
 		v1.GET("/jobs/failed", handlers.BuildGetFailedJobsHandler(queue))
 		v1.GET("/jobs/pending", handlers.BuildGetPendingJobsHandler(queue))
 		v1.DELETE("/jobs/failed/:id", handlers.BuildDeleteFailedJobIdHandler(queue))
-		v1.GET("/jobs/failed/:id/retry", handlers.BuildRetryJobByIdHandler(queue))
+		v1.PUT("/jobs/failed/:id/retry", handlers.BuildRetryJobByIdHandler(queue))
 	}
 
 	return &adminPanel{
