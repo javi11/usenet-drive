@@ -98,10 +98,12 @@ func (u *uploader) UploadFile(ctx context.Context, path string) (string, error) 
 	cmd.Stderr = os.Stderr
 
 	u.log.DebugContext(ctx, fmt.Sprintf("Uploading file %s with given args", path), "args", args)
-	err = cmd.Run()
+	/* err = cmd.Run()
 	if err != nil {
 		return "", err
-	}
+	} */
+
+	time.Sleep(20 * time.Second)
 
 	return nzbFilePath, nil
 }

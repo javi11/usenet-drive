@@ -18,12 +18,13 @@ type UploadQueue interface {
 	Start(ctx context.Context, interval time.Duration)
 	AddJob(ctx context.Context, filePath string) error
 	ProcessJob(ctx context.Context, job sqllitequeue.Job) error
-	GetFailedJobs(ctx context.Context, limit, offset int) ([]sqllitequeue.Job, error)
-	GetPendingJobs(ctx context.Context, limit, offset int) ([]sqllitequeue.Job, error)
+	GetFailedJobs(ctx context.Context, limit, offset int) (sqllitequeue.Result, error)
+	GetPendingJobs(ctx context.Context, limit, offset int) (sqllitequeue.Result, error)
 	DeleteFailedJob(ctx context.Context, id int64) error
+	DeletePendingJob(ctx context.Context, id int64) error
 	RetryJob(ctx context.Context, id int64) error
 	Close(ctx context.Context) error
-	GetJobsInProgress() map[int64]sqllitequeue.Job
+	GetJobsInProgress() []sqllitequeue.Job
 }
 
 type uploadQueue struct {
@@ -32,7 +33,7 @@ type uploadQueue struct {
 	activeJobs       map[int64]sqllitequeue.Job
 	maxActiveUploads int
 	log              *slog.Logger
-	mx               *sync.Mutex
+	mx               *sync.RWMutex
 	closed           bool
 }
 
@@ -47,8 +48,9 @@ func NewUploadQueue(options ...Option) UploadQueue {
 		uploader:         config.Uploader,
 		maxActiveUploads: config.MaxActiveUploads,
 		log:              config.Log,
-		mx:               &sync.Mutex{},
+		mx:               &sync.RWMutex{},
 		closed:           false,
+		activeJobs:       make(map[int64]sqllitequeue.Job, 0),
 	}
 }
 
@@ -108,11 +110,12 @@ func (q *uploadQueue) Start(ctx context.Context, interval time.Duration) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			q.mx.Lock()
+			q.mx.RLock()
 			if q.closed {
-				q.mx.Unlock()
+				q.mx.RLocker()
 				return
 			}
+			q.mx.RUnlock()
 
 			inProgress := len(q.activeJobs)
 			if inProgress < q.maxActiveUploads {
@@ -154,16 +157,28 @@ func (q *uploadQueue) Start(ctx context.Context, interval time.Duration) {
 	}
 }
 
-func (q *uploadQueue) GetFailedJobs(ctx context.Context, limit, offset int) ([]sqllitequeue.Job, error) {
+func (q *uploadQueue) GetFailedJobs(ctx context.Context, limit, offset int) (sqllitequeue.Result, error) {
 	return q.engine.GetFailedJobs(ctx, limit, offset)
 }
 
-func (q *uploadQueue) GetPendingJobs(ctx context.Context, limit, offset int) ([]sqllitequeue.Job, error) {
+func (q *uploadQueue) GetPendingJobs(ctx context.Context, limit, offset int) (sqllitequeue.Result, error) {
 	return q.engine.GetPendingJobs(ctx, limit, offset)
 }
 
 func (q *uploadQueue) DeleteFailedJob(ctx context.Context, id int64) error {
 	err := q.engine.DeleteFailedJob(ctx, id)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return ErrJobNotFound
+		}
+		return err
+	}
+
+	return nil
+}
+
+func (q *uploadQueue) DeletePendingJob(ctx context.Context, id int64) error {
+	err := q.engine.DeletePendingJob(ctx, id)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return ErrJobNotFound
@@ -191,8 +206,13 @@ func (q *uploadQueue) RetryJob(ctx context.Context, id int64) error {
 	return nil
 }
 
-func (q *uploadQueue) GetJobsInProgress() map[int64]sqllitequeue.Job {
-	return q.activeJobs
+func (q *uploadQueue) GetJobsInProgress() []sqllitequeue.Job {
+	jobs := make([]sqllitequeue.Job, 0, len(q.activeJobs))
+	for _, job := range q.activeJobs {
+		jobs = append(jobs, job)
+	}
+
+	return jobs
 }
 
 func (q *uploadQueue) Close(ctx context.Context) error {

@@ -1,15 +1,33 @@
-'use client'
 import { useCallback, useEffect, useState } from 'react';
-import {
-    Box,
-    Spinner,
-} from '@chakra-ui/react';
-import { JobResponse, JobStatus } from '../data/job';
-import JobList from '../components/JobList';
+import { JobData, JobResponse, JobStatus } from '../data/job';
+import JobsTable from '../components/JobsTable';
+import { Container, Loader, Title, createStyles, rem } from '@mantine/core';
+import { notifications } from '@mantine/notifications';
+
+
+const useStyles = createStyles((theme) => ({
+    wrapper: {
+        display: 'flex',
+        alignItems: 'center',
+        padding: `calc(${theme.spacing.xl} * 2)`,
+        borderRadius: theme.radius.md,
+        backgroundColor: theme.colorScheme === 'dark' ? theme.colors.dark[8] : theme.white,
+        border: `${rem(1)} solid ${theme.colorScheme === 'dark' ? theme.colors.dark[8] : theme.colors.gray[3]
+            }`,
+        flexDirection: 'column',
+    },
+    title: {
+        color: theme.colorScheme === 'dark' ? theme.white : theme.black,
+        fontFamily: `Greycliff CF, ${theme.fontFamily}`,
+        lineHeight: 1,
+        marginBottom: theme.spacing.md,
+    },
+}));
 
 const PAGE_SIZE = 10; // number of items per page
 
 export default function InProgressJobs() {
+    const { classes } = useStyles();
     const [jobs, setJobs] = useState<JobResponse>({
         totalCount: 0,
         limit: PAGE_SIZE,
@@ -22,28 +40,27 @@ export default function InProgressJobs() {
     useEffect(() => {
         const fetchJobs = async (offset: number) => {
             try {
-                const data: JobResponse = {
-                    totalCount: 1,
-                    limit: 10,
-                    offset: 0,
-                    entries: [
-                        {
-                            id: 2,
-                            data: '/nzbs/path/to/nzb2/4',
-                            createdAt: '2021-10-10',
-                            status: JobStatus.InProgress,
-                        }
-                    ]
+                const res = await fetch('/api/v1/jobs/in-progres');
+                if (!res.ok) {
+                    const err: Error = await res.json();
+                    throw new Error(err.message);
                 }
-                const currentJobs = data.entries.slice(offset, offset + PAGE_SIZE);
+                const data: JobData[] = await res.json();
                 setJobs({
-                    ...data,
-                    entries: currentJobs,
-                    offset: offset,
+                    totalCount: data.length,
+                    limit: PAGE_SIZE,
+                    offset,
+                    entries: data.map((item) => ({ ...item, status: JobStatus.InProgress }))
                 });
-                setIsLoading(false);
             } catch (error) {
-                console.error(error);
+                const err = error as Error
+                notifications.show({
+                    title: 'An error occurred.',
+                    message: `Unable to get in progress job list. ${err.message}`,
+                    color: 'red',
+                })
+            } finally {
+                setIsLoading(false);
             }
         };
 
@@ -58,12 +75,15 @@ export default function InProgressJobs() {
     }, []);
 
     return (
-        <Box maxW="7xl" mx={'auto'} pt={5} px={{ base: 2, sm: 12, md: 17 }}>
+        <Container size="lg" className={classes.wrapper}>
+            <Title align="center" className={classes.title}>
+                Jobs in progress
+            </Title>
             {isLoading ? (
-                <Spinner />
+                <Loader />
             ) : (
-                <JobList title="In progress jobs" captions={["id", "path", "createdAt", "status"]} data={jobs} onPageChange={handlePageChange} />
+                <JobsTable hasActions={false} data={jobs} onPageChange={handlePageChange} />
             )}
-        </Box>
+        </Container>
     );
 }

@@ -19,11 +19,11 @@ func BuildGetPendingJobsHandler(queue uploadqueue.UploadQueue) echo.HandlerFunc 
 			offset, _ = strconv.Atoi(offsetStr)
 		}
 
-		jobs, err := queue.GetPendingJobs(c.Request().Context(), limit, offset)
+		result, err := queue.GetPendingJobs(c.Request().Context(), limit, offset)
 		if err != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 		}
 
-		return c.JSON(http.StatusOK, jobs)
+		return c.JSON(http.StatusOK, result)
 	}
 }

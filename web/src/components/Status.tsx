@@ -1,5 +1,5 @@
-import { Spinner, Icon, Text, Tooltip } from "@chakra-ui/react";
-import { MdError, MdAccessTime } from "react-icons/md";
+import { Badge, Progress, Tooltip, rem } from '@mantine/core';
+import { IconClock, IconX } from '@tabler/icons-react';
 import { JobStatus } from '../data/job';
 
 type StatusProps = {
@@ -10,14 +10,18 @@ type StatusProps = {
 const Status = ({ status, error }: StatusProps) => {
     switch (status) {
         case JobStatus.InProgress:
-            return <Text color="gray.500">Uploading <Spinner size="sm" /> </Text>;
+            return <Tooltip label="Uploading">
+                <Progress value={100} striped animate />
+            </Tooltip>
         case JobStatus.Pending:
-            return <Icon as={MdAccessTime} />;
+            return <Badge pl={0} size="lg" color="grey" radius="xl" leftSection={<IconClock size={rem(10)} />}>
+                Pending
+            </Badge>;
         case JobStatus.Failed:
-            return <Tooltip hasArrow label={error} aria-label='Error' bg='red.600'>
-                <span>
-                    <Icon as={MdError} color="red.500" />
-                </span>
+            return <Tooltip label={error}>
+                <Badge pr={20} color="red" leftSection={<IconX size={rem(10)} />}>
+                    Error
+                </Badge>
             </Tooltip>;
         default:
             return null;
