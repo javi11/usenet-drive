@@ -20,11 +20,15 @@ type UsenetConnectionPool interface {
 	Get() (*nntp.Conn, error)
 	Close(c *nntp.Conn) error
 	Free(c *nntp.Conn) error
+	GetActiveConnections() int
+	GetMaxConnections() int
+	GetFreeConnections() int
 }
 
 type connectionPool struct {
-	pool pool.Pool
-	log  *slog.Logger
+	pool           pool.Pool
+	log            *slog.Logger
+	maxConnections int
 }
 
 func NewConnectionPool(options ...Option) (*connectionPool, error) {
@@ -57,8 +61,9 @@ func NewConnectionPool(options ...Option) (*connectionPool, error) {
 	}
 
 	return &connectionPool{
-		pool: p,
-		log:  config.log,
+		pool:           p,
+		log:            config.log,
+		maxConnections: config.maxConnections,
 	}, nil
 }
 
@@ -76,6 +81,18 @@ func (p *connectionPool) Close(c *nntp.Conn) error {
 
 func (p *connectionPool) Free(c *nntp.Conn) error {
 	return p.pool.Put(c)
+}
+
+func (p *connectionPool) GetActiveConnections() int {
+	return p.pool.Len()
+}
+
+func (p *connectionPool) GetMaxConnections() int {
+	return p.maxConnections
+}
+
+func (p *connectionPool) GetFreeConnections() int {
+	return p.maxConnections - p.pool.Len()
 }
 
 func dialNNTP(config *Config) (*nntp.Conn, error) {

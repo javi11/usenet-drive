@@ -70,7 +70,7 @@ func (fs *nzbFilesystem) OpenFile(ctx context.Context, name string, flag int, pe
 	}
 
 	onClose := func() {}
-	if flag == os.O_RDWR|os.O_CREATE|os.O_TRUNC && fs.hasAllowedExtension(name, fs.uploadFileWhitelist) {
+	if flag == os.O_RDWR|os.O_CREATE|os.O_TRUNC && utils.HasAllowedExtension(name, fs.uploadFileWhitelist) {
 		// If the file is an allowed upload file, and was opened for writing, when close, add it to the upload queue
 		onClose = func() {
 			fs.queue.AddJob(ctx, name)
@@ -159,13 +159,4 @@ func (fs *nzbFilesystem) resolve(name string) string {
 		dir = "."
 	}
 	return filepath.Join(dir, filepath.FromSlash(slashClean(name)))
-}
-
-func (fs *nzbFilesystem) hasAllowedExtension(path string, extensions []string) bool {
-	for _, ext := range extensions {
-		if strings.HasSuffix(path, ext) {
-			return true
-		}
-	}
-	return false
 }

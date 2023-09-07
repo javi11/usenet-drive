@@ -22,7 +22,7 @@ interface JobsTableProps {
 }
 
 export default function JobsTable({ data, hasActions, onPageChange }: JobsTableProps) {
-    const totalPages = Math.ceil(data.totalCount / data.limit);
+    const totalPages = Math.ceil(data.total_count / data.limit);
 
     const deleteModal = useCallback((id: number, status: JobStatus) => modals.openConfirmModal({
         title: <Title order={4}>Delete job</Title>,
@@ -88,7 +88,7 @@ export default function JobsTable({ data, hasActions, onPageChange }: JobsTableP
             </td>
             <td>
                 <Text c="dimmed">
-                    {item.createdAt}
+                    {item.created_at}
                 </Text>
             </td>
             <td>
@@ -109,7 +109,7 @@ export default function JobsTable({ data, hasActions, onPageChange }: JobsTableP
 
     return (
         <ScrollArea>
-            <Table sx={{ minWidth: 800 }} verticalSpacing="sm">
+            <Table sx={{ minWidth: 200 }} verticalSpacing="sm">
                 <thead>
                     <tr>
                         <th>id</th>

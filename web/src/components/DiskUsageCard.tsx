@@ -23,8 +23,20 @@ const useStyles = createStyles((theme) => ({
     },
 }));
 
-export function DiskUsage() {
+export interface DiskUsage {
+    total: number;
+    used: number;
+    free: number;
+    folder: string;
+}
+
+interface DiskUsageCardProps {
+    data: DiskUsage
+}
+
+export default function DiskUsageCard({ data }: DiskUsageCardProps) {
     const { classes } = useStyles();
+    const percentage = data.used / data.total * 100
 
     return (
         <Paper radius="md" withBorder className={classes.card} mt={`calc(${ICON_SIZE} / 3)`}>
@@ -33,10 +45,10 @@ export function DiskUsage() {
             </ThemeIcon>
 
             <Text ta="center" fw={700} className={classes.title}>
-                DiskUsage
+                DiskUsage on {data.folder}
             </Text>
             <Text c="dimmed" ta="center" fz="sm">
-                50 GB / 300 GB
+                {bytesToGbytes(data.used)} GB / {bytesToGbytes(data.total)} GB
             </Text>
 
             <Group position="apart" mt="xs">
@@ -44,11 +56,15 @@ export function DiskUsage() {
                     Usage
                 </Text>
                 <Text fz="sm" color="dimmed">
-                    62%
+                    {percentage.toFixed(2)}%
                 </Text>
             </Group>
 
-            <Progress value={62} mt={5} />
+            <Progress value={percentage} mt={5} />
         </Paper>
     );
+}
+
+function bytesToGbytes(bytes: number) {
+    return (bytes / 1024 / 1024 / 1024).toFixed(2);
 }

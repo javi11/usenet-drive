@@ -24,3 +24,12 @@ func TruncateFileName(name string, length int) string {
 
 	return name[:length] + ext
 }
+
+func HasAllowedExtension(path string, extensions []string) bool {
+	for _, ext := range extensions {
+		if strings.HasSuffix(path, ext) {
+			return true
+		}
+	}
+	return false
+}

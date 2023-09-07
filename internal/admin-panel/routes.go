@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/javi11/usenet-drive/internal/admin-panel/handlers"
+	serverinfo "github.com/javi11/usenet-drive/internal/server-info"
 	uploadqueue "github.com/javi11/usenet-drive/internal/upload-queue"
 	"github.com/javi11/usenet-drive/web"
 	echo "github.com/labstack/echo/v4"
@@ -21,12 +22,14 @@ type adminPanel struct {
 
 // NewApi returns a new instance of the API with the given upload queue and logger.
 // The API exposes the following endpoints:
-// - POST /api/v1/manual-upload: initiates a manual upload job.
+// - POST /api/v1/manual-scan: initiates a manual upload job.
 // - GET /api/v1/jobs/failed: retrieves a list of failed upload jobs.
 // - GET /api/v1/jobs/pending: retrieves a list of pending upload jobs.
+// - GET /api/v1/jobs/in-progres: retrieves a list of in-progres upload jobs.
 // - DELETE /api/v1/jobs/failed/:id: deletes a failed upload job with the given ID.
+// - DELETE /api/v1/jobs/pending/:id: deletes a pending upload job with the given ID.
 // - GET /api/v1/jobs/failed/:id/retry: retries a failed upload job with the given ID.
-func New(queue uploadqueue.UploadQueue, log *slog.Logger) *adminPanel {
+func New(queue uploadqueue.UploadQueue, si serverinfo.ServerInfo, log *slog.Logger) *adminPanel {
 	e := echo.New()
 	e.Use(slogecho.New(log))
 
@@ -34,13 +37,14 @@ func New(queue uploadqueue.UploadQueue, log *slog.Logger) *adminPanel {
 
 	v1 := e.Group("/api/v1")
 	{
-		v1.POST("/manual-upload", handlers.BuildManualUploadHandler(queue))
+		v1.POST("/manual-scan", handlers.BuildManualScanHandler(queue))
 		v1.GET("/jobs/failed", handlers.BuildGetFailedJobsHandler(queue))
 		v1.GET("/jobs/pending", handlers.BuildGetPendingJobsHandler(queue))
 		v1.GET("/jobs/in-progres", handlers.BuildGetJobsInProgressHandler(queue))
 		v1.DELETE("/jobs/failed/:id", handlers.BuildDeleteFailedJobIdHandler(queue))
 		v1.DELETE("/jobs/pending/:id", handlers.BuildDeletePendingJobIdHandler(queue))
 		v1.PUT("/jobs/failed/:id/retry", handlers.BuildRetryJobByIdHandler(queue))
+		v1.GET("/server-info", handlers.BuildGetServerInfoHandler(si))
 	}
 
 	return &adminPanel{

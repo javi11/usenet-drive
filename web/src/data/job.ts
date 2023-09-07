@@ -7,7 +7,7 @@ export enum JobStatus {
 export interface JobData {
     id: number;
     data: string;
-    createdAt: string;
+    created_at: string;
     error?: string;
     status: JobStatus;
 }
@@ -15,7 +15,7 @@ export interface JobData {
 
 export interface JobResponse {
    entries: JobData[];
-   totalCount: number;
+   total_count: number;
    limit: number;
    offset: number;
 }

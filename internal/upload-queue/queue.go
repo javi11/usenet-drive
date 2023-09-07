@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/javi11/usenet-drive/internal/uploader"
+	"github.com/javi11/usenet-drive/internal/utils"
 	sqllitequeue "github.com/javi11/usenet-drive/pkg/sqllite-queue"
 )
 
@@ -35,6 +37,7 @@ type uploadQueue struct {
 	log              *slog.Logger
 	mx               *sync.RWMutex
 	closed           bool
+	fileWhitelist    []string
 }
 
 func NewUploadQueue(options ...Option) UploadQueue {
@@ -44,13 +47,14 @@ func NewUploadQueue(options ...Option) UploadQueue {
 	}
 
 	return &uploadQueue{
-		engine:           config.SqlLiteEngine,
-		uploader:         config.Uploader,
-		maxActiveUploads: config.MaxActiveUploads,
-		log:              config.Log,
+		engine:           config.sqlLiteEngine,
+		uploader:         config.uploader,
+		maxActiveUploads: config.maxActiveUploads,
+		log:              config.log,
 		mx:               &sync.RWMutex{},
 		closed:           false,
 		activeJobs:       make(map[int64]sqllitequeue.Job, 0),
+		fileWhitelist:    config.fileWhitelist,
 	}
 }
 
@@ -61,6 +65,53 @@ func (q *uploadQueue) AddJob(ctx context.Context, filePath string) error {
 
 func (q *uploadQueue) ProcessJob(ctx context.Context, job sqllitequeue.Job) error {
 	log := q.log.With("job_id", job.ID).With("file_path", job.Data)
+
+	q.log.InfoContext(ctx, "Adding file(s) to upload queue...")
+
+	// Check if filePath is a directory
+	fileInfo, err := os.Stat(job.Data)
+	if err != nil {
+		if os.IsNotExist(err) {
+			// Corrupted files
+			log.ErrorContext(ctx, "File does not exist, removing job...")
+			if err != nil {
+				return err
+			}
+		}
+
+	}
+
+	if fileInfo.IsDir() {
+		q.log.InfoContext(ctx, "File is a directory, adding all files to upload queue...")
+		// Walk through the directory and add all files to the queue
+		err = filepath.Walk(job.Data, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+
+			// Check if the file is allowed
+			if !utils.HasAllowedExtension(info.Name(), q.fileWhitelist) {
+				q.log.InfoContext(ctx, fmt.Sprintf("File %s ignored, extension not allowed", path))
+				return nil
+			}
+
+			// Add the file to the queue
+			err = q.engine.Enqueue(ctx, path)
+			if err != nil {
+				return err
+			}
+
+			q.log.InfoContext(ctx, fmt.Sprintf("Added file %s to upload queue", path))
+			return nil
+		})
+
+		if err != nil {
+			log.ErrorContext(ctx, "Error adding the directory files...", "err", err)
+			return err
+		}
+
+		return nil
+	}
 
 	log.InfoContext(ctx, "Uploading file...")
 

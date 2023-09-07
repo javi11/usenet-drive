@@ -7,11 +7,10 @@ import InProgressJobs from './pages/InProgressJobs'
 import NotFound from './pages/NotFound'
 import reactLogo from './assets/logo.svg'
 import CustomNavbar from './components/NavBar';
+import ManualTrigger from './pages/ManualTrigger';
 
 
 export default function App() {
-
-
   return (
     <AppShell
       padding="md"
@@ -32,6 +31,7 @@ export default function App() {
         <Route path="/in-progress" element={<InProgressJobs />} />
         <Route path="/pending" element={<PendingJobs />} />
         <Route path="/failed" element={<FailedJobs />} />
+        <Route path="/triggers/manual" element={<ManualTrigger />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </AppShell>

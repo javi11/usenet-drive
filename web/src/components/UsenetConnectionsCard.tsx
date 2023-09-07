@@ -23,8 +23,19 @@ const useStyles = createStyles((theme) => ({
     },
 }));
 
-export function UsenetConnections() {
+export interface UsenetConnections {
+    total: number;
+    active: number;
+    free: number;
+}
+
+interface UsenetConnectionsCardProps {
+    data: UsenetConnections
+}
+
+export default function UsenetConnectionsCard({ data }: UsenetConnectionsCardProps) {
     const { classes } = useStyles();
+    const percentage = data.active / data.total * 100
 
     return (
         <Paper radius="md" withBorder className={classes.card} mt={`calc(${ICON_SIZE} / 3)`}>
@@ -33,10 +44,10 @@ export function UsenetConnections() {
             </ThemeIcon>
 
             <Text ta="center" fw={700} className={classes.title}>
-                DiskUsage
+                Download usenet connections
             </Text>
             <Text c="dimmed" ta="center" fz="sm">
-                2 of 50 available connections
+                {data.active} of {data.total} available connections
             </Text>
 
             <Group position="apart" mt="xs">
@@ -44,11 +55,11 @@ export function UsenetConnections() {
                     Usage
                 </Text>
                 <Text fz="sm" color="dimmed">
-                    10%
+                    {percentage.toFixed(2)}%
                 </Text>
             </Group>
 
-            <Progress value={62} mt={5} />
+            <Progress value={percentage} mt={5} />
         </Paper>
     );
 }

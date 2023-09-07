@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { JobData, JobResponse, JobStatus } from '../data/job';
 import JobsTable from '../components/JobsTable';
-import { Container, Loader, Title, createStyles, rem } from '@mantine/core';
+import { Container, Group, Loader, Select, Title, createStyles, rem } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 
 
@@ -28,8 +28,9 @@ const PAGE_SIZE = 10; // number of items per page
 
 export default function InProgressJobs() {
     const { classes } = useStyles();
+    const [refreshInterval, setRefreshInterval] = useState(5000);
     const [jobs, setJobs] = useState<JobResponse>({
-        totalCount: 0,
+        total_count: 0,
         limit: PAGE_SIZE,
         offset: 0,
         entries: []
@@ -47,7 +48,7 @@ export default function InProgressJobs() {
                 }
                 const data: JobData[] = await res.json();
                 setJobs({
-                    totalCount: data.length,
+                    total_count: data.length,
                     limit: PAGE_SIZE,
                     offset,
                     entries: data.map((item) => ({ ...item, status: JobStatus.InProgress }))
@@ -66,19 +67,38 @@ export default function InProgressJobs() {
 
         fetchJobs(offset);
 
-        const intervalId = setInterval(() => fetchJobs(offset), 5000);
+        const intervalId = setInterval(() => fetchJobs(offset), refreshInterval);
 
         return () => clearInterval(intervalId);
-    }, [offset]);
+    }, [offset, refreshInterval]);
     const handlePageChange = useCallback((page: number) => {
         setOffset((page - 1) * PAGE_SIZE);
     }, []);
 
     return (
         <Container size="lg" className={classes.wrapper}>
-            <Title align="center" className={classes.title}>
-                Jobs in progress
-            </Title>
+            <Group>
+                <Title align="center" className={classes.title}>
+                    Jobs in progress
+                </Title>
+                <Container size="xs" px="xs">
+                    <Select
+                        label="Refresh interval"
+                        placeholder="Pick one"
+                        defaultValue={refreshInterval.toString()}
+                        value={refreshInterval.toString()}
+                        onChange={(event) => setRefreshInterval(parseInt(event!))}
+                        data={[
+                            { value: '5000', label: '5s' },
+                            { value: '10000', label: '10s' },
+                            { value: '20000', label: '20s' },
+                            { value: '30000', label: '30s' },
+                        ]}
+
+                        size='xs'
+                    />
+                </Container>
+            </Group>
             {isLoading ? (
                 <Loader />
             ) : (

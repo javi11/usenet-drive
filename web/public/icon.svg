@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   width="20mm"
+   height="20mm"
+   viewBox="0 0 20 20"
+   version="1.1"
+   id="svg1139"
+   sodipodi:docname="Network drive icon.svg"
+   inkscape:version="0.92.3 (2405546, 2018-03-11)">
+  <title
+     id="title204">Network drive icon</title>
+  <defs
+     id="defs1133">
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath5238-1-8-9-8-4">
+      <rect
+         transform="rotate(-90)"
+         style="color:#000000;display:inline;overflow:visible;visibility:visible;fill:#ffffff;fill-opacity:1;fill-rule:evenodd;stroke:none;enable-background:accumulate"
+         id="rect5240-2-3-9-5-1"
+         width="315.35437"
+         height="744.09448"
+         x="-1016.9291"
+         y="1461.6753" />
+    </clipPath>
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath5242-3-9-7-7">
+      <rect
+         transform="rotate(-90)"
+         style="color:#000000;display:inline;overflow:visible;visibility:visible;fill:#ffffff;fill-opacity:1;fill-rule:evenodd;stroke:none;enable-background:accumulate"
+         id="rect5244-3-2-6-6"
+         width="315.35437"
+         height="744.09448"
+         x="-1016.9291"
+         y="1461.6753" />
+    </clipPath>
+  </defs>
+  <sodipodi:namedview
+     id="base"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:pageopacity="0.0"
+     inkscape:pageshadow="2"
+     inkscape:zoom="6.9717708"
+     inkscape:cx="37.795276"
+     inkscape:cy="37.795276"
+     inkscape:document-units="mm"
+     inkscape:current-layer="layer1"
+     showgrid="false"
+     inkscape:window-width="944"
+     inkscape:window-height="1041"
+     inkscape:window-x="960"
+     inkscape:window-y="0"
+     inkscape:window-maximized="0"
+     inkscape:snap-bbox="true"
+     inkscape:bbox-paths="true"
+     inkscape:snap-bbox-edge-midpoints="true"
+     inkscape:bbox-nodes="true"
+     inkscape:snap-bbox-midpoints="true"
+     inkscape:object-paths="true"
+     inkscape:snap-intersection-paths="true"
+     inkscape:snap-smooth-nodes="true"
+     inkscape:snap-midpoints="true"
+     fit-margin-left="0"
+     fit-margin-top="0"
+     fit-margin-right="0"
+     fit-margin-bottom="0" />
+  <metadata
+     id="metadata1136">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type
+           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+        <dc:title>Network drive icon</dc:title>
+        <dc:date>2018-09-30</dc:date>
+        <dc:creator>
+          <cc:Agent>
+            <dc:title>m1981</dc:title>
+          </cc:Agent>
+        </dc:creator>
+        <dc:rights>
+          <cc:Agent>
+            <dc:title>Public domain</dc:title>
+          </cc:Agent>
+        </dc:rights>
+        <dc:publisher>
+          <cc:Agent>
+            <dc:title>Inkscape</dc:title>
+          </cc:Agent>
+        </dc:publisher>
+        <dc:subject>
+          <rdf:Bag>
+            <rdf:li>icon</rdf:li>
+            <rdf:li>flat</rdf:li>
+            <rdf:li>IT</rdf:li>
+            <rdf:li>computer</rdf:li>
+            <rdf:li>storage</rdf:li>
+            <rdf:li>drive</rdf:li>
+            <rdf:li>network</rdf:li>
+            <rdf:li></rdf:li>
+          </rdf:Bag>
+        </dc:subject>
+        <dc:description>A network drive icon.</dc:description>
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+  <g
+     inkscape:label="Calque 1"
+     inkscape:groupmode="layer"
+     id="layer1"
+     transform="translate(-59.905655,-182.0442)">
+    <path
+       style="display:inline;opacity:1;vector-effect:none;fill:#4d4d4d;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:0.62046319px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;marker:none"
+       d="m 65.948621,186.25957 c -0.41841,0 -0.532283,0.46667 -0.754994,0.92464 l -1.053099,1.74141 h 9.843806 a 0.46958835,0.46958835 0 0 1 0,0.93917 h -9.888639 c -0.349651,0 -0.653666,0.19863 -0.81071,0.48717 -0.02929,0.0542 -0.05274,0.11115 -0.07153,0.17095 -0.0049,0.0141 -0.0094,0.027 -0.01407,0.0413 -0.01641,0.0659 -0.0265,0.13508 -0.02793,0.20614 -6.8e-5,0.005 -0.0012,0.007 -0.0012,0.0117 a 0.46905853,0.46905853 0 0 1 -0.0012,0.0872 v 2.28673 c 0,0.5123 0.41236,0.92464 0.924633,0.92464 h 5.343032 v 0.93434 h -0.778074 -0.159933 v 0.94281 h -2.972671 v 0.93795 h 2.972671 v 0.93312 h 0.159933 2.653925 0.159933 v -0.93312 h 2.972648 v -0.93795 h -2.972648 v -0.94284 h -0.159933 -0.777999 v -0.93431 h 5.183048 c 0.512304,0 0.924633,-0.41236 0.924633,-0.92464 v -2.36791 c 0,-0.16486 -0.04617,-0.3171 -0.12124,-0.45082 h 0.0049 l -0.04127,-0.0666 -1.866242,-3.08534 c -0.222311,-0.45797 -0.33614,-0.92464 -0.754546,-0.92464 z m -0.402346,4.77344 a 0.93802324,0.93802324 0 0 1 0.937979,0.93798 0.93802324,0.93802324 0 0 1 -0.937979,0.93795 0.93802324,0.93802324 0 0 1 -0.937974,-0.93795 0.93802324,0.93802324 0 0 1 0.937974,-0.93798 z m 7.168045,0.0188 a 0.46901163,0.46901163 0 0 1 0.468989,0.46899 0.46901163,0.46901163 0 0 1 -0.468989,0.46899 0.46901163,0.46901163 0 0 1 -0.468964,-0.46899 0.46901163,0.46901163 0 0 1 0.468964,-0.46899 z m 1.250625,0 a 0.46901163,0.46901163 0 0 1 0.468983,0.46899 0.46901163,0.46901163 0 0 1 -0.468983,0.46899 0.46901163,0.46901163 0 0 1 -0.468965,-0.46899 0.46901163,0.46901163 0 0 1 0.468965,-0.46899 z m 1.250643,0 a 0.46901163,0.46901163 0 0 1 0.468964,0.46899 0.46901163,0.46901163 0 0 1 -0.468964,0.46899 0.46901163,0.46901163 0 0 1 -0.468991,-0.46899 0.46901163,0.46901163 0 0 1 0.468991,-0.46899 z m -3.751887,1.25062 a 0.46901163,0.46901163 0 0 1 0.46899,0.46899 0.46901163,0.46901163 0 0 1 -0.46899,0.46899 0.46901163,0.46901163 0 0 1 -0.468988,-0.46899 0.46901163,0.46901163 0 0 1 0.468988,-0.46899 z m 1.250619,0 a 0.46901163,0.46901163 0 0 1 0.468989,0.46899 0.46901163,0.46901163 0 0 1 -0.468989,0.46899 0.46901163,0.46901163 0 0 1 -0.468964,-0.46899 0.46901163,0.46901163 0 0 1 0.468964,-0.46899 z m 1.250625,0 a 0.46901163,0.46901163 0 0 1 0.468983,0.46899 0.46901163,0.46901163 0 0 1 -0.468983,0.46899 0.46901163,0.46901163 0 0 1 -0.468965,-0.46899 0.46901163,0.46901163 0 0 1 0.468965,-0.46899 z m 1.250643,0 a 0.46901163,0.46901163 0 0 1 0.468964,0.46899 0.46901163,0.46901163 0 0 1 -0.468964,0.46899 0.46901163,0.46901163 0 0 1 -0.468991,-0.46899 0.46901163,0.46901163 0 0 1 0.468991,-0.46899 z"
+       id="path6177-8"
+       inkscape:connector-curvature="0" />
+  </g>
+</svg>

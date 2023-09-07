@@ -6,6 +6,7 @@ import {
     IconClock,
     IconExclamationCircle,
     IconBrandGithub,
+    IconCloudUpload,
 } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -55,6 +56,7 @@ const mockdata = [
     { href: '/in-progress', icon: IconProgress, label: 'In progress jobs' },
     { href: '/pending', icon: IconClock, label: 'Pending jobs' },
     { href: '/failed', icon: IconExclamationCircle, label: 'Failed jobs' },
+    { href: '/triggers/manual', icon: IconCloudUpload, label: 'Trigger a manual file upload' },
 ];
 
 export default function CustomNavbar() {

@@ -22,7 +22,7 @@ type SqlQueue interface {
 
 type Result struct {
 	Entries    []Job `json:"entries"`
-	TotalCount int   `json:"totalCount"`
+	TotalCount int   `json:"total_count"`
 	Offset     int   `json:"offset"`
 	Limit      int   `json:"limit"`
 }
@@ -30,7 +30,7 @@ type Result struct {
 type Job struct {
 	ID        int64     `json:"id"`
 	Data      string    `json:"data"`
-	CreatedAt time.Time `json:"createdAt"`
+	CreatedAt time.Time `json:"created_at"`
 	Error     string    `json:"error,omitempty"`
 }
 
@@ -42,12 +42,12 @@ func NewSQLiteQueue(db *sql.DB) (SqlQueue, error) {
 	_, err := db.Exec(`
 		CREATE TABLE IF NOT EXISTS queue (
 			id INTEGER PRIMARY KEY,
-			data TEXT,
+			data TEXT UNIQUE,
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		);
 		CREATE TABLE IF NOT EXISTS failed_queue (
 			id INTEGER PRIMARY KEY,
-			data TEXT,
+			data TEXT UNIQUE,
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 			error TEXT
 		);

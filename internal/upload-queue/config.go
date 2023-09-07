@@ -8,10 +8,11 @@ import (
 )
 
 type Config struct {
-	SqlLiteEngine    sqllitequeue.SqlQueue
-	Uploader         uploader.Uploader
-	MaxActiveUploads int
-	Log              *slog.Logger
+	sqlLiteEngine    sqllitequeue.SqlQueue
+	uploader         uploader.Uploader
+	maxActiveUploads int
+	log              *slog.Logger
+	fileWhitelist    []string
 }
 
 type Option func(*Config)
@@ -22,24 +23,30 @@ func defaultConfig() *Config {
 
 func WithSqlLiteEngine(sqlLiteEngine sqllitequeue.SqlQueue) Option {
 	return func(c *Config) {
-		c.SqlLiteEngine = sqlLiteEngine
+		c.sqlLiteEngine = sqlLiteEngine
 	}
 }
 
 func WithUploader(uploader uploader.Uploader) Option {
 	return func(c *Config) {
-		c.Uploader = uploader
+		c.uploader = uploader
 	}
 }
 
 func WithMaxActiveUploads(maxActiveUploads int) Option {
 	return func(c *Config) {
-		c.MaxActiveUploads = maxActiveUploads
+		c.maxActiveUploads = maxActiveUploads
 	}
 }
 
 func WithLogger(log *slog.Logger) Option {
 	return func(c *Config) {
-		c.Log = log
+		c.log = log
+	}
+}
+
+func WithFileWhitelist(fileWhitelist []string) Option {
+	return func(c *Config) {
+		c.fileWhitelist = fileWhitelist
 	}
 }
