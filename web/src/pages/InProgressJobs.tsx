@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { JobData, JobResponse, JobStatus } from '../data/job';
 import JobsTable from '../components/JobsTable';
 import { Container, Group, Loader, Select, Title, createStyles, rem } from '@mantine/core';
@@ -36,10 +36,9 @@ export default function InProgressJobs() {
         entries: []
     });
     const [isLoading, setIsLoading] = useState(true);
-    const [offset, setOffset] = useState(0);
 
     useEffect(() => {
-        const fetchJobs = async (offset: number) => {
+        const fetchJobs = async () => {
             try {
                 const res = await fetch('/api/v1/jobs/in-progres');
                 if (!res.ok) {
@@ -50,7 +49,7 @@ export default function InProgressJobs() {
                 setJobs({
                     total_count: data.length,
                     limit: PAGE_SIZE,
-                    offset,
+                    offset: 10,
                     entries: data.map((item) => ({ ...item, status: JobStatus.InProgress }))
                 });
             } catch (error) {
@@ -65,15 +64,12 @@ export default function InProgressJobs() {
             }
         };
 
-        fetchJobs(offset);
+        fetchJobs();
 
-        const intervalId = setInterval(() => fetchJobs(offset), refreshInterval);
+        const intervalId = setInterval(() => fetchJobs(), refreshInterval);
 
         return () => clearInterval(intervalId);
-    }, [offset, refreshInterval]);
-    const handlePageChange = useCallback((page: number) => {
-        setOffset((page - 1) * PAGE_SIZE);
-    }, []);
+    }, [refreshInterval]);
 
     return (
         <Container size="lg" className={classes.wrapper}>
@@ -102,7 +98,7 @@ export default function InProgressJobs() {
             {isLoading ? (
                 <Loader />
             ) : (
-                <JobsTable hasActions={false} data={jobs} onPageChange={handlePageChange} />
+                <JobsTable data={jobs} />
             )}
         </Container>
     );

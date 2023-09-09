@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { JobResponse, JobStatus } from '../data/job';
 import JobsTable from '../components/JobsTable';
-import { Container, Group, Loader, Select, Title, createStyles, rem } from '@mantine/core';
+import { Container, Group, Loader, Select, Title, createStyles, rem, Text } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
+import { modals } from '@mantine/modals';
 
 const useStyles = createStyles((theme) => ({
     wrapper: {
@@ -72,6 +73,40 @@ export default function PendingJobs() {
     const handlePageChange = useCallback((page: number) => {
         setOffset((page - 1) * PAGE_SIZE);
     }, []);
+    const onDelete = useCallback((id: number, status: JobStatus) => modals.openConfirmModal({
+        title: <Title order={4}>Delete job</Title>,
+        centered: true,
+        children: (
+            <Text size="sm">
+                Are you sure you want to delete job {id}.
+            </Text>
+        ),
+        labels: { confirm: 'Delete job', cancel: 'Cancel' },
+        confirmProps: { color: 'red' },
+        onCancel: () => { },
+        onConfirm: async () => {
+            try {
+                const res = await fetch(`/api/v1/jobs/${status}/${id}`, { method: "DELETE" });
+                if (!res.ok) {
+                    throw new Error(`Error deleting job ${id}.`);
+                }
+
+                const entries = jobs.entries = jobs.entries.filter((item) => item.id !== id);
+                setJobs({
+                    ...jobs,
+                    total_count: jobs.total_count - 1,
+                    entries
+                });
+
+            } catch (error) {
+                notifications.show({
+                    title: 'An error occurred.',
+                    message: `Unable to delete job ${id}.`,
+                    color: 'red',
+                })
+            }
+        },
+    }), []);
 
     return (
         <Container size="lg" className={classes.wrapper}>
@@ -100,7 +135,7 @@ export default function PendingJobs() {
             {isLoading ? (
                 <Loader />
             ) : (
-                <JobsTable hasActions={true} data={jobs} onPageChange={handlePageChange} />
+                <JobsTable data={jobs} onPageChange={handlePageChange} onDelete={onDelete} />
             )}
         </Container>
     );

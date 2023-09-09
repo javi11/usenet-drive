@@ -14,7 +14,7 @@ const Status = ({ status, error }: StatusProps) => {
                 <Progress value={100} striped animate />
             </Tooltip>
         case JobStatus.Pending:
-            return <Badge pl={0} size="lg" color="grey" radius="xl" leftSection={<IconClock size={rem(10)} />}>
+            return <Badge size="lg" color="grey" radius="xl" leftSection={<IconClock size={rem(10)} />}>
                 Pending
             </Badge>;
         case JobStatus.Failed:

@@ -17,5 +17,9 @@ var (
 
 func RegisterHandlers(e *echo.Echo) {
 	e.FileFS("/", "index.html", distIndexHtml)
+	e.FileFS("/in-progress", "index.html", distIndexHtml)
+	e.FileFS("/pending", "index.html", distIndexHtml)
+	e.FileFS("/failed", "index.html", distIndexHtml)
+	e.FileFS("/triggers/manual", "index.html", distIndexHtml)
 	e.StaticFS("/", distDirFS)
 }
