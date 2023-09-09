@@ -27,6 +27,7 @@ type UploadQueue interface {
 	RetryJob(ctx context.Context, id int64) error
 	Close(ctx context.Context) error
 	GetJobsInProgress() []sqllitequeue.Job
+	GetActiveJobLog(id int64) (string, error)
 }
 
 type uploadQueue struct {
@@ -264,6 +265,19 @@ func (q *uploadQueue) GetJobsInProgress() []sqllitequeue.Job {
 	}
 
 	return jobs
+}
+
+func (q *uploadQueue) GetActiveJobLog(id int64) (string, error) {
+	q.mx.RLock()
+	defer q.mx.RUnlock()
+
+	for _, job := range q.activeJobs {
+		if job.ID == id {
+			return q.uploader.GetActiveUploadLog(job.Data)
+		}
+	}
+
+	return "", ErrJobNotFound
 }
 
 func (q *uploadQueue) Close(ctx context.Context) error {

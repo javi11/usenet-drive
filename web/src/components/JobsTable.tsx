@@ -6,7 +6,7 @@ import {
     ScrollArea,
     Pagination,
 } from '@mantine/core';
-import { IconRotateDot, IconTrash } from '@tabler/icons-react';
+import { IconInfoCircle, IconRotateDot, IconTrash } from '@tabler/icons-react';
 import { JobResponse, JobStatus } from '../data/job';
 import Status from './Status';
 
@@ -15,11 +15,12 @@ interface JobsTableProps {
     onPageChange?: (page: number) => void;
     onDelete?: (id: number, status: JobStatus) => void;
     onRetry?: (id: number) => void;
+    onOpenInfo?: (id: number) => void;
 }
 
-export default function JobsTable({ data, onPageChange, onDelete, onRetry }: JobsTableProps) {
+export default function JobsTable({ data, onPageChange, onDelete, onRetry, onOpenInfo }: JobsTableProps) {
     const totalPages = Math.ceil(data.total_count / data.limit);
-    const hasActions = !!onDelete || !!onRetry;
+    const hasActions = !!onDelete || !!onRetry || !!onOpenInfo;
 
     const rows = data.entries.map((item) => (
         <tr key={item.id}>
@@ -43,6 +44,9 @@ export default function JobsTable({ data, onPageChange, onDelete, onRetry }: Job
                     </ActionIcon>}
                     {onDelete && <ActionIcon aria-label='Delete upload job' color="red" onClick={() => onDelete(item.id, item.status)}>
                         <IconTrash size="1rem" stroke={1.5} />
+                    </ActionIcon>}
+                    {onOpenInfo && <ActionIcon aria-label='See job progress' onClick={() => onOpenInfo(item.id)}>
+                        <IconInfoCircle size="1rem" stroke={1.5} />
                     </ActionIcon>}
                 </Group>
             </td>}

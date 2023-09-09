@@ -18,6 +18,7 @@
     "@mantine/hooks": "^6.0.20",
     "@mantine/modals": "^6.0.20",
     "@mantine/notifications": "^6.0.20",
+    "@mantine/prism": "^6.0.20",
     "@tabler/icons-react": "^2.33.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

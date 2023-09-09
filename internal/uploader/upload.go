@@ -5,8 +5,10 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"log/slog"
 	"math/rand"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -21,13 +23,21 @@ const (
 
 type Uploader interface {
 	UploadFile(ctx context.Context, filePath string) (string, error)
+	GetActiveUploadLog(path string) (string, error)
+}
+
+type activeUploads struct {
+	path string
+	port int
 }
 
 type uploader struct {
-	scriptPath string
-	commonArgs []string
-	log        *slog.Logger
-	groups     []string
+	scriptPath    string
+	commonArgs    []string
+	log           *slog.Logger
+	groups        []string
+	activeUploads map[string]activeUploads
+	lastPort      int
 }
 
 func NewUploader(options ...Option) (*uploader, error) {
@@ -45,7 +55,6 @@ func NewUploader(options ...Option) (*uploader, error) {
 		fmt.Sprintf("--connections=%v", config.maxConnections),
 		// overwirte nzb if exists
 		"--overwrite",
-		"--progress=log:5s",
 	}
 
 	if config.ssl {
@@ -53,10 +62,12 @@ func NewUploader(options ...Option) (*uploader, error) {
 	}
 
 	return &uploader{
-		scriptPath: config.nyuuPath,
-		commonArgs: args,
-		log:        config.log,
-		groups:     config.groups,
+		scriptPath:    config.nyuuPath,
+		lastPort:      8100,
+		commonArgs:    args,
+		log:           config.log,
+		groups:        config.groups,
+		activeUploads: make(map[string]activeUploads, 0),
 	}, nil
 }
 
@@ -84,6 +95,7 @@ func (u *uploader) UploadFile(ctx context.Context, path string) (string, error) 
 
 	// Just upload to one group to prevent bans
 	randomGroup := u.groups[rand.Intn(len(u.groups))]
+	port := u.lastPort + 1
 
 	args := append(
 		u.commonArgs,
@@ -97,6 +109,7 @@ func (u *uploader) UploadFile(ctx context.Context, path string) (string, error) 
 		"--subject=[{0filenum}/{files}] - \"{filename}\" - size={size} - yEnc ({part}/{parts}) {filesize}",
 		fmt.Sprintf("--from=%s", u.generateFrom()),
 		fmt.Sprintf("--out=%s", nzbFilePath),
+		fmt.Sprintf("--progress=http:localhost:%v", port),
 		path,
 	)
 	cmd := exec.CommandContext(ctx, u.scriptPath, args...)
@@ -104,7 +117,14 @@ func (u *uploader) UploadFile(ctx context.Context, path string) (string, error) 
 	cmd.Stderr = os.Stderr
 
 	u.log.DebugContext(ctx, fmt.Sprintf("Uploading file %s with given args", path), "args", args)
+	u.activeUploads[path] = activeUploads{
+		path: nzbFilePath,
+		port: port,
+	}
+
 	err = cmd.Run()
+	delete(u.activeUploads, path)
+	u.lastPort = u.lastPort - 1
 	if err != nil {
 		return "", err
 	}
@@ -132,4 +152,24 @@ func (u *uploader) generateFrom() string {
 func (u *uploader) generateHashName(fileName string) (string, error) {
 	hash := md5.Sum([]byte(fileName))
 	return hex.EncodeToString(hash[:]), nil
+}
+
+func (u *uploader) GetActiveUploadLog(path string) (string, error) {
+	if u.activeUploads[path].port != 0 {
+		url := fmt.Sprintf("http://localhost:%d", u.activeUploads[path].port)
+		resp, err := http.Get(url)
+		if err != nil {
+			return "", err
+		}
+		defer resp.Body.Close()
+
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return "", err
+		}
+
+		return string(body), nil
+	}
+
+	return "", fmt.Errorf("file %s is not being uploaded", path)
 }

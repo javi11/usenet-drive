@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { JobData, JobResponse, JobStatus } from '../data/job';
 import JobsTable from '../components/JobsTable';
-import { Container, Group, Loader, Select, Title, createStyles, rem } from '@mantine/core';
+import { Button, Container, Group, Loader, Select, Title, createStyles, rem } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
+import { modals } from '@mantine/modals';
+import JobInfo from '../components/JobInfo';
 
 
 const useStyles = createStyles((theme) => ({
@@ -50,7 +52,10 @@ export default function InProgressJobs() {
                     total_count: data.length,
                     limit: PAGE_SIZE,
                     offset: 10,
-                    entries: data.map((item) => ({ ...item, status: JobStatus.InProgress }))
+                    entries: data.map((item) => ({
+                        ...item,
+                        status: JobStatus.InProgress
+                    }))
                 });
             } catch (error) {
                 const err = error as Error
@@ -70,6 +75,18 @@ export default function InProgressJobs() {
 
         return () => clearInterval(intervalId);
     }, [refreshInterval]);
+
+    const onOpenInfo = useCallback((id: number) => modals.open({
+        title: `${id} info`,
+        children: (
+            <>
+                <JobInfo id={id} />
+                <Button fullWidth onClick={() => modals.closeAll()} mt="md">
+                    Close
+                </Button>
+            </>
+        ),
+    }), []);
 
     return (
         <Container size="lg" className={classes.wrapper}>
@@ -98,7 +115,7 @@ export default function InProgressJobs() {
             {isLoading ? (
                 <Loader />
             ) : (
-                <JobsTable data={jobs} />
+                <JobsTable data={jobs} onOpenInfo={onOpenInfo} />
             )}
         </Container>
     );

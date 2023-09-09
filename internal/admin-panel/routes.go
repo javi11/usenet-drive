@@ -41,6 +41,7 @@ func New(queue uploadqueue.UploadQueue, si serverinfo.ServerInfo, log *slog.Logg
 		v1.GET("/jobs/failed", handlers.BuildGetFailedJobsHandler(queue))
 		v1.GET("/jobs/pending", handlers.BuildGetPendingJobsHandler(queue))
 		v1.GET("/jobs/in-progres", handlers.BuildGetJobsInProgressHandler(queue))
+		v1.GET("/jobs/in-progres/:id/logs", handlers.BuildGetActiveJobLogHandler(queue))
 		v1.DELETE("/jobs/failed/:id", handlers.BuildDeleteFailedJobIdHandler(queue))
 		v1.DELETE("/jobs/pending/:id", handlers.BuildDeletePendingJobIdHandler(queue))
 		v1.PUT("/jobs/failed/:id/retry", handlers.BuildRetryJobByIdHandler(queue))
