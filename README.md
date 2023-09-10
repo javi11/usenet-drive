@@ -139,7 +139,8 @@ The `Config` struct defines the configuration for the Usenet Drive application. 
 ### Fields
 
 - `nzb_cache_size` (int): The number of NZBs to keep in memory. Default value is `100`. WARN remember that each NZB can be a big file increasing this will increase the memory usage.
-- `nzb_path` (string): The path to the NZBs file. This will be the path where all nzbs will be saved making the virtual file system.
+- `root_path` (string!): The root path of your webdav virtual file system and where all nzb and not uploaded files will be saved. It is recommended to add a path to a fast disk for instance a SSD or NVME since this will improve a lot the playback of video files.
+- `tmp_path` (string!): The temp path where all files that will be uploaded to usenet will be saved. It is recommended to add a path to a huge disk for instance a HDD, speed here is not important.
 - `web_dav_port` (string): The port number for the server. Default value is `8080`.
 - `api_port` (string): The port number for the server. Default value is `8080`.
 - `usenet` (Usenet): The Usenet configuration.
@@ -160,6 +161,7 @@ The `Upload` struct defines the Usenet provider for uploading.
 
 ### Fields
 
+- `dry_run` (bool): Whether to do real uploads or just generate fake nzb. Default value is `false`. Use it just to test the configuration.
 - `provider` (UsenetProvider): The Usenet provider for uploading.
 - `file_whitelist` ([]string): The list of allowed file extensions. For example, `[".mkv", ".mp4"]`, in this case only files with the extensions `.mkv` and `.mp4` will be uploaded to usenet. Take care not upload files that change frequently, like subtitules or text files, since they will be uploaded every time they change. In usenet you can not edit files.
 - `nyuu_version` (string): The version of [Nyuu](https://github.com/animetosho/Nyuu). Default value is `0.4.1`. Used for upload files to usenet.

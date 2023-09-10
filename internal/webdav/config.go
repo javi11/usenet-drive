@@ -8,7 +8,8 @@ import (
 )
 
 type Config struct {
-	NzbPath             string
+	rootPath            string
+	tmpPath             string
 	cp                  usenet.UsenetConnectionPool
 	queue               uploadqueue.UploadQueue
 	log                 *slog.Logger
@@ -20,12 +21,6 @@ type Option func(*Config)
 
 func defaultConfig() *Config {
 	return &Config{}
-}
-
-func WithNzbPath(nzbPath string) Option {
-	return func(c *Config) {
-		c.NzbPath = nzbPath
-	}
 }
 
 func WithUsenetConnectionPool(cp usenet.UsenetConnectionPool) Option {
@@ -55,5 +50,17 @@ func WithUploadFileWhitelist(uploadFileWhitelist []string) Option {
 func WithNzbLoader(nzbLoader *usenet.NzbLoader) Option {
 	return func(c *Config) {
 		c.nzbLoader = nzbLoader
+	}
+}
+
+func WithRootPath(rootPath string) Option {
+	return func(c *Config) {
+		c.rootPath = rootPath
+	}
+}
+
+func WithTmpPath(tmpPath string) Option {
+	return func(c *Config) {
+		c.tmpPath = tmpPath
 	}
 }

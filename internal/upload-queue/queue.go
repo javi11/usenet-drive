@@ -31,6 +31,8 @@ type UploadQueue interface {
 }
 
 type uploadQueue struct {
+	rootPath         string
+	tmpPath          string
 	engine           sqllitequeue.SqlQueue
 	uploader         uploader.Uploader
 	activeJobs       map[int64]sqllitequeue.Job
@@ -130,12 +132,23 @@ func (q *uploadQueue) ProcessJob(ctx context.Context, job sqllitequeue.Job) erro
 		return q.engine.PushToFailedQueue(ctx, job.Data, err.Error())
 	}
 
-	// Remove .tmp extension from nzbFilePath
-	newFilePath := nzbFilePath[:len(nzbFilePath)-4]
+	log.InfoContext(ctx, "File uploaded successfully")
 
+	// Remove .tmp extension from nzbFilePath
+	newFilePath := nzbFilePath[:len(nzbFilePath)-len(uploader.TmpExtension)]
+
+	log.DebugContext(ctx, "Renaming nzb file and removing original file", "old_path", nzbFilePath, "new_path", newFilePath)
 	err = os.Rename(nzbFilePath, newFilePath)
 	if err != nil {
+		log.ErrorContext(ctx, "Failed to rename nzb file", "err", err)
 		return err
+	}
+
+	if originalFile, err := os.Readlink(job.Data); err == nil {
+		// If the file is a symlink, remove the original file
+		if err := os.Remove(originalFile); err != nil {
+			return err
+		}
 	}
 
 	err = os.Remove(job.Data)

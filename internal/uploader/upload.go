@@ -18,7 +18,8 @@ import (
 )
 
 const (
-	nzbTmpExtension = ".nzb.tmp"
+	TmpExtension    = ".tmp"
+	NzbTmpExtension = ".nzb" + TmpExtension
 )
 
 type Uploader interface {
@@ -32,6 +33,7 @@ type activeUploads struct {
 }
 
 type uploader struct {
+	dryRun        bool
 	scriptPath    string
 	commonArgs    []string
 	log           *slog.Logger
@@ -62,6 +64,7 @@ func NewUploader(options ...Option) (*uploader, error) {
 	}
 
 	return &uploader{
+		dryRun:        config.dryRun,
 		scriptPath:    config.nyuuPath,
 		lastPort:      8100,
 		commonArgs:    args,
@@ -82,14 +85,15 @@ func (u *uploader) UploadFile(ctx context.Context, path string) (string, error) 
 		return "", err
 	}
 
-	nzbFilePath := utils.ReplaceFileExtension(path, nzbTmpExtension)
+	nzbFilePath := utils.ReplaceFileExtension(path, NzbTmpExtension)
+	// Truncate file name to max lenght of 255 to prevent errors on some filesystems
 	nzbFilePath = filepath.Join(
 		filepath.Dir(nzbFilePath),
 		utils.TruncateFileName(
 			filepath.Base(nzbFilePath),
-			nzbTmpExtension,
+			NzbTmpExtension,
 			// 255 is the max length of a file name in most filesystems
-			255-len(nzbTmpExtension),
+			255-len(NzbTmpExtension),
 		),
 	)
 
@@ -118,17 +122,39 @@ func (u *uploader) UploadFile(ctx context.Context, path string) (string, error) 
 
 	u.log.DebugContext(ctx, fmt.Sprintf("Uploading file %s with given args", path), "args", args)
 	u.activeUploads[path] = activeUploads{
-		path: nzbFilePath,
+		path: path,
 		port: port,
 	}
+	defer (func() {
+		delete(u.activeUploads, path)
+		u.lastPort = u.lastPort - 1
+	})()
 
-	err = cmd.Run()
-	delete(u.activeUploads, path)
-	u.lastPort = u.lastPort - 1
-	if err != nil {
-		return "", err
+	if u.dryRun {
+		time.Sleep(30 * time.Second)
+		file, err := os.Create(nzbFilePath)
+		if err != nil {
+			return "", err
+		}
+		defer file.Close()
+
+		nzb, err := generateFakeNzb(fileInfo.Name(), filepath.Ext(fileInfo.Name()))
+		if err != nil {
+			return "", err
+		}
+
+		_, err = file.Write(nzb)
+		if err != nil {
+			return "", err
+		}
+
+	} else {
+		err = cmd.Run()
+		if err != nil {
+			return "", err
+		}
+
 	}
-
 	return nzbFilePath, nil
 }
 

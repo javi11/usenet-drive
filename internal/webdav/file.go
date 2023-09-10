@@ -13,19 +13,17 @@ import (
 )
 
 type file struct {
-	innerFile  *os.File
-	rootFolder string
-	fsMutex    sync.RWMutex
-	onClose    func()
-	log        *slog.Logger
-	nzbLoader  *usenet.NzbLoader
+	innerFile *os.File
+	fsMutex   sync.RWMutex
+	onClose   func()
+	log       *slog.Logger
+	nzbLoader *usenet.NzbLoader
 }
 
 func OpenFile(
 	name string,
 	flag int,
 	perm fs.FileMode,
-	rootFolder string,
 	onClose func(),
 	log *slog.Logger,
 	nzbLoader *usenet.NzbLoader,
@@ -36,11 +34,10 @@ func OpenFile(
 	}
 
 	return &file{
-		innerFile:  f,
-		rootFolder: rootFolder,
-		onClose:    onClose,
-		log:        log,
-		nzbLoader:  nzbLoader,
+		innerFile: f,
+		onClose:   onClose,
+		log:       log,
+		nzbLoader: nzbLoader,
 	}, nil
 }
 
@@ -104,8 +101,10 @@ func (f *file) Readdir(n int) ([]os.FileInfo, error) {
 			info := info
 			i := i
 			merr.Go(func() error {
+				n := filepath.Join(f.innerFile.Name(), info.Name())
 				infos[i], err = NewNZBFileInfo(
-					filepath.Join(f.innerFile.Name(), info.Name()),
+					n,
+					n,
 					f.log,
 					f.nzbLoader,
 				)

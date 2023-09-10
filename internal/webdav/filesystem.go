@@ -15,7 +15,8 @@ import (
 )
 
 type nzbFilesystem struct {
-	root                string
+	rootPath            string
+	tmpPath             string
 	cn                  usenet.UsenetConnectionPool
 	lock                sync.RWMutex
 	queue               uploadqueue.UploadQueue
@@ -25,7 +26,8 @@ type nzbFilesystem struct {
 }
 
 func NewNzbFilesystem(
-	root string,
+	rootPath string,
+	tmpPath string,
 	cn usenet.UsenetConnectionPool,
 	queue uploadqueue.UploadQueue,
 	log *slog.Logger,
@@ -33,7 +35,8 @@ func NewNzbFilesystem(
 	nzbLoader *usenet.NzbLoader,
 ) webdav.FileSystem {
 	return &nzbFilesystem{
-		root:                root,
+		rootPath:            rootPath,
+		tmpPath:             tmpPath,
 		cn:                  cn,
 		queue:               queue,
 		log:                 log,
@@ -71,13 +74,21 @@ func (fs *nzbFilesystem) OpenFile(ctx context.Context, name string, flag int, pe
 
 	onClose := func() {}
 	if flag == os.O_RDWR|os.O_CREATE|os.O_TRUNC && utils.HasAllowedExtension(name, fs.uploadFileWhitelist) {
+		tmpName := strings.Replace(name, fs.rootPath, fs.tmpPath, 1)
 		// If the file is an allowed upload file, and was opened for writing, when close, add it to the upload queue
 		onClose = func() {
+			// Create a symlink to the original file on the tmp folder
+			fs.log.DebugContext(ctx, "Creating symlink", "tmpName", tmpName, "name", name)
+			err := os.Symlink(tmpName, name)
+			if err != nil {
+				fs.log.ErrorContext(ctx, "Failed to create symlink", "err", err)
+			}
 			fs.queue.AddJob(ctx, name)
 		}
+		return OpenFile(tmpName, flag, perm, onClose, fs.log, fs.nzbLoader)
 	}
 
-	return OpenFile(name, flag, perm, fs.root, onClose, fs.log, fs.nzbLoader)
+	return OpenFile(name, flag, perm, onClose, fs.log, fs.nzbLoader)
 }
 
 func (fs *nzbFilesystem) RemoveAll(ctx context.Context, name string) error {
@@ -93,10 +104,19 @@ func (fs *nzbFilesystem) RemoveAll(ctx context.Context, name string) error {
 		name = *originalName
 	}
 
-	if name == filepath.Clean(fs.root) {
+	if name == filepath.Clean(fs.rootPath) {
 		// Prohibit removing the virtual root directory.
 		return os.ErrInvalid
 	}
+
+	// Check if the file is a symlink
+	if link, err := os.Readlink(name); err == nil {
+		// If the file is a symlink, remove the original file
+		if err := os.RemoveAll(link); err != nil {
+			return err
+		}
+	}
+
 	return os.RemoveAll(name)
 }
 
@@ -113,12 +133,43 @@ func (fs *nzbFilesystem) Rename(ctx context.Context, oldName, newName string) er
 
 	originalName := getOriginalNzb(oldName)
 	if originalName != nil {
+		// In case you want to update the file extension we need to update it in the original nzb file
+		if filepath.Ext(newName) != filepath.Ext(oldName) {
+			c, err := fs.nzbLoader.LoadFromFile(*originalName)
+			if err != nil {
+				return err
+			}
+
+			n := usenet.UpdateNzbMetadada(c.Nzb, usenet.UpdateableMetadata{
+				FileExtension: filepath.Ext(newName),
+			})
+			b, err := usenet.NzbToBytes(n)
+			if err != nil {
+				return err
+			}
+
+			err = os.WriteFile(*originalName, b, 0766)
+			if err != nil {
+				return err
+			}
+
+			// Refresh the cache
+			_, err = fs.nzbLoader.RefreshCachedNzb(*originalName, n)
+			if err != nil {
+				return err
+			}
+		}
 		// If the file is a masked call the original nzb file
 		oldName = *originalName
 		newName = utils.ReplaceFileExtension(newName, ".nzb")
+
+		if newName == oldName {
+			// If the file is a masked call the original nzb file
+			return nil
+		}
 	}
 
-	if root := filepath.Clean(fs.root); root == oldName || root == newName {
+	if root := filepath.Clean(fs.rootPath); root == oldName || root == newName {
 		// Prohibit renaming from or to the virtual root directory.
 		return os.ErrInvalid
 	}
@@ -135,13 +186,13 @@ func (fs *nzbFilesystem) Stat(ctx context.Context, name string) (os.FileInfo, er
 
 	if isNzbFile(name) {
 		// If file is a nzb file return a custom file that will mask the nzb
-		return NewNZBFileInfo(name, fs.log, fs.nzbLoader)
+		return NewNZBFileInfo(name, name, fs.log, fs.nzbLoader)
 	}
 
 	originalName := getOriginalNzb(name)
 	if originalName != nil {
 		// If the file is a masked call the original nzb file
-		return NewNZBFileInfo(*originalName, fs.log, fs.nzbLoader)
+		return NewNZBFileInfo(*originalName, name, fs.log, fs.nzbLoader)
 	}
 
 	// Build a new os.FileInfo with a mix of nzbFileInfo and metadata
@@ -154,7 +205,7 @@ func (fs *nzbFilesystem) resolve(name string) string {
 		strings.Contains(name, "\x00") {
 		return ""
 	}
-	dir := fs.root
+	dir := fs.rootPath
 	if dir == "" {
 		dir = "."
 	}

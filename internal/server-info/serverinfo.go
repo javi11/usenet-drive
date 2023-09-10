@@ -6,7 +6,8 @@ import (
 )
 
 type ServerInfo interface {
-	GetDiskUsage() DiskUsage
+	GetRootFolderDiskUsage() DiskUsage
+	GetTmpFolderDiskUsage() DiskUsage
 	GetConnections() UsenetConnections
 }
 
@@ -25,21 +26,33 @@ type UsenetConnections struct {
 
 type serverInfo struct {
 	u        usenet.UsenetConnectionPool
-	nzbsPath string
+	rootPath string
+	tmpPath  string
 }
 
-func NewServerInfo(u usenet.UsenetConnectionPool, nzbsPath string) *serverInfo {
-	return &serverInfo{u: u, nzbsPath: nzbsPath}
+func NewServerInfo(u usenet.UsenetConnectionPool, rootPath, tmpPath string) *serverInfo {
+	return &serverInfo{u: u, rootPath: rootPath, tmpPath: tmpPath}
 }
 
-func (s *serverInfo) GetDiskUsage() DiskUsage {
-	usage := du.NewDiskUsage(s.nzbsPath)
+func (s *serverInfo) GetRootFolderDiskUsage() DiskUsage {
+	usage := du.NewDiskUsage(s.rootPath)
 
 	return DiskUsage{
 		Total:  usage.Size(),
 		Free:   usage.Available(),
 		Used:   usage.Used(),
-		Folder: s.nzbsPath,
+		Folder: s.rootPath,
+	}
+}
+
+func (s *serverInfo) GetTmpFolderDiskUsage() DiskUsage {
+	usage := du.NewDiskUsage(s.tmpPath)
+
+	return DiskUsage{
+		Total:  usage.Size(),
+		Free:   usage.Available(),
+		Used:   usage.Used(),
+		Folder: s.tmpPath,
 	}
 }
 

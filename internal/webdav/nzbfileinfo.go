@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
@@ -18,7 +19,7 @@ type nzbFileInfo struct {
 	originalFileMetadata usenet.Metadata
 }
 
-func NewNZBFileInfo(name string, log *slog.Logger, nzbLoader *usenet.NzbLoader) (fs.FileInfo, error) {
+func NewNZBFileInfo(name string, realName string, log *slog.Logger, nzbLoader *usenet.NzbLoader) (fs.FileInfo, error) {
 	var nzbFileStat os.FileInfo
 	var metadata usenet.Metadata
 	var eg multierror.Group
@@ -47,6 +48,10 @@ func NewNZBFileInfo(name string, log *slog.Logger, nzbLoader *usenet.NzbLoader) 
 
 	if err := eg.Wait(); err != nil {
 		return nil, os.ErrNotExist
+	}
+
+	if !isNzbFile(realName) && filepath.Ext(realName) != metadata.FileExtension {
+		return os.Stat(realName)
 	}
 
 	fileName := nzbFileStat.Name()

@@ -2,10 +2,10 @@ package uploader
 
 import (
 	"log/slog"
-	"strings"
 )
 
 type Config struct {
+	dryRun         bool
 	host           string
 	port           int
 	username       string
@@ -19,16 +19,13 @@ type Config struct {
 	log            *slog.Logger
 }
 
-func (c *Config) getGroups() string {
-	return strings.Join(c.groups, ",")
-}
-
 type Option func(*Config)
 
 func defaultConfig() *Config {
 	return &Config{
 		ssl:         false,
 		articleSize: "750K",
+		dryRun:      false,
 	}
 }
 
@@ -95,5 +92,11 @@ func WithArticleSize(articleSize string) Option {
 func WithLogger(log *slog.Logger) Option {
 	return func(c *Config) {
 		c.log = log
+	}
+}
+
+func WithDryRun(dryRun bool) Option {
+	return func(c *Config) {
+		c.dryRun = dryRun
 	}
 }

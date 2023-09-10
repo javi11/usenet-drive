@@ -9,7 +9,8 @@ import (
 
 type Config struct {
 	LogPath      string `yaml:"log_path" default:"/config/activity.log"`
-	NzbPath      string `yaml:"nzb_path"`
+	TmpPath      string `yaml:"tmp_path"`
+	RootPath     string `yaml:"root_path"`
 	WebDavPort   string `yaml:"web_dav_port" default:"8080"`
 	ApiPort      string `yaml:"api_port" default:"8081"`
 	Usenet       Usenet `yaml:"usenet"`
@@ -23,6 +24,7 @@ type Usenet struct {
 }
 
 type Upload struct {
+	DryRun                  bool           `yaml:"dry_run" default:"false"`
 	Provider                UsenetProvider `yaml:"provider"`
 	FileWhitelist           []string       `yaml:"file_whitelist"`
 	NyuuVersion             string         `yaml:"nyuu_version" default:"0.4.1"`

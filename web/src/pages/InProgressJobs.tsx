@@ -77,7 +77,7 @@ export default function InProgressJobs() {
     }, [refreshInterval]);
 
     const onOpenInfo = useCallback((id: number) => modals.open({
-        title: `${id} info`,
+        title: <Title>${id} upload status</Title>,
         children: (
             <>
                 <JobInfo id={id} />

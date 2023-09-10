@@ -117,8 +117,10 @@ func (f *nzbFile) Readdir(n int) ([]os.FileInfo, error) {
 			info := info
 			i := i
 			merr.Go(func() error {
+				n := filepath.Join(f.innerFile.Name(), info.Name())
 				infos[i], err = NewNZBFileInfo(
-					filepath.Join(f.innerFile.Name(), info.Name()),
+					n,
+					n,
 					f.log,
 					f.nzbLoader,
 				)

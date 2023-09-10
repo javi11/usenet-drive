@@ -82,6 +82,7 @@ var rootCmd = &cobra.Command{
 			uploader.WithGroups(config.Usenet.Upload.Provider.Groups),
 			uploader.WithMaxConnections(config.Usenet.Upload.Provider.MaxConnections),
 			uploader.WithLogger(log),
+			uploader.WithDryRun(config.Usenet.Upload.DryRun),
 		)
 		if err != nil {
 			log.ErrorContext(ctx, "Failed to create uploader: %v", err)
@@ -114,7 +115,7 @@ var rootCmd = &cobra.Command{
 		go uploaderQueue.Start(ctx, time.Duration(config.Usenet.Upload.UploadIntervalInSeconds*float64(time.Second)))
 
 		// Server info
-		serverInfo := serverinfo.NewServerInfo(downloadConnPool, config.NzbPath)
+		serverInfo := serverinfo.NewServerInfo(downloadConnPool, config.RootPath, config.TmpPath)
 
 		adminPanel := adminpanel.New(uploaderQueue, serverInfo, log)
 		go adminPanel.Start(ctx, config.ApiPort)
@@ -130,9 +131,10 @@ var rootCmd = &cobra.Command{
 			webdav.WithLogger(log),
 			webdav.WithUploadFileWhitelist(config.Usenet.Upload.FileWhitelist),
 			webdav.WithUploadQueue(uploaderQueue),
-			webdav.WithNzbPath(config.NzbPath),
 			webdav.WithUsenetConnectionPool(downloadConnPool),
 			webdav.WithNzbLoader(nzbLoader),
+			webdav.WithRootPath(config.RootPath),
+			webdav.WithTmpPath(config.TmpPath),
 		)
 		if err != nil {
 			log.ErrorContext(ctx, "Failed to create WebDAV server: %v", err)

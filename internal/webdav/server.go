@@ -23,7 +23,8 @@ func NewServer(options ...Option) (*webdavServer, error) {
 
 	handler := &webdav.Handler{
 		FileSystem: NewNzbFilesystem(
-			config.NzbPath,
+			config.rootPath,
+			config.tmpPath,
 			config.cp,
 			config.queue,
 			config.log,

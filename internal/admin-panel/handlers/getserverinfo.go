@@ -8,14 +8,16 @@ import (
 )
 
 type serverInfoResponse struct {
-	DiskUsage                 serverinfo.DiskUsage         `json:"disk_usage"`
+	RootFolderDiskUsage       serverinfo.DiskUsage         `json:"root_folder_disk_usage"`
+	TmpFolderDiskUsage        serverinfo.DiskUsage         `json:"tmp_folder_disk_usage"`
 	DownloadUsenetConnections serverinfo.UsenetConnections `json:"download_usenet_connections"`
 }
 
 func BuildGetServerInfoHandler(si serverinfo.ServerInfo) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		result := serverInfoResponse{
-			DiskUsage:                 si.GetDiskUsage(),
+			RootFolderDiskUsage:       si.GetRootFolderDiskUsage(),
+			TmpFolderDiskUsage:        si.GetTmpFolderDiskUsage(),
 			DownloadUsenetConnections: si.GetConnections(),
 		}
 
