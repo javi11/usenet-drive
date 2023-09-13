@@ -10,6 +10,7 @@ import (
 
 	adminpanel "github.com/javi11/usenet-drive/internal/admin-panel"
 	"github.com/javi11/usenet-drive/internal/config"
+	corruptednzbsmanager "github.com/javi11/usenet-drive/internal/corrupted-nzbs-manager"
 	serverinfo "github.com/javi11/usenet-drive/internal/server-info"
 	uploadqueue "github.com/javi11/usenet-drive/internal/upload-queue"
 	"github.com/javi11/usenet-drive/internal/uploader"
@@ -103,7 +104,7 @@ var rootCmd = &cobra.Command{
 			os.Exit(1)
 		}
 		uploaderQueue := uploadqueue.NewUploadQueue(
-			uploadqueue.WithSqlLiteEngine(sqlLiteEngine),
+			uploadqueue.WithQueueEngine(sqlLiteEngine),
 			uploadqueue.WithUploader(u),
 			uploadqueue.WithMaxActiveUploads(config.Usenet.Upload.MaxActiveUploads),
 			uploadqueue.WithLogger(log),
@@ -117,10 +118,17 @@ var rootCmd = &cobra.Command{
 		// Server info
 		serverInfo := serverinfo.NewServerInfo(downloadConnPool, config.RootPath, config.TmpPath)
 
-		adminPanel := adminpanel.New(uploaderQueue, serverInfo, log)
+		// Corrupted nzbs
+		cNzbs, err := corruptednzbsmanager.New(sqlLite)
+		if err != nil {
+			log.ErrorContext(ctx, "Failed to create corrupted nzbs: %v", err)
+			os.Exit(1)
+		}
+
+		adminPanel := adminpanel.New(uploaderQueue, serverInfo, cNzbs, log)
 		go adminPanel.Start(ctx, config.ApiPort)
 
-		nzbLoader, err := usenet.NewNzbLoader(config.NzbCacheSize)
+		nzbLoader, err := usenet.NewNzbLoader(config.NzbCacheSize, cNzbs)
 		if err != nil {
 			log.ErrorContext(ctx, "Failed to create nzb loader: %v", err)
 			os.Exit(1)

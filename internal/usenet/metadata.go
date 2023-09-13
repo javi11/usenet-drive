@@ -24,7 +24,7 @@ func LoadMetadataFromNzb(nzbFile *nzb.Nzb) (Metadata, error) {
 	}
 
 	if len(nzbFile.Files) == 0 {
-		return Metadata{}, fmt.Errorf("corrupted nzb file")
+		return Metadata{}, fmt.Errorf("corrupted nzb file, no files found")
 	}
 
 	// Chunk size is present in the file subject string
@@ -37,6 +37,10 @@ func LoadMetadataFromNzb(nzbFile *nzb.Nzb) (Metadata, error) {
 	modTime, err := time.Parse(time.DateTime, nzbFile.Meta["mod_time"])
 	if err != nil {
 		return Metadata{}, err
+	}
+
+	if nzbFile.Meta["file_extension"] == "" {
+		return Metadata{}, fmt.Errorf("corrupted nzb file, file extension not found")
 	}
 
 	return Metadata{

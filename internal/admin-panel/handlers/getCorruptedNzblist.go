@@ -4,11 +4,11 @@ import (
 	"net/http"
 	"strconv"
 
-	uploadqueue "github.com/javi11/usenet-drive/internal/upload-queue"
-	"github.com/labstack/echo/v4"
+	corruptednzbsmanager "github.com/javi11/usenet-drive/internal/corrupted-nzbs-manager"
+	echo "github.com/labstack/echo/v4"
 )
 
-func GetPendingJobsHandler(queue uploadqueue.UploadQueue) echo.HandlerFunc {
+func GetCorruptedNzbListHandler(cNzb corruptednzbsmanager.CorruptedNzbsManager) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		limit := 10
 		offset := 0
@@ -19,7 +19,7 @@ func GetPendingJobsHandler(queue uploadqueue.UploadQueue) echo.HandlerFunc {
 			offset, _ = strconv.Atoi(offsetStr)
 		}
 
-		result, err := queue.GetPendingJobs(c.Request().Context(), limit, offset)
+		result, err := cNzb.List(c.Request().Context(), limit, offset)
 		if err != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 		}

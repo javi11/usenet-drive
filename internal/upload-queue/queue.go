@@ -50,7 +50,7 @@ func NewUploadQueue(options ...Option) UploadQueue {
 	}
 
 	return &uploadQueue{
-		engine:           config.sqlLiteEngine,
+		engine:           config.qEngine,
 		uploader:         config.uploader,
 		maxActiveUploads: config.maxActiveUploads,
 		log:              config.log,
@@ -69,7 +69,7 @@ func (q *uploadQueue) AddJob(ctx context.Context, filePath string) error {
 func (q *uploadQueue) ProcessJob(ctx context.Context, job sqllitequeue.Job) error {
 	log := q.log.With("job_id", job.ID).With("file_path", job.Data)
 
-	q.log.InfoContext(ctx, "Adding file(s) to upload queue...")
+	q.log.InfoContext(ctx, "Processing file upload...")
 
 	// Check if filePath is a directory
 	fileInfo, err := os.Stat(job.Data)
@@ -129,7 +129,8 @@ func (q *uploadQueue) ProcessJob(ctx context.Context, job sqllitequeue.Job) erro
 		}
 
 		log.ErrorContext(ctx, "Failed to upload file: %v. Adding to failed queue...", "err", err)
-		return q.engine.PushToFailedQueue(ctx, job.Data, err.Error())
+
+		return q.engine.MarkJobAsFailed(ctx, job, err.Error())
 	}
 
 	log.InfoContext(ctx, "File uploaded successfully")
@@ -255,7 +256,7 @@ func (q *uploadQueue) DeletePendingJob(ctx context.Context, id int64) error {
 }
 
 func (q *uploadQueue) RetryJob(ctx context.Context, id int64) error {
-	job, err := q.engine.DequeueFailedJobById(ctx, id)
+	job, err := q.engine.PopFailedJob(ctx, id)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return ErrJobNotFound
@@ -306,7 +307,7 @@ func (q *uploadQueue) Close(ctx context.Context) error {
 	// Mark all active jobs as failed with an error of closed
 	for _, job := range q.activeJobs {
 		job.Error = "upload failed: queue closed"
-		err := q.engine.PushToFailedQueue(ctx, job.Data, "upload failed: queue closed")
+		err := q.engine.MarkJobAsFailed(ctx, job, "upload failed: queue closed")
 		if err != nil {
 			return err
 		}

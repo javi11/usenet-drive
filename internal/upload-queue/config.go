@@ -8,7 +8,7 @@ import (
 )
 
 type Config struct {
-	sqlLiteEngine    sqllitequeue.SqlQueue
+	qEngine          sqllitequeue.SqlQueue
 	uploader         uploader.Uploader
 	maxActiveUploads int
 	log              *slog.Logger
@@ -21,9 +21,9 @@ func defaultConfig() *Config {
 	return &Config{}
 }
 
-func WithSqlLiteEngine(sqlLiteEngine sqllitequeue.SqlQueue) Option {
+func WithQueueEngine(queueEngine sqllitequeue.SqlQueue) Option {
 	return func(c *Config) {
-		c.sqlLiteEngine = sqlLiteEngine
+		c.qEngine = queueEngine
 	}
 }
 

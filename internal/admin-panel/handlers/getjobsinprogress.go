@@ -7,7 +7,7 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-func BuildGetJobsInProgressHandler(queue uploadqueue.UploadQueue) echo.HandlerFunc {
+func GetJobsInProgressHandler(queue uploadqueue.UploadQueue) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		jobs := queue.GetJobsInProgress()
 

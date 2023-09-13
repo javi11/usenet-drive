@@ -8,6 +8,7 @@ import {
   IconExclamationCircle,
   IconCloudUpload,
   IconBrandGithub,
+  IconFileBroken,
 } from '@tabler/icons-react';
 import Home from './pages/Home'
 import FailedJobs from './pages/FailedJobs'
@@ -17,13 +18,15 @@ import NotFound from './pages/NotFound'
 import logo from './assets/logo.png'
 import ManualTrigger from './pages/ManualTrigger';
 import NavbarLink from './components/NavBarLink';
+import CorruptedNzbs from './pages/CorruptedNzbs';
 
 const paths = [
-  { href: '/', icon: IconHome2, label: 'Home' },
-  { href: '/in-progress', icon: IconProgress, label: 'In progress jobs' },
-  { href: '/pending', icon: IconClock, label: 'Pending jobs' },
-  { href: '/failed', icon: IconExclamationCircle, label: 'Failed jobs' },
-  { href: '/triggers/manual', icon: IconCloudUpload, label: 'Trigger a manual file upload' },
+  { href: '/', icon: IconHome2, label: 'Home', elem: <Home /> },
+  { href: '/in-progress', icon: IconProgress, label: 'In progress jobs', elem: <InProgressJobs /> },
+  { href: '/pending', icon: IconClock, label: 'Pending jobs', elem: <PendingJobs /> },
+  { href: '/failed', icon: IconExclamationCircle, label: 'Failed jobs', elem: <FailedJobs /> },
+  { href: '/triggers/manual', icon: IconCloudUpload, label: 'Trigger a manual file upload', elem: <ManualTrigger /> },
+  { href: '/nzbs/corrupted', icon: IconFileBroken, label: 'List of corrupted NZBs', elem: <CorruptedNzbs /> },
 ];
 
 export default function App() {
@@ -91,11 +94,9 @@ export default function App() {
       })}
     >
       <Routes>
-        <Route index path="/" element={<Home />} />
-        <Route path="/in-progress" element={<InProgressJobs />} />
-        <Route path="/pending" element={<PendingJobs />} />
-        <Route path="/failed" element={<FailedJobs />} />
-        <Route path="/triggers/manual" element={<ManualTrigger />} />
+        {paths.map((link) => (
+          <Route path={link.href} element={link.elem} />
+        ))}
         <Route path="*" element={<NotFound />} />
       </Routes>
     </AppShell>

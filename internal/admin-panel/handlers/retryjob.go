@@ -8,7 +8,7 @@ import (
 	echo "github.com/labstack/echo/v4"
 )
 
-func BuildRetryJobByIdHandler(queue uploadqueue.UploadQueue) echo.HandlerFunc {
+func RetryJobByIdHandler(queue uploadqueue.UploadQueue) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		idStr := c.Param("id")
 		id, err := strconv.ParseInt(idStr, 10, 64)

@@ -13,7 +13,7 @@ type serverInfoResponse struct {
 	DownloadUsenetConnections serverinfo.UsenetConnections `json:"download_usenet_connections"`
 }
 
-func BuildGetServerInfoHandler(si serverinfo.ServerInfo) echo.HandlerFunc {
+func GetServerInfoHandler(si serverinfo.ServerInfo) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		result := serverInfoResponse{
 			RootFolderDiskUsage:       si.GetRootFolderDiskUsage(),

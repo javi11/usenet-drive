@@ -4,11 +4,12 @@ import (
 	"net/http"
 	"strconv"
 
+	corruptednzbsmanager "github.com/javi11/usenet-drive/internal/corrupted-nzbs-manager"
 	uploadqueue "github.com/javi11/usenet-drive/internal/upload-queue"
-	"github.com/labstack/echo/v4"
+	echo "github.com/labstack/echo/v4"
 )
 
-func GetActiveJobLogHandler(queue uploadqueue.UploadQueue) echo.HandlerFunc {
+func DeleteCorruptedNzbHandler(cNzb corruptednzbsmanager.CorruptedNzbsManager) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		idStr := c.Param("id")
 		id, err := strconv.ParseInt(idStr, 10, 64)
@@ -16,14 +17,13 @@ func GetActiveJobLogHandler(queue uploadqueue.UploadQueue) echo.HandlerFunc {
 			return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 		}
 
-		log, err := queue.GetActiveJobLog(id)
-		if err != nil {
+		if err := cNzb.Delete(c.Request().Context(), id); err != nil {
 			if err == uploadqueue.ErrJobNotFound {
-				return c.String(http.StatusOK, "")
+				return echo.NewHTTPError(http.StatusNotFound, err.Error())
 			}
 			return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 		}
 
-		return c.String(http.StatusOK, log)
+		return c.NoContent(http.StatusNoContent)
 	}
 }

@@ -8,7 +8,7 @@ import (
 	echo "github.com/labstack/echo/v4"
 )
 
-func BuildDeleteFailedJobIdHandler(queue uploadqueue.UploadQueue) echo.HandlerFunc {
+func DeletePendingJobIdHandler(queue uploadqueue.UploadQueue) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		idStr := c.Param("id")
 		id, err := strconv.ParseInt(idStr, 10, 64)
@@ -16,7 +16,7 @@ func BuildDeleteFailedJobIdHandler(queue uploadqueue.UploadQueue) echo.HandlerFu
 			return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 		}
 
-		if err := queue.DeleteFailedJob(c.Request().Context(), id); err != nil {
+		if err := queue.DeletePendingJob(c.Request().Context(), id); err != nil {
 			if err == uploadqueue.ErrJobNotFound {
 				return echo.NewHTTPError(http.StatusNotFound, err.Error())
 			}

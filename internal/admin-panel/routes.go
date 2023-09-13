@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/javi11/usenet-drive/internal/admin-panel/handlers"
+	corruptednzbsmanager "github.com/javi11/usenet-drive/internal/corrupted-nzbs-manager"
 	serverinfo "github.com/javi11/usenet-drive/internal/server-info"
 	uploadqueue "github.com/javi11/usenet-drive/internal/upload-queue"
 	"github.com/javi11/usenet-drive/web"
@@ -29,7 +30,12 @@ type adminPanel struct {
 // - DELETE /api/v1/jobs/failed/:id: deletes a failed upload job with the given ID.
 // - DELETE /api/v1/jobs/pending/:id: deletes a pending upload job with the given ID.
 // - PUT /api/v1/jobs/failed/:id/retry: retries a failed upload job with the given ID.
-func New(queue uploadqueue.UploadQueue, si serverinfo.ServerInfo, log *slog.Logger) *adminPanel {
+func New(
+	queue uploadqueue.UploadQueue,
+	si serverinfo.ServerInfo,
+	cNzb corruptednzbsmanager.CorruptedNzbsManager,
+	log *slog.Logger,
+) *adminPanel {
 	e := echo.New()
 	e.Use(slogecho.New(log))
 
@@ -37,15 +43,17 @@ func New(queue uploadqueue.UploadQueue, si serverinfo.ServerInfo, log *slog.Logg
 
 	v1 := e.Group("/api/v1")
 	{
-		v1.POST("/manual-scan", handlers.BuildManualScanHandler(queue))
-		v1.GET("/jobs/failed", handlers.BuildGetFailedJobsHandler(queue))
-		v1.GET("/jobs/pending", handlers.BuildGetPendingJobsHandler(queue))
-		v1.GET("/jobs/in-progres", handlers.BuildGetJobsInProgressHandler(queue))
-		v1.GET("/jobs/in-progres/:id/logs", handlers.BuildGetActiveJobLogHandler(queue))
-		v1.DELETE("/jobs/failed/:id", handlers.BuildDeleteFailedJobIdHandler(queue))
-		v1.DELETE("/jobs/pending/:id", handlers.BuildDeletePendingJobIdHandler(queue))
-		v1.PUT("/jobs/failed/:id/retry", handlers.BuildRetryJobByIdHandler(queue))
-		v1.GET("/server-info", handlers.BuildGetServerInfoHandler(si))
+		v1.POST("/manual-scan", handlers.ManualScanHandler(queue))
+		v1.GET("/jobs/failed", handlers.GetFailedJobsHandler(queue))
+		v1.GET("/jobs/pending", handlers.GetPendingJobsHandler(queue))
+		v1.GET("/jobs/in-progres", handlers.GetJobsInProgressHandler(queue))
+		v1.GET("/jobs/in-progres/:id/logs", handlers.GetActiveJobLogHandler(queue))
+		v1.DELETE("/jobs/failed/:id", handlers.DeleteFailedJobIdHandler(queue))
+		v1.DELETE("/jobs/pending/:id", handlers.DeletePendingJobIdHandler(queue))
+		v1.PUT("/jobs/failed/:id/retry", handlers.RetryJobByIdHandler(queue))
+		v1.GET("/server-info", handlers.GetServerInfoHandler(si))
+		v1.GET("/nzbs/corrupted", handlers.GetCorruptedNzbListHandler(cNzb))
+		v1.DELETE("/nzbs/corrupted/:id", handlers.DeleteCorruptedNzbHandler(cNzb))
 	}
 
 	return &adminPanel{

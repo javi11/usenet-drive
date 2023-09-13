@@ -8,7 +8,7 @@ import (
 	echo "github.com/labstack/echo/v4"
 )
 
-func BuildGetFailedJobsHandler(queue uploadqueue.UploadQueue) echo.HandlerFunc {
+func GetFailedJobsHandler(queue uploadqueue.UploadQueue) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		limit := 10
 		offset := 0

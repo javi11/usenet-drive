@@ -12,11 +12,11 @@ type SqlQueue interface {
 	Enqueue(ctx context.Context, data string) error
 	Dequeue(ctx context.Context, limit int) ([]Job, error)
 	Delete(ctx context.Context, id int64) error
-	PushToFailedQueue(ctx context.Context, data string, error string) error
+	MarkJobAsFailed(ctx context.Context, job Job, error string) error
 	GetFailedJobs(ctx context.Context, limit, offset int) (Result, error)
 	DeleteFailedJob(ctx context.Context, id int64) error
 	GetPendingJobs(ctx context.Context, limit, offset int) (Result, error)
-	DequeueFailedJobById(ctx context.Context, id int64) (Job, error)
+	PopFailedJob(ctx context.Context, id int64) (Job, error)
 	DeletePendingJob(ctx context.Context, id int64) error
 }
 
@@ -129,7 +129,7 @@ func (q *sQLiteQueue) Dequeue(ctx context.Context, limit int) ([]Job, error) {
 	return jobs, nil
 }
 
-func (q *sQLiteQueue) DequeueFailedJobById(ctx context.Context, id int64) (Job, error) {
+func (q *sQLiteQueue) PopFailedJob(ctx context.Context, id int64) (Job, error) {
 	tx, err := q.db.BeginTx(ctx, nil)
 	if err != nil {
 		return Job{}, err
@@ -175,7 +175,7 @@ func (q *sQLiteQueue) Delete(ctx context.Context, id int64) error {
 	return nil
 }
 
-func (q *sQLiteQueue) PushToFailedQueue(ctx context.Context, data string, error string) error {
+func (q *sQLiteQueue) MarkJobAsFailed(ctx context.Context, job Job, error string) error {
 	tx, err := q.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -186,7 +186,7 @@ func (q *sQLiteQueue) PushToFailedQueue(ctx context.Context, data string, error 
 		return err
 	}
 
-	_, err = stmt.ExecContext(ctx, data, error)
+	_, err = stmt.ExecContext(ctx, job.Data, error)
 	if err != nil {
 		return err
 	}
