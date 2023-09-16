@@ -14,17 +14,24 @@ usenet:
   upload:
     nyuu_path: /config/nyuu
     upload_interval_in_seconds: 20
-    provider:
-      host: post.otherusenet.server
-      port: 119
-      username: pepe
-      password: 1234
-      ssl: false
-      max_connections: 25
-      groups:
-        - alt.binaries.test
-    max_active_uploads: 2
-    file_whitelist:
+    providers:
+      - host: post.otherusenet.server
+        port: 119
+        username: pepe
+        password: 1234
+        ssl: false
+        max_connections: 25
+        groups:
+          - alt.binaries.test
+      - host: post.another.server
+        port: 119
+        username: pepe
+        password: 1234
+        ssl: false
+        max_connections: 25
+        groups:
+          - alt.binaries.test
+    file_allow_list:
       - .mkv
       - .mp4
       - .avi

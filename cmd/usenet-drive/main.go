@@ -74,14 +74,7 @@ var rootCmd = &cobra.Command{
 
 		// Create uploader
 		u, err := uploader.NewUploader(
-			uploader.WithHost(config.Usenet.Upload.Provider.Host),
-			uploader.WithPort(config.Usenet.Upload.Provider.Port),
-			uploader.WithUsername(config.Usenet.Upload.Provider.Username),
-			uploader.WithPassword(config.Usenet.Upload.Provider.Password),
-			uploader.WithSSL(config.Usenet.Upload.Provider.SSL),
-			uploader.WithNyuuPath(config.Usenet.Upload.NyuuPath),
-			uploader.WithGroups(config.Usenet.Upload.Provider.Groups),
-			uploader.WithMaxConnections(config.Usenet.Upload.Provider.MaxConnections),
+			uploader.WithProviders(config.Usenet.Upload.Providers),
 			uploader.WithLogger(log),
 			uploader.WithDryRun(config.Usenet.Upload.DryRun),
 		)
@@ -106,9 +99,9 @@ var rootCmd = &cobra.Command{
 		uploaderQueue := uploadqueue.NewUploadQueue(
 			uploadqueue.WithQueueEngine(sqlLiteEngine),
 			uploadqueue.WithUploader(u),
-			uploadqueue.WithMaxActiveUploads(config.Usenet.Upload.MaxActiveUploads),
+			uploadqueue.WithMaxActiveUploads(len(config.Usenet.Upload.Providers)),
 			uploadqueue.WithLogger(log),
-			uploadqueue.WithFileWhitelist(config.Usenet.Upload.FileWhitelist),
+			uploadqueue.WithFileAllowlist(config.Usenet.Upload.FileAllowlist),
 		)
 		defer uploaderQueue.Close(ctx)
 
@@ -137,7 +130,7 @@ var rootCmd = &cobra.Command{
 		// Call the handler function with the config
 		webdav, err := webdav.NewServer(
 			webdav.WithLogger(log),
-			webdav.WithUploadFileWhitelist(config.Usenet.Upload.FileWhitelist),
+			webdav.WithUploadFileAllowlist(config.Usenet.Upload.FileAllowlist),
 			webdav.WithUploadQueue(uploaderQueue),
 			webdav.WithUsenetConnectionPool(downloadConnPool),
 			webdav.WithNzbLoader(nzbLoader),

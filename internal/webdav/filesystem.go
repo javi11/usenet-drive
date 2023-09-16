@@ -21,7 +21,7 @@ type nzbFilesystem struct {
 	lock                sync.RWMutex
 	queue               uploadqueue.UploadQueue
 	log                 *slog.Logger
-	uploadFileWhitelist []string
+	uploadFileAllowlist []string
 	nzbLoader           *usenet.NzbLoader
 }
 
@@ -31,7 +31,7 @@ func NewNzbFilesystem(
 	cn usenet.UsenetConnectionPool,
 	queue uploadqueue.UploadQueue,
 	log *slog.Logger,
-	uploadFileWhitelist []string,
+	uploadFileAllowlist []string,
 	nzbLoader *usenet.NzbLoader,
 ) webdav.FileSystem {
 	return &nzbFilesystem{
@@ -40,7 +40,7 @@ func NewNzbFilesystem(
 		cn:                  cn,
 		queue:               queue,
 		log:                 log,
-		uploadFileWhitelist: uploadFileWhitelist,
+		uploadFileAllowlist: uploadFileAllowlist,
 		nzbLoader:           nzbLoader,
 	}
 }
@@ -73,7 +73,7 @@ func (fs *nzbFilesystem) OpenFile(ctx context.Context, name string, flag int, pe
 	}
 
 	onClose := func() {}
-	if flag == os.O_RDWR|os.O_CREATE|os.O_TRUNC && utils.HasAllowedExtension(name, fs.uploadFileWhitelist) {
+	if flag == os.O_RDWR|os.O_CREATE|os.O_TRUNC && utils.HasAllowedExtension(name, fs.uploadFileAllowlist) {
 		tmpName := strings.Replace(name, fs.rootPath, fs.tmpPath, 1)
 		// Prepare directory on tmp folder
 		err := os.MkdirAll(filepath.Dir(tmpName), 0755)

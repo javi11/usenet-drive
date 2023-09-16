@@ -173,11 +173,11 @@ The `Upload` struct defines the Usenet provider for uploading.
 ### Fields
 
 - `dry_run` (bool): Whether to do real uploads or just generate fake nzb. Default value is `false`. Use it just to test the configuration.
-- `provider` (UsenetProvider): The Usenet provider for uploading.
-- `file_whitelist` ([]string): The list of allowed file extensions. For example, `[".mkv", ".mp4"]`, in this case only files with the extensions `.mkv` and `.mp4` will be uploaded to usenet. Take care not upload files that change frequently, like subtitules or text files, since they will be uploaded every time they change. In usenet you can not edit files.
+- `providers` ([]UsenetProvider): An array of Usenet providers. Every provider will be used to upload one file. This means that if you have 2 providers you can upload 2 files at the same time.
+Alternatively, you can use the same provider and split the available connections to allow more parallel uploads.
+- `file_allow_list` ([]string): The list of allowed file extensions. For example, `[".mkv", ".mp4"]`, in this case only files with the extensions `.mkv` and `.mp4` will be uploaded to usenet. Take care not upload files that change frequently, like subtitules or text files, since they will be uploaded every time they change. In usenet you can not edit files.
 - `nyuu_version` (string): The version of [Nyuu](https://github.com/animetosho/Nyuu). Default value is `0.4.1`. Used for upload files to usenet.
 - `nyuu_path` (string): The path to [Nyuu](https://github.com/animetosho/Nyuu). Default value is `/config/nyuu`. If nyuu executable is not found, it will be auto downloaded for the given system arch. Used for upload files to usenet.
-- `max_active_uploads` (int): The maximum number of active uploads. Be aware that the number of active uploads are related with the number of maxConnections. For example, if your provider allows 20 connections, to avoid problems, if you want 2 active uploads you should put 10 max connections. Default value is `2`.
 - `upload_interval_in_seconds` (float64): The upload interval in seconds. After X seconds the system will check for pending uploads and perform them. Default value is `60`.
 
 ## UsenetProvider Struct

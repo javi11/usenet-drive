@@ -12,7 +12,7 @@ type Config struct {
 	uploader         uploader.Uploader
 	maxActiveUploads int
 	log              *slog.Logger
-	fileWhitelist    []string
+	fileAllowlist    []string
 }
 
 type Option func(*Config)
@@ -45,8 +45,8 @@ func WithLogger(log *slog.Logger) Option {
 	}
 }
 
-func WithFileWhitelist(fileWhitelist []string) Option {
+func WithFileAllowlist(fileAllowlist []string) Option {
 	return func(c *Config) {
-		c.fileWhitelist = fileWhitelist
+		c.fileAllowlist = fileAllowlist
 	}
 }

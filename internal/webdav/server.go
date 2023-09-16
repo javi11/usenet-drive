@@ -28,7 +28,7 @@ func NewServer(options ...Option) (*webdavServer, error) {
 			config.cp,
 			config.queue,
 			config.log,
-			config.uploadFileWhitelist,
+			config.uploadFileAllowlist,
 			config.nzbLoader,
 		),
 		LockSystem: webdav.NewMemLS(),

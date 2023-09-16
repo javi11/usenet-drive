@@ -40,7 +40,7 @@ type uploadQueue struct {
 	log              *slog.Logger
 	mx               *sync.RWMutex
 	closed           bool
-	fileWhitelist    []string
+	fileAllowlist    []string
 }
 
 func NewUploadQueue(options ...Option) UploadQueue {
@@ -57,7 +57,7 @@ func NewUploadQueue(options ...Option) UploadQueue {
 		mx:               &sync.RWMutex{},
 		closed:           false,
 		activeJobs:       make(map[int64]sqllitequeue.Job, 0),
-		fileWhitelist:    config.fileWhitelist,
+		fileAllowlist:    config.fileAllowlist,
 	}
 }
 
@@ -93,7 +93,7 @@ func (q *uploadQueue) ProcessJob(ctx context.Context, job sqllitequeue.Job) erro
 			}
 
 			// Check if the file is allowed
-			if !utils.HasAllowedExtension(info.Name(), q.fileWhitelist) {
+			if !utils.HasAllowedExtension(info.Name(), q.fileAllowlist) {
 				q.log.InfoContext(ctx, fmt.Sprintf("File %s ignored, extension not allowed", path))
 				return nil
 			}

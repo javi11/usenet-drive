@@ -13,7 +13,7 @@ type Config struct {
 	cp                  usenet.UsenetConnectionPool
 	queue               uploadqueue.UploadQueue
 	log                 *slog.Logger
-	uploadFileWhitelist []string
+	uploadFileAllowlist []string
 	nzbLoader           *usenet.NzbLoader
 }
 
@@ -41,9 +41,9 @@ func WithLogger(log *slog.Logger) Option {
 	}
 }
 
-func WithUploadFileWhitelist(uploadFileWhitelist []string) Option {
+func WithUploadFileAllowlist(uploadFileAllowlist []string) Option {
 	return func(c *Config) {
-		c.uploadFileWhitelist = uploadFileWhitelist
+		c.uploadFileAllowlist = uploadFileAllowlist
 	}
 }
 
