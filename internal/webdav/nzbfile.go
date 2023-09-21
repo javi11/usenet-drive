@@ -45,7 +45,7 @@ func OpenNzbFile(
 		return nil, os.ErrNotExist
 	}
 
-	buffer, err := NewBuffer(n.Nzb.Files[0], int(n.Metadata.FileSize), int(n.Metadata.ChunkSize), cp)
+	buffer, err := NewBuffer(&n.Nzb.Files[0], int(n.Metadata.FileSize), int(n.Metadata.ChunkSize), cp)
 	if err != nil {
 		return nil, err
 	}

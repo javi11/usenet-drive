@@ -8,10 +8,10 @@ import (
 	"os"
 	"sync"
 
-	"github.com/chrisfarms/nzb"
-	"github.com/chrisfarms/yenc"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/javi11/usenet-drive/internal/usenet"
+	"github.com/javi11/usenet-drive/pkg/nzb"
+	"github.com/javi11/usenet-drive/pkg/yenc"
 )
 
 // Buffer is a usable block of data similar to a file

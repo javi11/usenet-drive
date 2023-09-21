@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/chrisfarms/nzb"
+	"github.com/javi11/usenet-drive/pkg/nzb"
 )
 
 type Metadata struct {

@@ -48,6 +48,7 @@ func NewServer(options ...Option) (*webdavServer, error) {
 func (s *webdavServer) Start(ctx context.Context, port string) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		r = r.WithContext(context.WithValue(r.Context(), reqContentLengthKey, r.Header.Get("Content-Length")))
 		s.handler.ServeHTTP(w, r)
 	})
 	addr := fmt.Sprintf(":%s", port)

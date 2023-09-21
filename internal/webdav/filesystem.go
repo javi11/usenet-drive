@@ -11,6 +11,7 @@ import (
 	uploadqueue "github.com/javi11/usenet-drive/internal/upload-queue"
 	"github.com/javi11/usenet-drive/internal/usenet"
 	"github.com/javi11/usenet-drive/internal/utils"
+	"github.com/javi11/usenet-drive/pkg/nzb"
 	"golang.org/x/net/webdav"
 )
 
@@ -74,13 +75,6 @@ func (fs *nzbFilesystem) OpenFile(ctx context.Context, name string, flag int, pe
 
 	onClose := func() {}
 	if flag == os.O_RDWR|os.O_CREATE|os.O_TRUNC && utils.HasAllowedExtension(name, fs.uploadFileAllowlist) {
-		tmpName := strings.Replace(name, fs.rootPath, fs.tmpPath, 1)
-		// Prepare directory on tmp folder
-		err := os.MkdirAll(filepath.Dir(tmpName), 0755)
-		if err != nil {
-			fs.log.ErrorContext(ctx, "Failed to create tmp folder", "err", err)
-			return nil, err
-		}
 		// If the file is an allowed upload file, and was opened for writing, when close, add it to the upload queue
 		onClose = func() {
 			// Create a symlink to the original file on the tmp folder
@@ -146,10 +140,10 @@ func (fs *nzbFilesystem) Rename(ctx context.Context, oldName, newName string) er
 				return err
 			}
 
-			n := usenet.UpdateNzbMetadada(c.Nzb, usenet.UpdateableMetadata{
+			n := c.Nzb.UpdateMetadada(nzb.UpdateableMetadata{
 				FileExtension: filepath.Ext(newName),
 			})
-			b, err := usenet.NzbToBytes(n)
+			b, err := c.Nzb.ToBytes()
 			if err != nil {
 				return err
 			}
