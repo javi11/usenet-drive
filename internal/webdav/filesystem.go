@@ -11,6 +11,7 @@ import (
 	uploadqueue "github.com/javi11/usenet-drive/internal/upload-queue"
 	"github.com/javi11/usenet-drive/internal/usenet"
 	"github.com/javi11/usenet-drive/internal/utils"
+	rclonecli "github.com/javi11/usenet-drive/pkg/rclone-cli"
 	"golang.org/x/net/webdav"
 )
 
@@ -23,6 +24,8 @@ type nzbFilesystem struct {
 	log                 *slog.Logger
 	uploadFileAllowlist []string
 	nzbLoader           *usenet.NzbLoader
+	rcloneCli           rclonecli.RcloneRcClient
+	forceRefreshRclone  bool
 }
 
 func NewNzbFilesystem(
@@ -33,6 +36,8 @@ func NewNzbFilesystem(
 	log *slog.Logger,
 	uploadFileAllowlist []string,
 	nzbLoader *usenet.NzbLoader,
+	rcloneCli rclonecli.RcloneRcClient,
+	forceRefreshRclone bool,
 ) webdav.FileSystem {
 	return &nzbFilesystem{
 		rootPath:            rootPath,
@@ -42,6 +47,8 @@ func NewNzbFilesystem(
 		log:                 log,
 		uploadFileAllowlist: uploadFileAllowlist,
 		nzbLoader:           nzbLoader,
+		rcloneCli:           rcloneCli,
+		forceRefreshRclone:  forceRefreshRclone,
 	}
 }
 
@@ -51,7 +58,15 @@ func (fs *nzbFilesystem) Mkdir(ctx context.Context, name string, perm os.FileMod
 	if name = fs.resolve(name); name == "" {
 		return os.ErrNotExist
 	}
-	return os.Mkdir(name, perm)
+
+	err := os.Mkdir(name, perm)
+	if err != nil {
+		return err
+	}
+
+	fs.refreshRcloneCache(ctx, name)
+
+	return nil
 }
 
 func (fs *nzbFilesystem) OpenFile(ctx context.Context, name string, flag int, perm os.FileMode) (webdav.File, error) {
@@ -89,7 +104,9 @@ func (fs *nzbFilesystem) OpenFile(ctx context.Context, name string, flag int, pe
 			if err != nil {
 				fs.log.ErrorContext(ctx, "Failed to create symlink", "err", err)
 			}
+
 			fs.queue.AddJob(ctx, name)
+			fs.refreshRcloneCache(ctx, name)
 		}
 		return OpenFile(tmpName, flag, perm, onClose, fs.log, fs.nzbLoader)
 	}
@@ -170,7 +187,6 @@ func (fs *nzbFilesystem) Rename(ctx context.Context, oldName, newName string) er
 		newName = utils.ReplaceFileExtension(newName, ".nzb")
 
 		if newName == oldName {
-			// If the file is a masked call the original nzb file
 			return nil
 		}
 	}
@@ -179,7 +195,15 @@ func (fs *nzbFilesystem) Rename(ctx context.Context, oldName, newName string) er
 		// Prohibit renaming from or to the virtual root directory.
 		return os.ErrInvalid
 	}
-	return os.Rename(oldName, newName)
+
+	err := os.Rename(oldName, newName)
+	if err != nil {
+		return err
+	}
+
+	fs.refreshRcloneCache(ctx, newName)
+
+	return nil
 }
 
 func (fs *nzbFilesystem) Stat(ctx context.Context, name string) (os.FileInfo, error) {
@@ -216,4 +240,17 @@ func (fs *nzbFilesystem) resolve(name string) string {
 		dir = "."
 	}
 	return filepath.Join(dir, filepath.FromSlash(slashClean(name)))
+}
+
+func (fs *nzbFilesystem) refreshRcloneCache(ctx context.Context, name string) {
+	if fs.forceRefreshRclone {
+		mountDir := filepath.Dir(strings.Replace(name, fs.rootPath, "", 1))
+		if mountDir == "/" {
+			mountDir = ""
+		}
+		err := fs.rcloneCli.RefreshCache(ctx, mountDir, true, false)
+		if err != nil {
+			fs.log.ErrorContext(ctx, "Failed to refresh cache", "err", err)
+		}
+	}
 }

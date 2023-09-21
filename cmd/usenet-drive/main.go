@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
 	"os"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/javi11/usenet-drive/internal/uploader"
 	"github.com/javi11/usenet-drive/internal/usenet"
 	"github.com/javi11/usenet-drive/internal/webdav"
+	rclonecli "github.com/javi11/usenet-drive/pkg/rclone-cli"
 	sqllitequeue "github.com/javi11/usenet-drive/pkg/sqllite-queue"
 	"github.com/natefinch/lumberjack"
 	"github.com/spf13/cobra"
@@ -127,8 +129,7 @@ var rootCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		// Call the handler function with the config
-		webdav, err := webdav.NewServer(
+		webDavOptions := []webdav.Option{
 			webdav.WithLogger(log),
 			webdav.WithUploadFileAllowlist(config.Usenet.Upload.FileAllowlist),
 			webdav.WithUploadQueue(uploaderQueue),
@@ -136,6 +137,16 @@ var rootCmd = &cobra.Command{
 			webdav.WithNzbLoader(nzbLoader),
 			webdav.WithRootPath(config.RootPath),
 			webdav.WithTmpPath(config.TmpPath),
+		}
+
+		if config.Rclone.VFSUrl != "" {
+			rcloneCli := rclonecli.NewRcloneRcClient(config.Rclone.VFSUrl, http.DefaultClient)
+			webDavOptions = append(webDavOptions, webdav.WithRcloneCli(rcloneCli))
+		}
+
+		// Call the handler function with the config
+		webdav, err := webdav.NewServer(
+			webDavOptions...,
 		)
 		if err != nil {
 			log.ErrorContext(ctx, "Failed to create WebDAV server: %v", err)

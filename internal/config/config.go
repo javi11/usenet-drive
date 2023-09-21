@@ -16,6 +16,11 @@ type Config struct {
 	Usenet       Usenet `yaml:"usenet"`
 	DBPath       string `yaml:"db_path" default:"/config/usenet-drive.db"`
 	NzbCacheSize int    `yaml:"nzb_cache_size" default:"100"`
+	Rclone       Rclone `yaml:"rclone"`
+}
+
+type Rclone struct {
+	VFSUrl string `yaml:"vfs_url"`
 }
 
 type Usenet struct {

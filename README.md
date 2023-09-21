@@ -156,6 +156,15 @@ The `Config` struct defines the configuration for the Usenet Drive application. 
 - `api_port` (string): The port number for the server. Default value is `8080`.
 - `usenet` (Usenet): The Usenet configuration.
 - `db_path` (string): The path where the database will be saved. Default value is `/config/usenet-drive.db`.
+- `rclone` (Rclone): The Rclone configuration.
+
+## Rclone Struct
+
+Since rclone webdav backend do not supports polling, if an vfs controller url is provided, the application will refresh the rclone cache when a new file is uploaded.
+
+### Fields
+
+- `vfs_url` (string): The url+port to the rclone vfs . Example `http://localhost:7579`.
 
 ## Usenet Struct
 
