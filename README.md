@@ -156,6 +156,15 @@ The `Config` struct defines the configuration for the Usenet Drive application. 
 - `api_port` (string): The port number for the server. Default value is `8080`.
 - `usenet` (Usenet): The Usenet configuration.
 - `db_path` (string): The path where the database will be saved. Default value is `/config/usenet-drive.db`.
+- `rclone` (Rclone): The Rclone configuration.
+
+## Rclone Struct
+
+Since rclone webdav backend do not supports polling, if an vfs controller url is provided, the application will refresh the rclone cache when a new file is uploaded.
+
+### Fields
+
+- `vfs_url` (string): The url+port to the rclone vfs . Example `http://localhost:7579`.
 
 ## Usenet Struct
 
@@ -173,7 +182,7 @@ The `Upload` struct defines the Usenet provider for uploading.
 ### Fields
 
 - `dry_run` (bool): Whether to do real uploads or just generate fake nzb. Default value is `false`. Use it just to test the configuration.
-- `providers` ([]UsenetProvider): An array of Usenet providers. Every provider will be used to upload one file. This means that if you have 2 providers you can upload 2 files at the same time.
+- `provider` (UsenetProvider): Usenet provider to upload files
 Alternatively, you can use the same provider and split the available connections to allow more parallel uploads.
 - `file_allow_list` ([]string): The list of allowed file extensions. For example, `[".mkv", ".mp4"]`, in this case only files with the extensions `.mkv` and `.mp4` will be uploaded to usenet. Take care not upload files that change frequently, like subtitules or text files, since they will be uploaded every time they change. In usenet you can not edit files.
 - `nyuu_version` (string): The version of [Nyuu](https://github.com/animetosho/Nyuu). Default value is `0.4.1`. Used for upload files to usenet.

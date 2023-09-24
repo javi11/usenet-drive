@@ -30,6 +30,8 @@ func NewServer(options ...Option) (*webdavServer, error) {
 			config.log,
 			config.uploadFileAllowlist,
 			config.nzbLoader,
+			config.rcloneCli,
+			config.refreshRcloneCache,
 		),
 		LockSystem: webdav.NewMemLS(),
 		Logger: func(r *http.Request, err error) {

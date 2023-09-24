@@ -5,6 +5,7 @@ import (
 
 	uploadqueue "github.com/javi11/usenet-drive/internal/upload-queue"
 	"github.com/javi11/usenet-drive/internal/usenet"
+	rclonecli "github.com/javi11/usenet-drive/pkg/rclone-cli"
 )
 
 type Config struct {
@@ -15,12 +16,23 @@ type Config struct {
 	log                 *slog.Logger
 	uploadFileAllowlist []string
 	nzbLoader           *usenet.NzbLoader
+	refreshRcloneCache  bool
+	rcloneCli           rclonecli.RcloneRcClient
 }
 
 type Option func(*Config)
 
 func defaultConfig() *Config {
-	return &Config{}
+	return &Config{
+		refreshRcloneCache: false,
+	}
+}
+
+func WithRcloneCli(rcloneCli rclonecli.RcloneRcClient) Option {
+	return func(c *Config) {
+		c.rcloneCli = rcloneCli
+		c.refreshRcloneCache = true
+	}
 }
 
 func WithUsenetConnectionPool(cp usenet.UsenetConnectionPool) Option {

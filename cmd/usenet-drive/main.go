@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
 	"os"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/javi11/usenet-drive/internal/uploader"
 	"github.com/javi11/usenet-drive/internal/usenet"
 	"github.com/javi11/usenet-drive/internal/webdav"
+	rclonecli "github.com/javi11/usenet-drive/pkg/rclone-cli"
 	sqllitequeue "github.com/javi11/usenet-drive/pkg/sqllite-queue"
 	"github.com/natefinch/lumberjack"
 	"github.com/spf13/cobra"
@@ -74,7 +76,14 @@ var rootCmd = &cobra.Command{
 
 		// Create uploader
 		u, err := uploader.NewUploader(
-			uploader.WithProviders(config.Usenet.Upload.Providers),
+			uploader.WithHost(config.Usenet.Upload.Provider.Host),
+			uploader.WithPort(config.Usenet.Upload.Provider.Port),
+			uploader.WithUsername(config.Usenet.Upload.Provider.Username),
+			uploader.WithPassword(config.Usenet.Upload.Provider.Password),
+			uploader.WithSSL(config.Usenet.Upload.Provider.SSL),
+			uploader.WithNyuuPath(config.Usenet.Upload.NyuuPath),
+			uploader.WithGroups(config.Usenet.Upload.Provider.Groups),
+			uploader.WithMaxConnections(config.Usenet.Upload.Provider.MaxConnections),
 			uploader.WithLogger(log),
 			uploader.WithDryRun(config.Usenet.Upload.DryRun),
 		)
@@ -99,14 +108,11 @@ var rootCmd = &cobra.Command{
 		uploaderQueue := uploadqueue.NewUploadQueue(
 			uploadqueue.WithQueueEngine(sqlLiteEngine),
 			uploadqueue.WithUploader(u),
-			uploadqueue.WithMaxActiveUploads(len(config.Usenet.Upload.Providers)),
+			uploadqueue.WithMaxActiveUploads(1),
 			uploadqueue.WithLogger(log),
 			uploadqueue.WithFileAllowlist(config.Usenet.Upload.FileAllowlist),
 		)
 		defer uploaderQueue.Close(ctx)
-
-		// Start uploader queue
-		go uploaderQueue.Start(ctx, time.Duration(config.Usenet.Upload.UploadIntervalInSeconds*float64(time.Second)))
 
 		// Server info
 		serverInfo := serverinfo.NewServerInfo(downloadConnPool, config.RootPath, config.TmpPath)
@@ -127,8 +133,7 @@ var rootCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		// Call the handler function with the config
-		webdav, err := webdav.NewServer(
+		webDavOptions := []webdav.Option{
 			webdav.WithLogger(log),
 			webdav.WithUploadFileAllowlist(config.Usenet.Upload.FileAllowlist),
 			webdav.WithUploadQueue(uploaderQueue),
@@ -136,11 +141,24 @@ var rootCmd = &cobra.Command{
 			webdav.WithNzbLoader(nzbLoader),
 			webdav.WithRootPath(config.RootPath),
 			webdav.WithTmpPath(config.TmpPath),
+		}
+
+		if config.Rclone.VFSUrl != "" {
+			rcloneCli := rclonecli.NewRcloneRcClient(config.Rclone.VFSUrl, http.DefaultClient)
+			webDavOptions = append(webDavOptions, webdav.WithRcloneCli(rcloneCli))
+		}
+
+		// Call the handler function with the config
+		webdav, err := webdav.NewServer(
+			webDavOptions...,
 		)
 		if err != nil {
 			log.ErrorContext(ctx, "Failed to create WebDAV server: %v", err)
 			os.Exit(1)
 		}
+
+		// Start uploader queue
+		go uploaderQueue.Start(ctx, time.Duration(config.Usenet.Upload.UploadIntervalInSeconds*float64(time.Second)))
 
 		// Start webdav server
 		webdav.Start(ctx, config.WebDavPort)

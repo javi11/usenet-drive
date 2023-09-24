@@ -49,22 +49,13 @@ func New(db *sql.DB) (CorruptedNzbsManager, error) {
 }
 
 func (q *corruptedNzbsManager) Add(ctx context.Context, path, error string) error {
-	tx, err := q.db.BeginTx(ctx, nil)
+	stmt, err := q.db.PrepareContext(ctx, "INSERT INTO corrupted_nzbs (path, error) VALUES (?, ?)")
 	if err != nil {
 		return err
 	}
-
-	stmt, err := tx.PrepareContext(ctx, "INSERT INTO corrupted_nzbs (path, error) VALUES (?, ?)")
-	if err != nil {
-		return err
-	}
+	defer stmt.Close()
 
 	_, err = stmt.ExecContext(ctx, path, error)
-	if err != nil {
-		return err
-	}
-
-	err = tx.Commit()
 	if err != nil {
 		return err
 	}
@@ -83,11 +74,13 @@ func (q *corruptedNzbsManager) Delete(ctx context.Context, id int64) error {
 	var j cNzb
 	err = row.Scan(&j.ID, &j.Path, &j.CreatedAt)
 	if err != nil {
+		tx.Commit()
 		return err
 	}
 
 	_, err = tx.ExecContext(ctx, "DELETE FROM corrupted_nzbs WHERE id = ?", id)
 	if err != nil {
+		tx.Rollback()
 		return err
 	}
 
@@ -107,19 +100,14 @@ func (q *corruptedNzbsManager) Delete(ctx context.Context, id int64) error {
 }
 
 func (q *corruptedNzbsManager) List(ctx context.Context, limit, offset int) (Result, error) {
-	tx, err := q.db.BeginTx(ctx, nil)
-	if err != nil {
-		return Result{}, err
-	}
-
 	// Get the total count of items in the failed_queue table
 	var totalCount int
-	err = tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM corrupted_nzbs").Scan(&totalCount)
+	err := q.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM corrupted_nzbs").Scan(&totalCount)
 	if err != nil {
 		return Result{}, err
 	}
 
-	rows, err := tx.QueryContext(
+	rows, err := q.db.QueryContext(
 		ctx,
 		fmt.Sprintf("SELECT id, path, created_at, error FROM corrupted_nzbs ORDER BY created_at ASC LIMIT %v OFFSET %v", limit, offset),
 	)
@@ -145,11 +133,6 @@ func (q *corruptedNzbsManager) List(ctx context.Context, limit, offset int) (Res
 			CreatedAt: createdAt,
 			Error:     error,
 		})
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		return Result{}, err
 	}
 
 	return Result{

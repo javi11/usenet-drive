@@ -16,6 +16,11 @@ type Config struct {
 	Usenet       Usenet `yaml:"usenet"`
 	DBPath       string `yaml:"db_path" default:"/config/usenet-drive.db"`
 	NzbCacheSize int    `yaml:"nzb_cache_size" default:"100"`
+	Rclone       Rclone `yaml:"rclone"`
+}
+
+type Rclone struct {
+	VFSUrl string `yaml:"vfs_url"`
 }
 
 type Usenet struct {
@@ -24,12 +29,12 @@ type Usenet struct {
 }
 
 type Upload struct {
-	DryRun                  bool             `yaml:"dry_run" default:"false"`
-	Providers               []UsenetProvider `yaml:"providers"`
-	FileAllowlist           []string         `yaml:"file_allow_list"`
-	NyuuVersion             string           `yaml:"nyuu_version" default:"0.4.1"`
-	NyuuPath                string           `yaml:"nyuu_path" default:"/config/nyuu"`
-	UploadIntervalInSeconds float64          `yaml:"upload_interval_in_seconds" default:"60"`
+	DryRun                  bool           `yaml:"dry_run" default:"false"`
+	Provider                UsenetProvider `yaml:"provider"`
+	FileAllowlist           []string       `yaml:"file_allow_list"`
+	NyuuVersion             string         `yaml:"nyuu_version" default:"0.4.1"`
+	NyuuPath                string         `yaml:"nyuu_path" default:"/config/nyuu"`
+	UploadIntervalInSeconds float64        `yaml:"upload_interval_in_seconds" default:"60"`
 }
 
 type UsenetProvider struct {

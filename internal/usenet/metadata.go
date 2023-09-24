@@ -18,6 +18,13 @@ type Metadata struct {
 }
 
 func LoadMetadataFromNzb(nzbFile *nzb.Nzb) (Metadata, error) {
+	if nzbFile.Meta["file_name"] == "" ||
+		nzbFile.Meta["file_size"] == "" ||
+		nzbFile.Meta["mod_time"] == "" ||
+		nzbFile.Meta["file_extension"] == "" {
+		return Metadata{}, fmt.Errorf("corrupted nzb file, missing required metadata")
+	}
+
 	fileSize, err := strconv.ParseInt(nzbFile.Meta["file_size"], 10, 64)
 	if err != nil {
 		return Metadata{}, err

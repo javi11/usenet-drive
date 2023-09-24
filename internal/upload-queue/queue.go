@@ -62,7 +62,7 @@ func NewUploadQueue(options ...Option) UploadQueue {
 }
 
 func (q *uploadQueue) AddJob(ctx context.Context, filePath string) error {
-	q.log.InfoContext(ctx, "Adding file %s to upload queue", filePath)
+	q.log.InfoContext(ctx, fmt.Sprintf("Adding file %v to upload queue", filePath), "filePath", filePath)
 	return q.engine.Enqueue(ctx, filePath)
 }
 

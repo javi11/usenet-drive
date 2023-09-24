@@ -38,9 +38,9 @@ type uploader struct {
 	scriptPath    string
 	commonArgs    []string
 	log           *slog.Logger
-	providerPool  *providerPool
 	activeUploads map[string]activeUploads
 	lastPort      int
+	groups        []string
 }
 
 func NewUploader(options ...Option) (*uploader, error) {
@@ -50,14 +50,18 @@ func NewUploader(options ...Option) (*uploader, error) {
 	}
 
 	args := []string{
+		fmt.Sprintf("--host=%s", config.host),
+		fmt.Sprintf("--user=%s", config.username),
+		fmt.Sprintf("--password=%s", config.password),
 		fmt.Sprintf("--article-size=%v", config.articleSize),
+		fmt.Sprintf("--port=%v", config.port),
+		fmt.Sprintf("--connections=%v", config.maxConnections),
 		// overwirte nzb if exists
 		"--overwrite",
 	}
 
-	pool, err := newProviderPool(config.providers)
-	if err != nil {
-		return nil, err
+	if config.ssl {
+		args = append(args, "--ssl")
 	}
 
 	return &uploader{
@@ -66,8 +70,8 @@ func NewUploader(options ...Option) (*uploader, error) {
 		lastPort:      8100,
 		commonArgs:    args,
 		log:           config.log,
+		groups:        config.groups,
 		activeUploads: make(map[string]activeUploads, 0),
-		providerPool:  pool,
 	}, nil
 }
 
@@ -94,24 +98,12 @@ func (u *uploader) UploadFile(ctx context.Context, path string) (string, error) 
 		),
 	)
 
-	provider, err := u.providerPool.Get()
-	if err != nil {
-		return "", err
-	}
-	defer u.providerPool.Release(provider)
-
-	// Just upload to one group to prevent bans
-	randomGroup := provider.Groups[rand.Intn(len(provider.Groups))]
+	randomGroup := u.groups[rand.Intn(len(u.groups))]
 	port := u.lastPort + 1
 
 	args := append(
 		u.commonArgs,
-		fmt.Sprintf("--host=%s", provider.Host),
-		fmt.Sprintf("--user=%s", provider.Username),
-		fmt.Sprintf("--password=%s", provider.Password),
 		fmt.Sprintf("--filename=%s", fileName),
-		fmt.Sprintf("--port=%v", provider.Port),
-		fmt.Sprintf("--connections=%v", provider.MaxConnections),
 		fmt.Sprintf("--groups=%s", randomGroup),
 		fmt.Sprintf("-M file_size: %d", fileInfo.Size()),
 		fmt.Sprintf("-M file_name: %s", fileInfo.Name()),
@@ -124,9 +116,7 @@ func (u *uploader) UploadFile(ctx context.Context, path string) (string, error) 
 		fmt.Sprintf("--progress=http:localhost:%v", port),
 		path,
 	)
-	if provider.SSL {
-		args = append(args, "--ssl")
-	}
+
 	cmd := exec.CommandContext(ctx, u.scriptPath, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
