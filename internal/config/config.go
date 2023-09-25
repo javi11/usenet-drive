@@ -24,8 +24,9 @@ type Rclone struct {
 }
 
 type Usenet struct {
-	Download UsenetProvider `yaml:"download"`
-	Upload   Upload         `yaml:"upload"`
+	Download           UsenetProvider `yaml:"download"`
+	Upload             Upload         `yaml:"upload"`
+	ArticleSizeInBytes int64          `yaml:"article_size_in_bytes" default:"750000"`
 }
 
 type Upload struct {

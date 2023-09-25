@@ -30,6 +30,7 @@ func NewServer(options ...Option) (*webdavServer, error) {
 			config.log,
 			config.uploadFileAllowlist,
 			config.nzbLoader,
+			config.uploader,
 			config.rcloneCli,
 			config.refreshRcloneCache,
 		),

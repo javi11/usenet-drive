@@ -16,6 +16,7 @@ type Config struct {
 	log                 *slog.Logger
 	uploadFileAllowlist []string
 	nzbLoader           *usenet.NzbLoader
+	uploader            usenet.Uploader
 	refreshRcloneCache  bool
 	rcloneCli           rclonecli.RcloneRcClient
 }
@@ -74,5 +75,11 @@ func WithRootPath(rootPath string) Option {
 func WithTmpPath(tmpPath string) Option {
 	return func(c *Config) {
 		c.tmpPath = tmpPath
+	}
+}
+
+func WithUploader(uploader usenet.Uploader) Option {
+	return func(c *Config) {
+		c.uploader = uploader
 	}
 }

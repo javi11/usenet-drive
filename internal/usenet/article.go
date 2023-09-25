@@ -6,15 +6,17 @@ import (
 	"hash/crc32"
 	"time"
 
+	"github.com/chrisfarms/nntp"
+	"github.com/google/uuid"
 	"github.com/javi11/usenet-drive/pkg/nzb"
 	"github.com/javi11/usenet-drive/pkg/yenc"
 )
 
 type Article struct {
-	Body     *bytes.Buffer
-	NzbData  nzb.NzbFile
-	Segment  nzb.NzbSegment
-	FileName string
+	nttpArticle *nntp.Article
+	NzbData     nzb.NzbFile
+	Segment     nzb.NzbSegment
+	FileName    string
 }
 
 type ArticleData struct {
@@ -27,11 +29,6 @@ type ArticleData struct {
 	FileTotal int
 	FileSize  int64
 	FileName  string
-}
-
-type ArticleBuilderConfig struct {
-	from  string
-	group string
 }
 
 type articleBuilder struct {
@@ -48,18 +45,21 @@ func NewArticleBuilder(poster, group string) *articleBuilder {
 
 func (ar *articleBuilder) NewArticle(p []byte, data *ArticleData) *Article {
 	buf := new(bytes.Buffer)
-	buf.WriteString(fmt.Sprintf("From: %s\r\n", ar.poster))
+	a := &nntp.Article{
+		Header: map[string][]string{},
+	}
 
-	buf.WriteString(fmt.Sprintf("Newsgroups: %s\r\n", ar.group))
+	a.Header["From"] = []string{ar.poster}
+	a.Header["Newsgroups"] = []string{ar.group}
 
 	var msgid string
 	t := time.Now()
-	msgid = fmt.Sprintf("%.5f$gps@usdrive", float64(t.UnixNano())/1.0e9)
-	buf.WriteString(fmt.Sprintf("Message-ID: <%s>\r\n", msgid))
-	buf.WriteString("X-Newsposter: KereMagicPoster\r\n")
+	msgid = ar.generateMessageId()
+	a.Header["Message-ID"] = []string{"<" + msgid + ">"}
+	a.Header["X-Newsposter"] = []string{"UsenetDrive"}
 
 	subj := fmt.Sprintf("[%d/%d] - \"%s\" yEnc (%d/%d)", data.FileNum, data.FileTotal, data.FileName, data.PartNum, data.PartTotal)
-	buf.WriteString(fmt.Sprintf("Subject: %s\r\n\r\n", subj))
+	a.Header["Subject"] = []string{subj}
 
 	// yEnc begin line
 	buf.WriteString(fmt.Sprintf("=ybegin part=%d total=%d line=128 size=%d name=%s\r\n", data.PartNum, data.PartTotal, data.FileSize, data.FileName))
@@ -72,6 +72,7 @@ func (ar *articleBuilder) NewArticle(p []byte, data *ArticleData) *Article {
 	h := crc32.NewIEEE()
 	h.Write(p)
 	buf.WriteString(fmt.Sprintf("=yend size=%d part=%d pcrc32=%08X\r\n", data.PartSize, data.PartNum, h.Sum32()))
+	a.Body = buf
 	// Nzb
 	n := nzb.NzbFile{
 		Groups:  []string{ar.group},
@@ -84,5 +85,10 @@ func (ar *articleBuilder) NewArticle(p []byte, data *ArticleData) *Article {
 		Number: data.PartNum,
 		Id:     msgid,
 	}
-	return &Article{Body: buf, NzbData: n, Segment: s, FileName: data.FileName}
+	return &Article{nttpArticle: a, NzbData: n, Segment: s, FileName: data.FileName}
+}
+
+func (ar *articleBuilder) generateMessageId() string {
+	id := uuid.New()
+	return fmt.Sprintf("%s@usenetdrive", id.String())
 }

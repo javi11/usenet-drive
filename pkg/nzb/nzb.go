@@ -51,7 +51,7 @@ type UpdateableMetadata struct {
 	FileExtension string
 }
 
-func (n *Nzb) WriteIntoFile(filename string) error {
+func (n *Nzb) WriteIntoFile(f *os.File) error {
 	sort.Sort(n.Files)
 	for i, _ := range n.Files {
 		sort.Sort(n.Files[i].Segments)
@@ -59,7 +59,7 @@ func (n *Nzb) WriteIntoFile(filename string) error {
 	nzb := nzbToXNzb(n)
 	if output, err := xml.MarshalIndent(nzb, "", "    "); err == nil {
 		output = []byte(NzbHeader + NzbDoctype + string(output))
-		err := os.WriteFile(filename, output, 0755)
+		_, err := f.Write(output)
 		if err != nil {
 			return err
 		}

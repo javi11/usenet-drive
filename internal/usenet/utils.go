@@ -1,6 +1,11 @@
 package usenet
 
-import "github.com/chrisfarms/nntp"
+import (
+	"crypto/md5"
+	"encoding/hex"
+
+	"github.com/chrisfarms/nntp"
+)
 
 func FindGroup(c *nntp.Conn, groups []string) error {
 	var err error
@@ -11,4 +16,9 @@ func FindGroup(c *nntp.Conn, groups []string) error {
 		}
 	}
 	return err
+}
+
+func generateHashFromString(s string) (string, error) {
+	hash := md5.Sum([]byte(s))
+	return hex.EncodeToString(hash[:]), nil
 }

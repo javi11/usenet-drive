@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -27,6 +28,7 @@ type nzbFilesystem struct {
 	nzbLoader           *usenet.NzbLoader
 	rcloneCli           rclonecli.RcloneRcClient
 	forceRefreshRclone  bool
+	uploader            usenet.Uploader
 }
 
 func NewNzbFilesystem(
@@ -37,6 +39,7 @@ func NewNzbFilesystem(
 	log *slog.Logger,
 	uploadFileAllowlist []string,
 	nzbLoader *usenet.NzbLoader,
+	uploader usenet.Uploader,
 	rcloneCli rclonecli.RcloneRcClient,
 	forceRefreshRclone bool,
 ) webdav.FileSystem {
@@ -49,6 +52,7 @@ func NewNzbFilesystem(
 		uploadFileAllowlist: uploadFileAllowlist,
 		nzbLoader:           nzbLoader,
 		rcloneCli:           rcloneCli,
+		uploader:            uploader,
 		forceRefreshRclone:  forceRefreshRclone,
 	}
 }
@@ -92,21 +96,14 @@ func (fs *nzbFilesystem) OpenFile(ctx context.Context, name string, flag int, pe
 	if flag == os.O_RDWR|os.O_CREATE|os.O_TRUNC && utils.HasAllowedExtension(name, fs.uploadFileAllowlist) {
 		// If the file is an allowed upload file, and was opened for writing, when close, add it to the upload queue
 		onClose = func() {
-			// Create a symlink to the original file on the tmp folder
-			fs.log.DebugContext(ctx, "Creating symlink", "tmpName", tmpName, "name", name)
-			err := os.Symlink(tmpName, name)
-			if err != nil {
-				fs.log.ErrorContext(ctx, "Failed to create symlink", "err", err)
-			}
-
-			err = fs.queue.AddJob(ctx, name)
-			if err != nil {
-				fs.log.ErrorContext(ctx, "Failed to add job to queue", "err", err)
-			}
-
 			fs.refreshRcloneCache(ctx, name)
 		}
-		return OpenFile(tmpName, flag, perm, onClose, fs.log, fs.nzbLoader)
+
+		finalSize, err := strconv.ParseInt(ctx.Value(reqContentLengthKey).(string), 10, 64)
+		if err != nil {
+			return nil, err
+		}
+		return OpenUploadeableFile(name, flag, perm, finalSize, fs.nzbLoader, fs.uploader, onClose, fs.log)
 	}
 
 	return OpenFile(name, flag, perm, onClose, fs.log, fs.nzbLoader)

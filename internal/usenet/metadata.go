@@ -34,11 +34,22 @@ func LoadMetadataFromNzb(nzbFile *nzb.Nzb) (Metadata, error) {
 		return Metadata{}, fmt.Errorf("corrupted nzb file, no files found")
 	}
 
-	// Chunk size is present in the file subject string
-	// segment size is not the real size of a segment. Segment size = chunk size + yenc overhead
-	chunkSize, err := getChunkSizeFromSubject(nzbFile.Files[0].Subject)
-	if err != nil {
-		return Metadata{}, err
+	chunkSize := int64(0)
+
+	cz := nzbFile.Meta["chunk_size"]
+	if cz != "" {
+		chunkSize, err = strconv.ParseInt(cz, 10, 64)
+		if err != nil {
+			return Metadata{}, err
+		}
+	} else {
+		// Fallback to old subject format
+		// Chunk size is present in the file subject string
+		// segment size is not the real size of a segment. Segment size = chunk size + yenc overhead
+		chunkSize, err = getChunkSizeFromSubject(nzbFile.Files[0].Subject)
+		if err != nil {
+			return Metadata{}, fmt.Errorf("corrupted nzb file, no files found")
+		}
 	}
 
 	modTime, err := time.Parse(time.DateTime, nzbFile.Meta["mod_time"])

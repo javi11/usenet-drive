@@ -12,13 +12,13 @@ import (
 )
 
 type uploadeableFile struct {
-	buffer     *uploadBuffer
-	innerFile  *os.File
-	fsMutex    sync.RWMutex
-	log        *slog.Logger
-	nzbLoader  *usenet.NzbLoader
-	finalSize  int64
-	nzbBuilder *usenet.NzbBuilder
+	innerFile    *os.File
+	fsMutex      sync.RWMutex
+	log          *slog.Logger
+	nzbLoader    *usenet.NzbLoader
+	finalSize    int64
+	fileUploader usenet.FileUploader
+	onClose      func()
 }
 
 func OpenUploadeableFile(
@@ -26,24 +26,29 @@ func OpenUploadeableFile(
 	flag int,
 	perm fs.FileMode,
 	finalSize int64,
-	uploader usenet.Uploader,
-	log *slog.Logger,
 	nzbLoader *usenet.NzbLoader,
+	uploader usenet.Uploader,
+	onClose func(),
+	log *slog.Logger,
 ) (*uploadeableFile, error) {
-	fileName := utils.ReplaceFileExtension(name, ".nzb")
+	fileName := utils.ReplaceFileExtension(name, ".nzb.tmp")
 	f, err := os.OpenFile(fileName, flag, perm)
 	if err != nil {
 		return nil, err
 	}
 
-	nzbBuilder := uploader.NewNzbBuilder(name, finalSize)
+	fileUploader, err := uploader.NewFileUploader(name, finalSize)
+	if err != nil {
+		return nil, err
+	}
 
 	return &uploadeableFile{
-		innerFile:  f,
-		log:        log,
-		nzbLoader:  nzbLoader,
-		finalSize:  finalSize,
-		nzbBuilder: nzbBuilder,
+		innerFile:    f,
+		log:          log,
+		nzbLoader:    nzbLoader,
+		finalSize:    finalSize,
+		fileUploader: fileUploader,
+		onClose:      onClose,
 	}, nil
 }
 
@@ -60,11 +65,31 @@ func (f *uploadeableFile) Chown(uid, gid int) error {
 }
 
 func (f *uploadeableFile) Close() error {
-	err := f.innerFile.Close()
+	nzb := f.fileUploader.Build()
+	f.fileUploader.Close()
+
+	err := nzb.WriteIntoFile(f.innerFile)
 	if err != nil {
 		return err
 	}
 
+	if f.onClose != nil {
+		f.onClose()
+	}
+
+	err = f.innerFile.Close()
+	if err != nil {
+		return err
+	}
+
+	fileName := f.innerFile.Name()
+	newFilePath := fileName[:len(fileName)-len(".tmp")]
+	err = os.Rename(f.innerFile.Name(), newFilePath)
+	if err != nil {
+		return err
+	}
+
+	_, err = f.nzbLoader.RefreshCachedNzb(newFilePath, nzb)
 	return err
 }
 
@@ -109,7 +134,8 @@ func (f *uploadeableFile) SetWriteDeadline(t time.Time) error {
 }
 
 func (f *uploadeableFile) Stat() (os.FileInfo, error) {
-	return nil, os.ErrPermission
+	metadata := f.fileUploader.GetMetadata()
+	return NewUploadableFileInfo(metadata, f.innerFile.Name())
 }
 
 func (f *uploadeableFile) Sync() error {
@@ -124,29 +150,10 @@ func (f *uploadeableFile) Write(b []byte) (int, error) {
 	f.fsMutex.Lock()
 	defer f.fsMutex.Unlock()
 
-	if f.buffer == nil {
-		f.buffer = NewUploadBuffer(f.segmentSize)
-	}
-
-	n, err := f.buffer.Write(b)
+	n, err := f.fileUploader.Write(b)
 	if err != nil {
 		return n, err
 	}
-	if f.buffer.Len() == int(f.segmentSize) {
-		f.upload(f.buffer)
-
-		if len(b) > int(f.segmentSize) {
-			nb, err := f.Write(b[n-len(b):])
-			if err != nil {
-				return nb, err
-			}
-
-			return n + nb, nil
-		}
-
-		return n, nil
-	}
-
 	return n, nil
 }
 
@@ -156,8 +163,4 @@ func (f *uploadeableFile) WriteAt(b []byte, off int64) (int, error) {
 
 func (f *uploadeableFile) WriteString(s string) (int, error) {
 	return 0, os.ErrPermission
-}
-
-func (f *uploadeableFile) upload(buffer *uploadBuffer) error {
-
 }

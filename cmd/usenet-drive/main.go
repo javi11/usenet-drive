@@ -133,6 +133,26 @@ var rootCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
+		// Connect to the Usenet server
+		uploadConnPool, err := usenet.NewConnectionPool(
+			usenet.WithHost(config.Usenet.Upload.Provider.Host),
+			usenet.WithPort(config.Usenet.Upload.Provider.Port),
+			usenet.WithUsername(config.Usenet.Upload.Provider.Username),
+			usenet.WithPassword(config.Usenet.Upload.Provider.Password),
+			usenet.WithTLS(config.Usenet.Upload.Provider.SSL),
+			usenet.WithMaxConnections(config.Usenet.Upload.Provider.MaxConnections),
+		)
+		if err != nil {
+			log.ErrorContext(ctx, "Failed to connect to Usenet: %v", err)
+			os.Exit(1)
+		}
+
+		uploader := usenet.NewUploader(
+			config.Usenet.ArticleSizeInBytes,
+			uploadConnPool,
+			config.Usenet.Upload.Provider.Groups,
+		)
+
 		webDavOptions := []webdav.Option{
 			webdav.WithLogger(log),
 			webdav.WithUploadFileAllowlist(config.Usenet.Upload.FileAllowlist),
@@ -141,6 +161,7 @@ var rootCmd = &cobra.Command{
 			webdav.WithNzbLoader(nzbLoader),
 			webdav.WithRootPath(config.RootPath),
 			webdav.WithTmpPath(config.TmpPath),
+			webdav.WithUploader(uploader),
 		}
 
 		if config.Rclone.VFSUrl != "" {
