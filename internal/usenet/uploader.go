@@ -5,8 +5,10 @@ import (
 	"math/rand"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"time"
 
+	"github.com/chrisfarms/nntp"
 	"github.com/go-faker/faker/v4"
 	"github.com/javi11/usenet-drive/pkg/nzb"
 )
@@ -87,6 +89,7 @@ type fileUploader struct {
 	buffer         *uploadBuffer
 	currentSize    int64
 	modTime        time.Time
+	wg             sync.WaitGroup
 }
 
 func (u *fileUploader) Write(b []byte) (int, error) {
@@ -117,6 +120,8 @@ func (u *fileUploader) Build() *nzb.Nzb {
 	if u.buffer.Size() > 0 {
 		u.addSegment(u.buffer.Dump())
 	}
+
+	u.wg.Wait()
 
 	fileExtension := filepath.Ext(u.fileName)
 	// [fileNumber/fileTotal] - "fileName" yEnc (partNumber/partTotal)
@@ -183,23 +188,28 @@ func (u *fileUploader) addSegment(b []byte) error {
 	if err != nil {
 		return err
 	}
-
-	err = u.upload(a)
-	if err != nil {
-		return err
-	}
-
-	u.segments[u.partnum-1] = a.Segment
-
-	return nil
-}
-
-func (u *fileUploader) upload(a *Article) error {
 	conn, err := u.cp.Get()
 	if err != nil {
 		return err
 	}
+	u.wg.Add(1)
+	go func(c *nntp.Conn, art *Article) {
+		defer u.wg.Done()
+
+		err := u.upload(art.nttpArticle, c)
+		if err != nil {
+			print("err", err.Error())
+			return
+		}
+
+	}(conn, a)
+
+	u.segments[u.partnum-1] = a.Segment
+	return nil
+}
+
+func (u *fileUploader) upload(a *nntp.Article, conn *nntp.Conn) error {
 	defer u.cp.Free(conn)
 
-	return conn.Post(a.nttpArticle)
+	return conn.Post(a)
 }
