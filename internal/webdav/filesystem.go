@@ -13,7 +13,7 @@ import (
 	"golang.org/x/net/webdav"
 )
 
-type nzbFilesystem struct {
+type remoteFilesystem struct {
 	rootPath           string
 	lock               sync.RWMutex
 	log                *slog.Logger
@@ -31,16 +31,17 @@ func NewRemoteFilesystem(
 	forceRefreshRclone bool,
 	log *slog.Logger,
 ) webdav.FileSystem {
-	return &nzbFilesystem{
+	return &remoteFilesystem{
 		rootPath:           rootPath,
 		log:                log,
 		fileWriter:         fileWriter,
 		fileReader:         fileReader,
 		forceRefreshRclone: forceRefreshRclone,
+		rcloneCli:          rcloneCli,
 	}
 }
 
-func (fs *nzbFilesystem) Mkdir(ctx context.Context, name string, perm os.FileMode) error {
+func (fs *remoteFilesystem) Mkdir(ctx context.Context, name string, perm os.FileMode) error {
 	fs.lock.Lock()
 	defer fs.lock.Unlock()
 	if name = fs.resolve(name); name == "" {
@@ -57,7 +58,7 @@ func (fs *nzbFilesystem) Mkdir(ctx context.Context, name string, perm os.FileMod
 	return nil
 }
 
-func (fs *nzbFilesystem) OpenFile(ctx context.Context, name string, flag int, perm os.FileMode) (webdav.File, error) {
+func (fs *remoteFilesystem) OpenFile(ctx context.Context, name string, flag int, perm os.FileMode) (webdav.File, error) {
 	fs.lock.RLock()
 	defer fs.lock.RUnlock()
 	if name = fs.resolve(name); name == "" {
@@ -95,7 +96,7 @@ func (fs *nzbFilesystem) OpenFile(ctx context.Context, name string, flag int, pe
 	return OpenFile(name, flag, perm, onClose, fs.log, fs.fileReader)
 }
 
-func (fs *nzbFilesystem) RemoveAll(ctx context.Context, name string) error {
+func (fs *remoteFilesystem) RemoveAll(ctx context.Context, name string) error {
 	fs.lock.Lock()
 	defer fs.lock.Unlock()
 	if name = fs.resolve(name); name == "" {
@@ -127,7 +128,7 @@ func (fs *nzbFilesystem) RemoveAll(ctx context.Context, name string) error {
 	return nil
 }
 
-func (fs *nzbFilesystem) Rename(ctx context.Context, oldName, newName string) error {
+func (fs *remoteFilesystem) Rename(ctx context.Context, oldName, newName string) error {
 	fs.lock.Lock()
 	defer fs.lock.Unlock()
 
@@ -163,7 +164,7 @@ func (fs *nzbFilesystem) Rename(ctx context.Context, oldName, newName string) er
 	return nil
 }
 
-func (fs *nzbFilesystem) Stat(ctx context.Context, name string) (os.FileInfo, error) {
+func (fs *remoteFilesystem) Stat(ctx context.Context, name string) (os.FileInfo, error) {
 	fs.lock.RLock()
 	defer fs.lock.RUnlock()
 	if name = fs.resolve(name); name == "" {
@@ -183,7 +184,7 @@ func (fs *nzbFilesystem) Stat(ctx context.Context, name string) (os.FileInfo, er
 	return os.Stat(name)
 }
 
-func (fs *nzbFilesystem) resolve(name string) string {
+func (fs *remoteFilesystem) resolve(name string) string {
 	// This implementation is based on Dir.Open's code in the standard net/http package.
 	if filepath.Separator != '/' && strings.ContainsRune(name, filepath.Separator) ||
 		strings.Contains(name, "\x00") {
@@ -196,7 +197,7 @@ func (fs *nzbFilesystem) resolve(name string) string {
 	return filepath.Join(dir, filepath.FromSlash(slashClean(name)))
 }
 
-func (fs *nzbFilesystem) refreshRcloneCache(ctx context.Context, name string) {
+func (fs *remoteFilesystem) refreshRcloneCache(ctx context.Context, name string) {
 	if fs.forceRefreshRclone {
 		mountDir := filepath.Dir(strings.Replace(name, fs.rootPath, "", 1))
 		if mountDir == "/" {
