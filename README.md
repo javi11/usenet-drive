@@ -64,8 +64,7 @@ See the endpoints at [api.yaml](./internal/api/api.go).
 - Allow mount nzb files as the original file
 - Allow streaming of video files
 - Allow upload new files full obfuscated to prevent DMCA takedowns
-- Filesystem watch for new files and upload them to usenet automatically
-- Multiple server for upload and download
+- Filesystem upload new files to usenet automatically
 - Api to manage the server
 
 ## Usage
@@ -151,7 +150,6 @@ The `Config` struct defines the configuration for the Usenet Drive application. 
 
 - `nzb_cache_size` (int): The number of NZBs to keep in memory. Default value is `100`. WARN remember that each NZB can be a big file increasing this will increase the memory usage.
 - `root_path` (string!): The root path of your webdav virtual file system and where all nzb and not uploaded files will be saved. It is recommended to add a path to a fast disk for instance a SSD or NVME since this will improve a lot the playback of video files.
-- `tmp_path` (string!): The temp path where all files that will be uploaded to usenet will be saved. It is recommended to add a path to a huge disk for instance a HDD, speed here is not important.
 - `web_dav_port` (string): The port number for the server. Default value is `8080`.
 - `api_port` (string): The port number for the server. Default value is `8080`.
 - `usenet` (Usenet): The Usenet configuration.
@@ -181,13 +179,9 @@ The `Upload` struct defines the Usenet provider for uploading.
 
 ### Fields
 
-- `dry_run` (bool): Whether to do real uploads or just generate fake nzb. Default value is `false`. Use it just to test the configuration.
 - `provider` (UsenetProvider): Usenet provider to upload files
 Alternatively, you can use the same provider and split the available connections to allow more parallel uploads.
 - `file_allow_list` ([]string): The list of allowed file extensions. For example, `[".mkv", ".mp4"]`, in this case only files with the extensions `.mkv` and `.mp4` will be uploaded to usenet. Take care not upload files that change frequently, like subtitules or text files, since they will be uploaded every time they change. In usenet you can not edit files.
-- `nyuu_version` (string): The version of [Nyuu](https://github.com/animetosho/Nyuu). Default value is `0.4.1`. Used for upload files to usenet.
-- `nyuu_path` (string): The path to [Nyuu](https://github.com/animetosho/Nyuu). Default value is `/config/nyuu`. If nyuu executable is not found, it will be auto downloaded for the given system arch. Used for upload files to usenet.
-- `upload_interval_in_seconds` (float64): The upload interval in seconds. After X seconds the system will check for pending uploads and perform them. Default value is `60`.
 
 ## UsenetProvider Struct
 
@@ -202,3 +196,8 @@ The `UsenetProvider` struct defines the Usenet provider configuration.
 - `groups` ([]string): The list of Usenet groups. For example, `["alt.binaries.teevee", "alt.binaries.movies"]`.
 - `ssl` (bool): Whether to use SSL for the Usenet provider. Default value is `true`.
 - `max_connections` (int): The maximum number of connections to the Usenet provider.
+
+## Limitations
+
+- Files uploaded to usenet can not be edited. If you need to edit a file, you need to upload a new file with the changes. This is more a limitation of usenet itself than the tool. (Future workaround can be done)
+- The number of reads by file is limited by the number of connections to the usenet provider, normally not more than 3 connections are needed peer file read.
