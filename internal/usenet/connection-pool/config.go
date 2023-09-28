@@ -1,31 +1,31 @@
-package uploader
+package connectionpool
 
 import (
+	"crypto/tls"
+	"fmt"
 	"log/slog"
 )
 
 type Config struct {
-	dryRun         bool
 	host           string
 	port           int
 	username       string
 	password       string
-	groups         []string
-	ssl            bool
+	tls            bool
+	tlsConfig      *tls.Config
 	maxConnections int
-	fileWhiteList  []string
-	nyuuPath       string
-	articleSize    string
 	log            *slog.Logger
+}
+
+func (c *Config) getConnectionString() string {
+	return fmt.Sprintf("%s:%d", c.host, c.port)
 }
 
 type Option func(*Config)
 
 func defaultConfig() *Config {
 	return &Config{
-		ssl:         false,
-		articleSize: "750K",
-		dryRun:      false,
+		tls: false,
 	}
 }
 
@@ -53,15 +53,15 @@ func WithPassword(password string) Option {
 	}
 }
 
-func WithGroups(groups []string) Option {
+func WithTLS(tls bool) Option {
 	return func(c *Config) {
-		c.groups = groups
+		c.tls = tls
 	}
 }
 
-func WithSSL(ssl bool) Option {
+func WithTLSConfig(tlsConfig *tls.Config) Option {
 	return func(c *Config) {
-		c.ssl = ssl
+		c.tlsConfig = tlsConfig
 	}
 }
 
@@ -71,32 +71,8 @@ func WithMaxConnections(maxConnections int) Option {
 	}
 }
 
-func WithFileWhiteList(fileWhiteList []string) Option {
-	return func(c *Config) {
-		c.fileWhiteList = fileWhiteList
-	}
-}
-
-func WithNyuuPath(nyuuPath string) Option {
-	return func(c *Config) {
-		c.nyuuPath = nyuuPath
-	}
-}
-
-func WithArticleSize(articleSize string) Option {
-	return func(c *Config) {
-		c.articleSize = articleSize
-	}
-}
-
 func WithLogger(log *slog.Logger) Option {
 	return func(c *Config) {
 		c.log = log
-	}
-}
-
-func WithDryRun(dryRun bool) Option {
-	return func(c *Config) {
-		c.dryRun = dryRun
 	}
 }

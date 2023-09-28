@@ -22,17 +22,13 @@ func NewServer(options ...Option) (*webdavServer, error) {
 	}
 
 	handler := &webdav.Handler{
-		FileSystem: NewNzbFilesystem(
+		FileSystem: NewRemoteFilesystem(
 			config.rootPath,
-			config.tmpPath,
-			config.cp,
-			config.queue,
-			config.log,
-			config.uploadFileAllowlist,
-			config.nzbLoader,
-			config.uploader,
+			config.fileWriter,
+			config.fileReader,
 			config.rcloneCli,
 			config.refreshRcloneCache,
+			config.log,
 		),
 		LockSystem: webdav.NewMemLS(),
 		Logger: func(r *http.Request, err error) {

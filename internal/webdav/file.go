@@ -9,24 +9,23 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-multierror"
-	"github.com/javi11/usenet-drive/internal/usenet"
 )
 
 type file struct {
-	innerFile *os.File
-	fsMutex   sync.RWMutex
-	onClose   func()
-	log       *slog.Logger
-	nzbLoader *usenet.NzbLoader
+	innerFile  *os.File
+	fsMutex    sync.RWMutex
+	fileReader RemoteFileReader
+	onClose    func() error
+	log        *slog.Logger
 }
 
 func OpenFile(
 	name string,
 	flag int,
 	perm fs.FileMode,
-	onClose func(),
+	onClose func() error,
 	log *slog.Logger,
-	nzbLoader *usenet.NzbLoader,
+	fileReader RemoteFileReader,
 ) (*file, error) {
 	f, err := os.OpenFile(name, flag, perm)
 	if err != nil {
@@ -34,10 +33,10 @@ func OpenFile(
 	}
 
 	return &file{
-		innerFile: f,
-		onClose:   onClose,
-		log:       log,
-		nzbLoader: nzbLoader,
+		innerFile:  f,
+		onClose:    onClose,
+		log:        log,
+		fileReader: fileReader,
 	}, nil
 }
 
@@ -60,7 +59,10 @@ func (f *file) Close() error {
 	}
 
 	if f.onClose != nil {
-		f.onClose()
+		err := f.onClose()
+		if err != nil {
+			return err
+		}
 	}
 
 	return err
@@ -97,25 +99,21 @@ func (f *file) Readdir(n int) ([]os.FileInfo, error) {
 	var merr multierror.Group
 
 	for i, info := range infos {
-		if isNzbFile(info.Name()) {
-			info := info
-			i := i
-			merr.Go(func() error {
-				n := filepath.Join(f.innerFile.Name(), info.Name())
-				infos[i], err = NewNZBFileInfo(
-					n,
-					n,
-					f.log,
-					f.nzbLoader,
-				)
-				if err != nil {
-					infos[i] = info
-					return err
-				}
+		merr.Go(func() error {
+			s, err := f.fileReader.Stat(filepath.Join(f.innerFile.Name(), info.Name()))
+			if err != nil {
+				infos[i] = info
+				return err
+			}
 
-				return nil
-			})
-		}
+			if s != nil {
+				infos[i] = s
+			} else {
+				infos[i] = info
+			}
+
+			return nil
+		})
 	}
 
 	if err := merr.Wait(); err != nil {

@@ -1,11 +1,11 @@
-package usenet
+package usenetfilewriter
 
 import (
 	"io"
 )
 
 // Buf is a Buffer working on a slice of bytes.
-type uploadBuffer struct {
+type segmentBuffer struct {
 	io.Writer
 	chunkSize int64
 	buffer    []byte
@@ -13,33 +13,30 @@ type uploadBuffer struct {
 }
 
 // NewBuffer creates a new data volume based on a buffer
-func NewUploadBuffer(chunkSize int64) *uploadBuffer {
-	return &uploadBuffer{
+func NewSegmentBuffer(chunkSize int64) *segmentBuffer {
+	return &segmentBuffer{
 		chunkSize: chunkSize,
 		buffer:    make([]byte, chunkSize),
 		ptr:       0,
 	}
 }
 
-func (v *uploadBuffer) Write(b []byte) (int, error) {
+func (v *segmentBuffer) Write(b []byte) (int, error) {
 	n := copy(v.buffer[v.ptr:], b)
 	v.ptr += n
 
 	return n, nil
 }
 
-func (v *uploadBuffer) Size() int {
+func (v *segmentBuffer) Size() int {
 	return v.ptr
 }
 
-func (v *uploadBuffer) Clear() {
+func (v *segmentBuffer) Clear() {
 	clear(v.buffer)
 	v.ptr = 0
 }
 
-func (v *uploadBuffer) Dump() []byte {
-	b := v.buffer
-	v.Clear()
-
-	return b
+func (v *segmentBuffer) Bytes() []byte {
+	return v.buffer
 }

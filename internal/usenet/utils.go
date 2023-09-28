@@ -1,8 +1,8 @@
 package usenet
 
 import (
-	"crypto/md5"
-	"encoding/hex"
+	"path/filepath"
+	"strings"
 
 	"github.com/chrisfarms/nntp"
 )
@@ -18,7 +18,7 @@ func FindGroup(c *nntp.Conn, groups []string) error {
 	return err
 }
 
-func generateHashFromString(s string) (string, error) {
-	hash := md5.Sum([]byte(s))
-	return hex.EncodeToString(hash[:]), nil
+func ReplaceFileExtension(name string, extension string) string {
+	ext := filepath.Ext(name)
+	return strings.TrimSuffix(name, ext) + extension
 }

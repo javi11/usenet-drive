@@ -1,4 +1,4 @@
-package webdav
+package filereader
 
 import (
 	"context"
@@ -11,7 +11,8 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/javi11/usenet-drive/internal/usenet"
-	"github.com/javi11/usenet-drive/internal/utils"
+	connectionpool "github.com/javi11/usenet-drive/internal/usenet/connection-pool"
+	"github.com/javi11/usenet-drive/internal/usenet/nzbloader"
 )
 
 type nzbFile struct {
@@ -21,17 +22,17 @@ type nzbFile struct {
 	fsMutex   sync.RWMutex
 	log       *slog.Logger
 	metadata  usenet.Metadata
-	nzbLoader *usenet.NzbLoader
+	nzbLoader *nzbloader.NzbLoader
 }
 
-func OpenNzbFile(
+func openFile(
 	ctx context.Context,
 	name string,
 	flag int,
 	perm os.FileMode,
-	cp usenet.UsenetConnectionPool,
+	cp connectionpool.UsenetConnectionPool,
 	log *slog.Logger,
-	nzbLoader *usenet.NzbLoader,
+	nzbLoader *nzbloader.NzbLoader,
 ) (*nzbFile, error) {
 	var err error
 	file, err := os.OpenFile(name, flag, perm)
@@ -54,7 +55,7 @@ func OpenNzbFile(
 		innerFile: file,
 		buffer:    buffer,
 		metadata:  n.Metadata,
-		name:      utils.ReplaceFileExtension(name, n.Metadata.FileExtension),
+		name:      usenet.ReplaceFileExtension(name, n.Metadata.FileExtension),
 		log:       log,
 		nzbLoader: nzbLoader,
 	}, nil

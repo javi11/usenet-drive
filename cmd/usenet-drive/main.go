@@ -7,18 +7,17 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"time"
 
 	adminpanel "github.com/javi11/usenet-drive/internal/admin-panel"
 	"github.com/javi11/usenet-drive/internal/config"
 	corruptednzbsmanager "github.com/javi11/usenet-drive/internal/corrupted-nzbs-manager"
 	serverinfo "github.com/javi11/usenet-drive/internal/server-info"
-	uploadqueue "github.com/javi11/usenet-drive/internal/upload-queue"
 	"github.com/javi11/usenet-drive/internal/uploader"
-	"github.com/javi11/usenet-drive/internal/usenet"
+	connectionpool "github.com/javi11/usenet-drive/internal/usenet/connection-pool"
+	"github.com/javi11/usenet-drive/internal/usenet/nzbloader"
+	usenetuploader "github.com/javi11/usenet-drive/internal/usenet/uploader"
 	"github.com/javi11/usenet-drive/internal/webdav"
 	rclonecli "github.com/javi11/usenet-drive/pkg/rclone-cli"
-	sqllitequeue "github.com/javi11/usenet-drive/pkg/sqllite-queue"
 	"github.com/natefinch/lumberjack"
 	"github.com/spf13/cobra"
 
@@ -60,39 +59,21 @@ var rootCmd = &cobra.Command{
 			}
 		}
 
-		// Connect to the Usenet server
-		downloadConnPool, err := usenet.NewConnectionPool(
-			usenet.WithHost(config.Usenet.Download.Host),
-			usenet.WithPort(config.Usenet.Download.Port),
-			usenet.WithUsername(config.Usenet.Download.Username),
-			usenet.WithPassword(config.Usenet.Download.Password),
-			usenet.WithTLS(config.Usenet.Download.SSL),
-			usenet.WithMaxConnections(config.Usenet.Download.MaxConnections),
+		// download connection pool
+		downloadConnPool, err := connectionpool.NewConnectionPool(
+			connectionpool.WithHost(config.Usenet.Download.Host),
+			connectionpool.WithPort(config.Usenet.Download.Port),
+			connectionpool.WithUsername(config.Usenet.Download.Username),
+			connectionpool.WithPassword(config.Usenet.Download.Password),
+			connectionpool.WithTLS(config.Usenet.Download.SSL),
+			connectionpool.WithMaxConnections(config.Usenet.Download.MaxConnections),
 		)
 		if err != nil {
 			log.ErrorContext(ctx, "Failed to connect to Usenet: %v", err)
 			os.Exit(1)
 		}
 
-		// Create uploader
-		u, err := uploader.NewUploader(
-			uploader.WithHost(config.Usenet.Upload.Provider.Host),
-			uploader.WithPort(config.Usenet.Upload.Provider.Port),
-			uploader.WithUsername(config.Usenet.Upload.Provider.Username),
-			uploader.WithPassword(config.Usenet.Upload.Provider.Password),
-			uploader.WithSSL(config.Usenet.Upload.Provider.SSL),
-			uploader.WithNyuuPath(config.Usenet.Upload.NyuuPath),
-			uploader.WithGroups(config.Usenet.Upload.Provider.Groups),
-			uploader.WithMaxConnections(config.Usenet.Upload.Provider.MaxConnections),
-			uploader.WithLogger(log),
-			uploader.WithDryRun(config.Usenet.Upload.DryRun),
-		)
-		if err != nil {
-			log.ErrorContext(ctx, "Failed to create uploader: %v", err)
-			os.Exit(1)
-		}
-
-		// Create upload queue
+		// Create corrupted nzb list
 		sqlLite, err := sql.Open("sqlite3", config.DBPath)
 		if err != nil {
 			log.ErrorContext(ctx, "Failed to open database: %v", err)
@@ -100,68 +81,53 @@ var rootCmd = &cobra.Command{
 		}
 		defer sqlLite.Close()
 
-		sqlLiteEngine, err := sqllitequeue.NewSQLiteQueue(sqlLite)
-		if err != nil {
-			log.ErrorContext(ctx, "Failed to create queue: %v", err)
-			os.Exit(1)
-		}
-		uploaderQueue := uploadqueue.NewUploadQueue(
-			uploadqueue.WithQueueEngine(sqlLiteEngine),
-			uploadqueue.WithUploader(u),
-			uploadqueue.WithMaxActiveUploads(1),
-			uploadqueue.WithLogger(log),
-			uploadqueue.WithFileAllowlist(config.Usenet.Upload.FileAllowlist),
-		)
-		defer uploaderQueue.Close(ctx)
-
-		// Server info
-		serverInfo := serverinfo.NewServerInfo(downloadConnPool, config.RootPath, config.TmpPath)
-
-		// Corrupted nzbs
 		cNzbs, err := corruptednzbsmanager.New(sqlLite)
 		if err != nil {
 			log.ErrorContext(ctx, "Failed to create corrupted nzbs: %v", err)
 			os.Exit(1)
 		}
 
-		adminPanel := adminpanel.New(uploaderQueue, serverInfo, cNzbs, log)
+		// Server info
+		serverInfo := serverinfo.NewServerInfo(downloadConnPool, config.RootPath, config.TmpPath)
+
+		adminPanel := adminpanel.New(serverInfo, cNzbs, log)
 		go adminPanel.Start(ctx, config.ApiPort)
 
-		nzbLoader, err := usenet.NewNzbLoader(config.NzbCacheSize, cNzbs)
+		nzbLoader, err := nzbloader.NewNzbLoader(config.NzbCacheSize, cNzbs)
 		if err != nil {
 			log.ErrorContext(ctx, "Failed to create nzb loader: %v", err)
 			os.Exit(1)
 		}
 
-		// Connect to the Usenet server
-		uploadConnPool, err := usenet.NewConnectionPool(
-			usenet.WithHost(config.Usenet.Upload.Provider.Host),
-			usenet.WithPort(config.Usenet.Upload.Provider.Port),
-			usenet.WithUsername(config.Usenet.Upload.Provider.Username),
-			usenet.WithPassword(config.Usenet.Upload.Provider.Password),
-			usenet.WithTLS(config.Usenet.Upload.Provider.SSL),
-			usenet.WithMaxConnections(config.Usenet.Upload.Provider.MaxConnections),
+		// Upload connectin pool
+		uploadConnPool, err := connectionpool.NewConnectionPool(
+			connectionpool.WithHost(config.Usenet.Upload.Provider.Host),
+			connectionpool.WithPort(config.Usenet.Upload.Provider.Port),
+			connectionpool.WithUsername(config.Usenet.Upload.Provider.Username),
+			connectionpool.WithPassword(config.Usenet.Upload.Provider.Password),
+			connectionpool.WithTLS(config.Usenet.Upload.Provider.SSL),
+			connectionpool.WithMaxConnections(config.Usenet.Upload.Provider.MaxConnections),
 		)
 		if err != nil {
 			log.ErrorContext(ctx, "Failed to connect to Usenet: %v", err)
 			os.Exit(1)
 		}
 
-		uploader := usenet.NewUploader(
-			config.Usenet.ArticleSizeInBytes,
-			uploadConnPool,
-			config.Usenet.Upload.Provider.Groups,
+		usenetFileWriter := usenetuploader.NewFileWriter(
+			usenetuploader.WithSegmentSize(config.Usenet.ArticleSizeInBytes),
+			usenetuploader.WithConnectionPool(uploadConnPool),
+			usenetuploader.WithPostGroups(config.Usenet.Upload.Provider.Groups),
+			usenetuploader.WithLogger(log),
+			usenetuploader.WithFileAllowlist(config.Usenet.Upload.FileAllowlist),
 		)
 
+		// Build webdav server
 		webDavOptions := []webdav.Option{
 			webdav.WithLogger(log),
-			webdav.WithUploadFileAllowlist(config.Usenet.Upload.FileAllowlist),
-			webdav.WithUploadQueue(uploaderQueue),
 			webdav.WithUsenetConnectionPool(downloadConnPool),
 			webdav.WithNzbLoader(nzbLoader),
 			webdav.WithRootPath(config.RootPath),
-			webdav.WithTmpPath(config.TmpPath),
-			webdav.WithUploader(uploader),
+			webdav.WithFileWriter(uploader),
 		}
 
 		if config.Rclone.VFSUrl != "" {
@@ -169,7 +135,6 @@ var rootCmd = &cobra.Command{
 			webDavOptions = append(webDavOptions, webdav.WithRcloneCli(rcloneCli))
 		}
 
-		// Call the handler function with the config
 		webdav, err := webdav.NewServer(
 			webDavOptions...,
 		)
@@ -177,9 +142,6 @@ var rootCmd = &cobra.Command{
 			log.ErrorContext(ctx, "Failed to create WebDAV server: %v", err)
 			os.Exit(1)
 		}
-
-		// Start uploader queue
-		go uploaderQueue.Start(ctx, time.Duration(config.Usenet.Upload.UploadIntervalInSeconds*float64(time.Second)))
 
 		// Start webdav server
 		webdav.Start(ctx, config.WebDavPort)

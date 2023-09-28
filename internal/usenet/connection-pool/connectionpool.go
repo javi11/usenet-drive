@@ -4,7 +4,7 @@
 // This file contains a muxer that will limit the amount of connections
 // that are concurrently running.
 
-package usenet
+package connectionpool
 
 import (
 	"fmt"

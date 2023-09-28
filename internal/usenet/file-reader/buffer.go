@@ -1,4 +1,4 @@
-package webdav
+package filereader
 
 import (
 	"errors"
@@ -10,6 +10,7 @@ import (
 
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/javi11/usenet-drive/internal/usenet"
+	connectionpool "github.com/javi11/usenet-drive/internal/usenet/connection-pool"
 	"github.com/javi11/usenet-drive/pkg/nzb"
 	"github.com/javi11/usenet-drive/pkg/yenc"
 )
@@ -28,14 +29,14 @@ type Buf struct {
 	nzbFile            *nzb.NzbFile
 	ptr                int64
 	cache              *lru.Cache[string, *yenc.Part]
-	cp                 usenet.UsenetConnectionPool
+	cp                 connectionpool.UsenetConnectionPool
 	mx                 sync.RWMutex
 	chunkSize          int
 	maxDownloadRetries int
 }
 
 // NewBuffer creates a new data volume based on a buffer
-func NewBuffer(nzbFile *nzb.NzbFile, size int, chunkSize int, cp usenet.UsenetConnectionPool) (*Buf, error) {
+func NewBuffer(nzbFile *nzb.NzbFile, size int, chunkSize int, cp connectionpool.UsenetConnectionPool) (*Buf, error) {
 	// Article cache can not be too big since it is stored in memory
 	// With 100 the max memory used is 100 * 740kb = 74mb peer stream
 	// This is mainly used to not redownload the same article multiple times if was not already
