@@ -4,8 +4,7 @@ import (
 	"net/http"
 	"strconv"
 
-	corruptednzbsmanager "github.com/javi11/usenet-drive/internal/corrupted-nzbs-manager"
-	uploadqueue "github.com/javi11/usenet-drive/internal/upload-queue"
+	corruptednzbsmanager "github.com/javi11/usenet-drive/internal/usenet/corrupted-nzbs-manager"
 	echo "github.com/labstack/echo/v4"
 )
 
@@ -18,9 +17,6 @@ func DeleteCorruptedNzbHandler(cNzb corruptednzbsmanager.CorruptedNzbsManager) e
 		}
 
 		if err := cNzb.Delete(c.Request().Context(), id); err != nil {
-			if err == uploadqueue.ErrJobNotFound {
-				return echo.NewHTTPError(http.StatusNotFound, err.Error())
-			}
 			return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 		}
 

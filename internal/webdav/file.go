@@ -100,16 +100,16 @@ func (f *file) Readdir(n int) ([]os.FileInfo, error) {
 
 	for i, info := range infos {
 		merr.Go(func() error {
-			s, err := f.fileReader.Stat(filepath.Join(f.innerFile.Name(), info.Name()))
+			if info == nil {
+				return nil
+			}
+			ok, s, err := f.fileReader.Stat(filepath.Join(f.innerFile.Name(), info.Name()))
 			if err != nil {
-				infos[i] = info
 				return err
 			}
 
-			if s != nil {
+			if ok {
 				infos[i] = s
-			} else {
-				infos[i] = info
 			}
 
 			return nil
@@ -117,7 +117,17 @@ func (f *file) Readdir(n int) ([]os.FileInfo, error) {
 	}
 
 	if err := merr.Wait(); err != nil {
-		return removeNzb(infos), nil
+		f.log.Error("error reading remote directory", "error", err)
+
+		// Remove nulls from infos
+		var filteredInfos []os.FileInfo
+		for _, info := range infos {
+			if info != nil {
+				filteredInfos = append(filteredInfos, info)
+			}
+		}
+
+		return filteredInfos, nil
 	}
 
 	return infos, nil
@@ -158,35 +168,23 @@ func (f *file) Sync() error {
 }
 
 func (f *file) Truncate(size int64) error {
-	if isNzbFile(f.Name()) {
-		return os.ErrPermission
-	}
 	return f.innerFile.Truncate(size)
 }
 
 func (f *file) Write(b []byte) (int, error) {
 	f.fsMutex.Lock()
 	defer f.fsMutex.Unlock()
-	if isNzbFile(f.Name()) {
-		return 0, os.ErrPermission
-	}
 	return f.innerFile.Write(b)
 }
 
 func (f *file) WriteAt(b []byte, off int64) (int, error) {
 	f.fsMutex.Lock()
 	defer f.fsMutex.Unlock()
-	if isNzbFile(f.Name()) {
-		return 0, os.ErrPermission
-	}
 	return f.innerFile.WriteAt(b, off)
 }
 
 func (f *file) WriteString(s string) (int, error) {
 	f.fsMutex.Lock()
 	defer f.fsMutex.Unlock()
-	if isNzbFile(f.Name()) {
-		return 0, os.ErrPermission
-	}
 	return f.innerFile.WriteString(s)
 }

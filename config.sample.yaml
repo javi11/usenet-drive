@@ -1,5 +1,4 @@
 root_path: /nzbs
-tmp_path: /tmp-files
 webdav_port: 8080
 api_port: 8081
 db_path: /config/usenet-drive.db
@@ -12,8 +11,6 @@ usenet:
     ssl: true
     max_connections: 49
   upload:
-    nyuu_path: /config/nyuu
-    upload_interval_in_seconds: 20
     provider:
       host: post.otherusenet.server
       port: 119

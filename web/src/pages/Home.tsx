@@ -42,7 +42,7 @@ const useStyles = createStyles((theme) => ({
 
 interface ServerInfo {
     root_folder_disk_usage: DiskUsage;
-    tmp_folder_disk_usage: DiskUsage;
+    upload_usenet_connections: UsenetConnections;
     download_usenet_connections: UsenetConnections;
 }
 
@@ -50,12 +50,6 @@ export default function Home() {
     const { classes } = useStyles();
     const [loading, setIsLoading] = useState(true);
     const [serverInfo, setServerInfo] = useState<ServerInfo>({
-        tmp_folder_disk_usage: {
-            total: 0,
-            used: 0,
-            free: 0,
-            folder: '',
-        },
         root_folder_disk_usage: {
             total: 0,
             used: 0,
@@ -63,6 +57,11 @@ export default function Home() {
             folder: '',
         },
         download_usenet_connections: {
+            total: 0,
+            active: 0,
+            free: 0,
+        },
+        upload_usenet_connections: {
             total: 0,
             active: 0,
             free: 0,
@@ -113,8 +112,8 @@ export default function Home() {
 
             <SimpleGrid cols={2} spacing="xl" mt={50} breakpoints={[{ maxWidth: 'md', cols: 1 }]}>
                 <DiskUsageCard data={serverInfo.root_folder_disk_usage} />
-                <DiskUsageCard data={serverInfo.tmp_folder_disk_usage} />
-                <UsenetConnectionsCard data={serverInfo.download_usenet_connections} />
+                <UsenetConnectionsCard data={serverInfo.download_usenet_connections} title="Download" />
+                <UsenetConnectionsCard data={serverInfo.upload_usenet_connections} title="Upload" />
             </SimpleGrid>
         </Container>
     );

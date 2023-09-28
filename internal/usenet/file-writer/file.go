@@ -1,6 +1,7 @@
 package usenetfilewriter
 
 import (
+	"context"
 	"fmt"
 	"io/fs"
 	"log/slog"
@@ -17,6 +18,7 @@ import (
 )
 
 type file struct {
+	*os.File
 	segments          []nzb.NzbSegment
 	currentPartNumber int64
 	parts             int64
@@ -37,6 +39,7 @@ type file struct {
 }
 
 func openFile(
+	_ context.Context,
 	fileSize int64,
 	segmentSize int64,
 	fileName string,

@@ -10,12 +10,12 @@ import (
 
 	adminpanel "github.com/javi11/usenet-drive/internal/admin-panel"
 	"github.com/javi11/usenet-drive/internal/config"
-	corruptednzbsmanager "github.com/javi11/usenet-drive/internal/corrupted-nzbs-manager"
 	serverinfo "github.com/javi11/usenet-drive/internal/server-info"
-	"github.com/javi11/usenet-drive/internal/uploader"
 	connectionpool "github.com/javi11/usenet-drive/internal/usenet/connection-pool"
+	corruptednzbsmanager "github.com/javi11/usenet-drive/internal/usenet/corrupted-nzbs-manager"
+	usenetfilereader "github.com/javi11/usenet-drive/internal/usenet/file-reader"
+	usenetfilewriter "github.com/javi11/usenet-drive/internal/usenet/file-writer"
 	"github.com/javi11/usenet-drive/internal/usenet/nzbloader"
-	usenetuploader "github.com/javi11/usenet-drive/internal/usenet/uploader"
 	"github.com/javi11/usenet-drive/internal/webdav"
 	rclonecli "github.com/javi11/usenet-drive/pkg/rclone-cli"
 	"github.com/natefinch/lumberjack"
@@ -49,16 +49,6 @@ var rootCmd = &cobra.Command{
 				}), nil)
 		log := slog.New(jsonHandler)
 
-		_, err = os.Stat(config.Usenet.Upload.NyuuPath)
-		if os.IsNotExist(err) {
-			log.InfoContext(ctx, "nyuu binary not found, downloading...")
-			err = uploader.DownloadNyuuRelease(config.Usenet.Upload.NyuuVersion, config.Usenet.Upload.NyuuPath)
-			if err != nil {
-				log.ErrorContext(ctx, "Failed to download nyuu: %v", err)
-				os.Exit(1)
-			}
-		}
-
 		// download connection pool
 		downloadConnPool, err := connectionpool.NewConnectionPool(
 			connectionpool.WithHost(config.Usenet.Download.Host),
@@ -67,6 +57,20 @@ var rootCmd = &cobra.Command{
 			connectionpool.WithPassword(config.Usenet.Download.Password),
 			connectionpool.WithTLS(config.Usenet.Download.SSL),
 			connectionpool.WithMaxConnections(config.Usenet.Download.MaxConnections),
+		)
+		if err != nil {
+			log.ErrorContext(ctx, "Failed to connect to Usenet: %v", err)
+			os.Exit(1)
+		}
+
+		// Upload connectin pool
+		uploadConnPool, err := connectionpool.NewConnectionPool(
+			connectionpool.WithHost(config.Usenet.Upload.Provider.Host),
+			connectionpool.WithPort(config.Usenet.Upload.Provider.Port),
+			connectionpool.WithUsername(config.Usenet.Upload.Provider.Username),
+			connectionpool.WithPassword(config.Usenet.Upload.Provider.Password),
+			connectionpool.WithTLS(config.Usenet.Upload.Provider.SSL),
+			connectionpool.WithMaxConnections(config.Usenet.Upload.Provider.MaxConnections),
 		)
 		if err != nil {
 			log.ErrorContext(ctx, "Failed to connect to Usenet: %v", err)
@@ -88,7 +92,7 @@ var rootCmd = &cobra.Command{
 		}
 
 		// Server info
-		serverInfo := serverinfo.NewServerInfo(downloadConnPool, config.RootPath, config.TmpPath)
+		serverInfo := serverinfo.NewServerInfo(downloadConnPool, uploadConnPool, config.RootPath)
 
 		adminPanel := adminpanel.New(serverInfo, cNzbs, log)
 		go adminPanel.Start(ctx, config.ApiPort)
@@ -99,35 +103,26 @@ var rootCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		// Upload connectin pool
-		uploadConnPool, err := connectionpool.NewConnectionPool(
-			connectionpool.WithHost(config.Usenet.Upload.Provider.Host),
-			connectionpool.WithPort(config.Usenet.Upload.Provider.Port),
-			connectionpool.WithUsername(config.Usenet.Upload.Provider.Username),
-			connectionpool.WithPassword(config.Usenet.Upload.Provider.Password),
-			connectionpool.WithTLS(config.Usenet.Upload.Provider.SSL),
-			connectionpool.WithMaxConnections(config.Usenet.Upload.Provider.MaxConnections),
+		usenetFileWriter := usenetfilewriter.NewFileWriter(
+			usenetfilewriter.WithSegmentSize(config.Usenet.ArticleSizeInBytes),
+			usenetfilewriter.WithConnectionPool(uploadConnPool),
+			usenetfilewriter.WithPostGroups(config.Usenet.Upload.Provider.Groups),
+			usenetfilewriter.WithLogger(log),
+			usenetfilewriter.WithFileAllowlist(config.Usenet.Upload.FileAllowlist),
 		)
-		if err != nil {
-			log.ErrorContext(ctx, "Failed to connect to Usenet: %v", err)
-			os.Exit(1)
-		}
 
-		usenetFileWriter := usenetuploader.NewFileWriter(
-			usenetuploader.WithSegmentSize(config.Usenet.ArticleSizeInBytes),
-			usenetuploader.WithConnectionPool(uploadConnPool),
-			usenetuploader.WithPostGroups(config.Usenet.Upload.Provider.Groups),
-			usenetuploader.WithLogger(log),
-			usenetuploader.WithFileAllowlist(config.Usenet.Upload.FileAllowlist),
+		usenetFileReader := usenetfilereader.NewFileReader(
+			usenetfilereader.WithConnectionPool(downloadConnPool),
+			usenetfilereader.WithLogger(log),
+			usenetfilereader.WithNzbLoader(nzbLoader),
 		)
 
 		// Build webdav server
 		webDavOptions := []webdav.Option{
 			webdav.WithLogger(log),
-			webdav.WithUsenetConnectionPool(downloadConnPool),
-			webdav.WithNzbLoader(nzbLoader),
 			webdav.WithRootPath(config.RootPath),
-			webdav.WithFileWriter(uploader),
+			webdav.WithFileWriter(usenetFileWriter),
+			webdav.WithFileReader(usenetFileReader),
 		}
 
 		if config.Rclone.VFSUrl != "" {

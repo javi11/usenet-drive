@@ -1,4 +1,4 @@
-package filereader
+package usenetfilereader
 
 import (
 	"context"
@@ -15,7 +15,7 @@ import (
 	"github.com/javi11/usenet-drive/internal/usenet/nzbloader"
 )
 
-type nzbFile struct {
+type file struct {
 	name      string
 	buffer    Buffer
 	innerFile *os.File
@@ -23,6 +23,7 @@ type nzbFile struct {
 	log       *slog.Logger
 	metadata  usenet.Metadata
 	nzbLoader *nzbloader.NzbLoader
+	onClose   func() error
 }
 
 func openFile(
@@ -32,78 +33,95 @@ func openFile(
 	perm os.FileMode,
 	cp connectionpool.UsenetConnectionPool,
 	log *slog.Logger,
+	onClose func() error,
 	nzbLoader *nzbloader.NzbLoader,
-) (*nzbFile, error) {
-	var err error
-	file, err := os.OpenFile(name, flag, perm)
-	if err != nil {
-		return nil, err
+) (bool, *file, error) {
+	if !isNzbFile(name) {
+		originalName := getOriginalNzb(name)
+		if originalName != "" {
+			// If the file is a masked call the original nzb file
+			name = originalName
+		} else {
+			return false, nil, nil
+		}
 	}
 
-	n, err := nzbLoader.LoadFromFileReader(file)
+	f, err := os.OpenFile(name, flag, perm)
+	if err != nil {
+		return true, nil, err
+	}
+
+	n, err := nzbLoader.LoadFromFileReader(f)
 	if err != nil {
 		log.ErrorContext(ctx, fmt.Sprintf("Error getting loading nzb %s", name), "err", err)
-		return nil, os.ErrNotExist
+		return true, nil, os.ErrNotExist
 	}
 
 	buffer, err := NewBuffer(&n.Nzb.Files[0], int(n.Metadata.FileSize), int(n.Metadata.ChunkSize), cp)
 	if err != nil {
-		return nil, err
+		return true, nil, err
 	}
 
-	return &nzbFile{
-		innerFile: file,
+	return true, &file{
+		innerFile: f,
 		buffer:    buffer,
 		metadata:  n.Metadata,
 		name:      usenet.ReplaceFileExtension(name, n.Metadata.FileExtension),
 		log:       log,
 		nzbLoader: nzbLoader,
+		onClose:   onClose,
 	}, nil
 }
 
-func (f *nzbFile) Chdir() error {
+func (f *file) Chdir() error {
 	return f.innerFile.Chdir()
 }
 
-func (f *nzbFile) Chmod(mode os.FileMode) error {
+func (f *file) Chmod(mode os.FileMode) error {
 	return f.innerFile.Chmod(mode)
 }
 
-func (f *nzbFile) Chown(uid, gid int) error {
+func (f *file) Chown(uid, gid int) error {
 	return f.innerFile.Chown(uid, gid)
 }
 
-func (f *nzbFile) Close() error {
+func (f *file) Close() error {
 	if err := f.buffer.Close(); err != nil {
 		return err
+	}
+
+	if f.onClose != nil {
+		if err := f.onClose(); err != nil {
+			return err
+		}
 	}
 
 	return f.innerFile.Close()
 }
 
-func (f *nzbFile) Fd() uintptr {
+func (f *file) Fd() uintptr {
 	return f.innerFile.Fd()
 }
 
-func (f *nzbFile) Name() string {
+func (f *file) Name() string {
 	return f.name
 }
 
-func (f *nzbFile) Read(b []byte) (n int, err error) {
+func (f *file) Read(b []byte) (n int, err error) {
 	f.fsMutex.RLock()
 	n, err = f.buffer.Read(b)
 	f.fsMutex.RUnlock()
 	return
 }
 
-func (f *nzbFile) ReadAt(b []byte, off int64) (int, error) {
+func (f *file) ReadAt(b []byte, off int64) (int, error) {
 	f.fsMutex.RLock()
 	defer f.fsMutex.RUnlock()
 
 	return f.buffer.ReadAt(b, off)
 }
 
-func (f *nzbFile) Readdir(n int) ([]os.FileInfo, error) {
+func (f *file) Readdir(n int) ([]os.FileInfo, error) {
 	f.fsMutex.RLock()
 	defer f.fsMutex.RUnlock()
 	infos, err := f.innerFile.Readdir(n)
@@ -119,15 +137,17 @@ func (f *nzbFile) Readdir(n int) ([]os.FileInfo, error) {
 			i := i
 			merr.Go(func() error {
 				n := filepath.Join(f.innerFile.Name(), info.Name())
-				infos[i], err = NewNZBFileInfo(
-					n,
+				inf, err := NewFileInfo(
 					n,
 					f.log,
 					f.nzbLoader,
 				)
 				if err != nil {
+					infos[i] = nil
 					return err
 				}
+
+				infos[i] = inf
 
 				return nil
 			})
@@ -135,60 +155,70 @@ func (f *nzbFile) Readdir(n int) ([]os.FileInfo, error) {
 	}
 
 	if err := merr.Wait(); err != nil {
-		return removeNzb(infos), nil
+		f.log.Error("error reading remote directory", "error", err)
+
+		// Remove nulls from infos
+		var filteredInfos []os.FileInfo
+		for _, info := range infos {
+			if info != nil {
+				filteredInfos = append(filteredInfos, info)
+			}
+		}
+
+		return filteredInfos, nil
 	}
 
 	return infos, nil
 }
 
-func (f *nzbFile) Readdirnames(n int) ([]string, error) {
+func (f *file) Readdirnames(n int) ([]string, error) {
 	f.fsMutex.RLock()
 	defer f.fsMutex.RUnlock()
 	return f.innerFile.Readdirnames(n)
 }
 
-func (f *nzbFile) Seek(offset int64, whence int) (n int64, err error) {
+func (f *file) Seek(offset int64, whence int) (n int64, err error) {
 	f.fsMutex.RLock()
 	n, err = f.buffer.Seek(offset, whence)
 	f.fsMutex.RUnlock()
 	return
 }
 
-func (f *nzbFile) SetDeadline(t time.Time) error {
+func (f *file) SetDeadline(t time.Time) error {
 	return f.innerFile.SetDeadline(t)
 }
 
-func (f *nzbFile) SetReadDeadline(t time.Time) error {
+func (f *file) SetReadDeadline(t time.Time) error {
 	return f.innerFile.SetReadDeadline(t)
 }
 
-func (f *nzbFile) SetWriteDeadline(t time.Time) error {
+func (f *file) SetWriteDeadline(t time.Time) error {
 	return os.ErrPermission
 }
 
-func (f *nzbFile) Stat() (os.FileInfo, error) {
+func (f *file) Stat() (os.FileInfo, error) {
 	f.fsMutex.RLock()
 	defer f.fsMutex.RUnlock()
 
-	return NewNZBFileInfoWithMetadata(f.metadata, f.innerFile.Name())
+	return NeFileInfoWithMetadata(f.metadata, f.innerFile.Name())
 }
 
-func (f *nzbFile) Sync() error {
+func (f *file) Sync() error {
 	return f.innerFile.Sync()
 }
 
-func (f *nzbFile) Truncate(size int64) error {
+func (f *file) Truncate(size int64) error {
 	return os.ErrPermission
 }
 
-func (f *nzbFile) Write(b []byte) (int, error) {
+func (f *file) Write(b []byte) (int, error) {
 	return 0, os.ErrPermission
 }
 
-func (f *nzbFile) WriteAt(b []byte, off int64) (int, error) {
+func (f *file) WriteAt(b []byte, off int64) (int, error) {
 	return 0, os.ErrPermission
 }
 
-func (f *nzbFile) WriteString(s string) (int, error) {
+func (f *file) WriteString(s string) (int, error) {
 	return 0, os.ErrPermission
 }

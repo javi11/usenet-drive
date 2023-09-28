@@ -3,29 +3,17 @@ import { useDisclosure } from '@mantine/hooks';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import {
   IconHome2,
-  IconProgress,
-  IconClock,
-  IconExclamationCircle,
-  IconCloudUpload,
   IconBrandGithub,
   IconFileBroken,
 } from '@tabler/icons-react';
 import Home from './pages/Home'
-import FailedJobs from './pages/FailedJobs'
-import PendingJobs from './pages/PendingJobs'
-import InProgressJobs from './pages/InProgressJobs'
 import NotFound from './pages/NotFound'
 import logo from './assets/logo.png'
-import ManualTrigger from './pages/ManualTrigger';
 import NavbarLink from './components/NavBarLink';
 import CorruptedNzbs from './pages/CorruptedNzbs';
 
 const paths = [
   { href: '/', icon: IconHome2, label: 'Home', elem: <Home /> },
-  { href: '/in-progress', icon: IconProgress, label: 'In progress jobs', elem: <InProgressJobs /> },
-  { href: '/pending', icon: IconClock, label: 'Pending jobs', elem: <PendingJobs /> },
-  { href: '/failed', icon: IconExclamationCircle, label: 'Failed jobs', elem: <FailedJobs /> },
-  { href: '/triggers/manual', icon: IconCloudUpload, label: 'Trigger a manual file upload', elem: <ManualTrigger /> },
   { href: '/nzbs/corrupted', icon: IconFileBroken, label: 'List of corrupted NZBs', elem: <CorruptedNzbs /> },
 ];
 

@@ -1,4 +1,4 @@
-package filereader
+package usenetfilereader
 
 import (
 	"errors"
@@ -106,7 +106,7 @@ func (v *Buf) Read(p []byte) (int, error) {
 	}
 
 	currentSegment := int(float64(v.ptr) / float64(v.chunkSize))
-	beginReadAt := Max((int(v.ptr) - (currentSegment * v.chunkSize)), 0)
+	beginReadAt := max((int(v.ptr) - (currentSegment * v.chunkSize)), 0)
 
 	for _, segment := range v.nzbFile.Segments[currentSegment:] {
 		if n >= len(p) {
@@ -140,7 +140,7 @@ func (v *Buf) ReadAt(p []byte, off int64) (int, error) {
 	}
 
 	currentSegment := int(float64(off) / float64(v.chunkSize))
-	beginReadAt := Max((int(off) - (currentSegment * v.chunkSize)), 0)
+	beginReadAt := max((int(off) - (currentSegment * v.chunkSize)), 0)
 
 	for _, segment := range v.nzbFile.Segments[currentSegment:] {
 		if n >= len(p) {

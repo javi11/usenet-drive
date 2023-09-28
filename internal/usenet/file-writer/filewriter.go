@@ -1,6 +1,7 @@
 package usenetfilewriter
 
 import (
+	"context"
 	"io/fs"
 	"log/slog"
 	"math/rand"
@@ -11,6 +12,7 @@ import (
 	connectionpool "github.com/javi11/usenet-drive/internal/usenet/connection-pool"
 	"github.com/javi11/usenet-drive/internal/usenet/nzbloader"
 	"github.com/javi11/usenet-drive/pkg/nzb"
+	"golang.org/x/net/webdav"
 )
 
 type fileWriter struct {
@@ -39,15 +41,17 @@ func NewFileWriter(options ...Option) *fileWriter {
 }
 
 func (u *fileWriter) OpenFile(
+	ctx context.Context,
 	fileName string,
 	fileSize int64,
 	flag int,
 	perm fs.FileMode,
 	onClose func() error,
-) (*file, error) {
+) (webdav.File, error) {
 	randomGroup := u.postGroups[rand.Intn(len(u.postGroups))]
 
 	return openFile(
+		ctx,
 		fileSize,
 		u.segmentSize,
 		fileName,
@@ -74,7 +78,7 @@ func (u *fileWriter) HasAllowedFileExtension(fileName string) bool {
 	return false
 }
 
-func (u *fileWriter) RemoveFile(fileName string) (bool, error) {
+func (u *fileWriter) RemoveFile(_ context.Context, fileName string) (bool, error) {
 	if maskFile := u.getOriginalNzb(fileName); maskFile != "" {
 		err := os.RemoveAll(maskFile)
 		if err != nil {
@@ -87,7 +91,7 @@ func (u *fileWriter) RemoveFile(fileName string) (bool, error) {
 	return false, nil
 }
 
-func (u *fileWriter) RenameFile(fileName string, newFileName string) (bool, error) {
+func (u *fileWriter) RenameFile(_ context.Context, fileName string, newFileName string) (bool, error) {
 	originalName := u.getOriginalNzb(fileName)
 	if originalName != "" {
 		// In case you want to update the file extension we need to update it in the original nzb file

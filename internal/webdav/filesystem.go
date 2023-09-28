@@ -64,20 +64,20 @@ func (fs *nzbFilesystem) OpenFile(ctx context.Context, name string, flag int, pe
 		return nil, os.ErrNotExist
 	}
 
-	f, err := fs.fileReader.OpenFile(name, flag, perm, nil)
+	ok, f, err := fs.fileReader.OpenFile(ctx, name, flag, perm, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	// If file is not a remote file, continue
-	if f != nil {
+	if ok {
+		// Return the file in case it was found in the remote
 		return f, nil
 	}
 
 	onClose := func() error {
 		return nil
 	}
-	if flag == os.O_RDWR|os.O_CREATE|os.O_TRUNC && fs.fileWriter.IsAllowedFileExtension(name) {
+	if flag == os.O_RDWR|os.O_CREATE|os.O_TRUNC && fs.fileWriter.HasAllowedFileExtension(name) {
 		// If the file is an allowed upload file, and was opened for writing, when close, add it to the upload queue
 		onClose = func() error {
 			fs.refreshRcloneCache(ctx, name)
@@ -89,7 +89,7 @@ func (fs *nzbFilesystem) OpenFile(ctx context.Context, name string, flag int, pe
 		if err != nil {
 			return nil, err
 		}
-		return fs.fileWriter.OpenFile(name, finalSize, flag, perm, onClose)
+		return fs.fileWriter.OpenFile(ctx, name, finalSize, flag, perm, onClose)
 	}
 
 	return OpenFile(name, flag, perm, onClose, fs.log, fs.fileReader)
@@ -102,7 +102,7 @@ func (fs *nzbFilesystem) RemoveAll(ctx context.Context, name string) error {
 		return os.ErrNotExist
 	}
 
-	ok, err := fs.fileWriter.RemoveFile(name)
+	ok, err := fs.fileWriter.RemoveFile(ctx, name)
 	if err != nil {
 		return err
 	}
@@ -138,7 +138,7 @@ func (fs *nzbFilesystem) Rename(ctx context.Context, oldName, newName string) er
 		return os.ErrNotExist
 	}
 
-	ok, err := fs.fileWriter.RenameFile(oldName, newName)
+	ok, err := fs.fileWriter.RenameFile(ctx, oldName, newName)
 	if err != nil {
 		return err
 	}
@@ -170,12 +170,12 @@ func (fs *nzbFilesystem) Stat(ctx context.Context, name string) (os.FileInfo, er
 		return nil, os.ErrNotExist
 	}
 
-	s, err := fs.fileReader.Stat(name)
+	ok, s, err := fs.fileReader.Stat(name)
 	if err != nil {
 		return nil, err
 	}
 
-	if s != nil {
+	if ok {
 		// Return the remote file info if it exists
 		return s, nil
 	}

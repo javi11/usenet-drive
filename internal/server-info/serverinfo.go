@@ -1,14 +1,14 @@
 package serverinfo
 
 import (
-	"github.com/javi11/usenet-drive/internal/usenet"
+	connectionpool "github.com/javi11/usenet-drive/internal/usenet/connection-pool"
 	"github.com/ricochet2200/go-disk-usage/du"
 )
 
 type ServerInfo interface {
 	GetRootFolderDiskUsage() DiskUsage
-	GetTmpFolderDiskUsage() DiskUsage
-	GetConnections() UsenetConnections
+	GetDownloadConnections() UsenetConnections
+	GetUploadConnections() UsenetConnections
 }
 
 type DiskUsage struct {
@@ -25,13 +25,13 @@ type UsenetConnections struct {
 }
 
 type serverInfo struct {
-	u        usenet.UsenetConnectionPool
-	rootPath string
-	tmpPath  string
+	downloadCp connectionpool.UsenetConnectionPool
+	uploadCp   connectionpool.UsenetConnectionPool
+	rootPath   string
 }
 
-func NewServerInfo(u usenet.UsenetConnectionPool, rootPath, tmpPath string) *serverInfo {
-	return &serverInfo{u: u, rootPath: rootPath, tmpPath: tmpPath}
+func NewServerInfo(dlCp connectionpool.UsenetConnectionPool, upCp connectionpool.UsenetConnectionPool, rootPath string) *serverInfo {
+	return &serverInfo{rootPath: rootPath, downloadCp: dlCp, uploadCp: upCp}
 }
 
 func (s *serverInfo) GetRootFolderDiskUsage() DiskUsage {
@@ -45,21 +45,18 @@ func (s *serverInfo) GetRootFolderDiskUsage() DiskUsage {
 	}
 }
 
-func (s *serverInfo) GetTmpFolderDiskUsage() DiskUsage {
-	usage := du.NewDiskUsage(s.tmpPath)
-
-	return DiskUsage{
-		Total:  usage.Size(),
-		Free:   usage.Available(),
-		Used:   usage.Used(),
-		Folder: s.tmpPath,
+func (s *serverInfo) GetDownloadConnections() UsenetConnections {
+	return UsenetConnections{
+		Total:  s.downloadCp.GetMaxConnections(),
+		Free:   s.downloadCp.GetFreeConnections(),
+		Active: s.downloadCp.GetActiveConnections(),
 	}
 }
 
-func (s *serverInfo) GetConnections() UsenetConnections {
+func (s *serverInfo) GetUploadConnections() UsenetConnections {
 	return UsenetConnections{
-		Total:  s.u.GetMaxConnections(),
-		Free:   s.u.GetFreeConnections(),
-		Active: s.u.GetActiveConnections(),
+		Total:  s.uploadCp.GetMaxConnections(),
+		Free:   s.uploadCp.GetFreeConnections(),
+		Active: s.uploadCp.GetActiveConnections(),
 	}
 }

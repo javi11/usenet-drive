@@ -31,9 +31,10 @@ export interface UsenetConnections {
 
 interface UsenetConnectionsCardProps {
     data: UsenetConnections
+    title: string
 }
 
-export default function UsenetConnectionsCard({ data }: UsenetConnectionsCardProps) {
+export default function UsenetConnectionsCard({ data, title }: UsenetConnectionsCardProps) {
     const { classes } = useStyles();
     const percentage = data.active / data.total * 100
 
@@ -44,7 +45,7 @@ export default function UsenetConnectionsCard({ data }: UsenetConnectionsCardPro
             </ThemeIcon>
 
             <Text ta="center" fw={700} className={classes.title}>
-                Download usenet connections
+                {title} usenet connections
             </Text>
             <Text c="dimmed" ta="center" fz="sm">
                 {data.active} of {data.total} available connections
