@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/javi11/usenet-drive/internal/usenet"
 	connectionpool "github.com/javi11/usenet-drive/internal/usenet/connection-pool"
@@ -69,8 +70,8 @@ func (u *fileWriter) HasAllowedFileExtension(fileName string) bool {
 		return true
 	}
 
-	for _, allowedFile := range u.fileAllowlist {
-		if filepath.Ext(fileName) == allowedFile {
+	for _, ext := range u.fileAllowlist {
+		if strings.HasSuffix(fileName, ext) {
 			return true
 		}
 	}

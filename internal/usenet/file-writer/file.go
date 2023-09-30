@@ -18,7 +18,6 @@ import (
 )
 
 type file struct {
-	*os.File
 	segments          []nzb.NzbSegment
 	currentPartNumber int64
 	parts             int64
@@ -36,6 +35,8 @@ type file struct {
 	wg                sync.WaitGroup
 	onClose           func() error
 	log               *slog.Logger
+	closed            bool
+	nzb               *nzb.Nzb
 }
 
 func openFile(
@@ -50,7 +51,7 @@ func openFile(
 	log *slog.Logger,
 	onClose func() error,
 ) (*file, error) {
-	tmpFileName := usenet.ReplaceFileExtension(fileName, ".nzb.tmp")
+	tmpFileName := usenet.ReplaceFileExtension(fileName, ".nzb")
 	f, err := os.OpenFile(tmpFileName, flag, perm)
 	if err != nil {
 		return nil, err
@@ -69,7 +70,7 @@ func openFile(
 
 	poster := generateRandomPoster()
 
-	return &file{
+	wf := &file{
 		segments:     make([]nzb.NzbSegment, parts),
 		parts:        parts,
 		segmentSize:  segmentSize,
@@ -83,7 +84,44 @@ func openFile(
 		buffer:       NewSegmentBuffer(segmentSize),
 		log:          log,
 		onClose:      onClose,
-	}, nil
+	}
+
+	subject := fmt.Sprintf("[1/1] - \"%s\" yEnc (1/%d)", fileNameHash, parts)
+	wf.nzb = &nzb.Nzb{
+		Files: []nzb.NzbFile{
+			{
+				Segments: nzb.NzbSegmentSlice{},
+				Subject:  subject,
+				Groups:   []string{wf.group},
+				Poster:   poster,
+				Date:     time.Now().UnixMilli(),
+			},
+		},
+		Meta: map[string]string{
+			"file_size":      strconv.FormatInt(wf.currentSize, 10),
+			"mod_time":       wf.modTime.Format(time.DateTime),
+			"file_extension": filepath.Ext(wf.fileName),
+			"file_name":      wf.fileName,
+			"chunk_size":     strconv.FormatInt(wf.segmentSize, 10),
+		},
+	}
+
+	// Create a timer that fires every 2 seconds
+	updateTimer := time.NewTimer(2 * time.Second)
+
+	// Start a goroutine that updates the metadata every time the timer fires
+	go func() {
+
+		for range updateTimer.C {
+			if wf.closed {
+				updateTimer.Stop()
+				return
+			}
+			wf.updateNzbMetadata()
+		}
+	}()
+
+	return wf, nil
 }
 
 func (u *file) Write(b []byte) (int, error) {
@@ -112,6 +150,7 @@ func (u *file) Write(b []byte) (int, error) {
 }
 
 func (u *file) Close() error {
+	u.closed = true
 	// Upload the rest of segments
 	if u.buffer.Size() > 0 {
 		u.addSegment(u.buffer.Bytes())
@@ -120,43 +159,18 @@ func (u *file) Close() error {
 	// Wait for all uploads to finish
 	u.wg.Wait()
 
-	fileExtension := filepath.Ext(u.fileName)
-	// [fileNumber/fileTotal] - "fileName" yEnc (partNumber/partTotal)
-	subject := fmt.Sprintf("[1/1] - \"%s\" yEnc (1/%d)", u.fileNameHash, u.parts)
-	nzb := &nzb.Nzb{
-		Files: []nzb.NzbFile{
-			{
-				Subject:  subject,
-				Segments: u.segments,
-				Groups:   []string{u.group},
-				Poster:   u.poster,
-				Date:     time.Now().UnixMilli(),
-			},
-		},
-		Meta: map[string]string{
-			"file_size":      strconv.FormatInt(u.fileSize, 10),
-			"mod_time":       time.Now().Format(time.DateTime),
-			"file_extension": fileExtension,
-			"file_name":      u.fileName,
-			"chunk_size":     strconv.FormatInt(u.segmentSize, 10),
-		},
-	}
+	u.nzb.Files[0].Segments = u.segments
+	u.nzb.Meta["file_size"] = strconv.FormatInt(u.currentSize, 10)
+	u.nzb.Meta["mod_time"] = u.modTime.Format(time.DateTime)
 
 	// Write and close the tmp nzb file
-	err := nzb.WriteIntoFile(u.file)
+	u.file.Seek(0, 0)
+	err := u.nzb.WriteIntoFile(u.file)
 	if err != nil {
 		return err
 	}
 
 	err = u.file.Close()
-	if err != nil {
-		return err
-	}
-
-	// Rename the tmp nzb file to the final name
-	fileName := u.file.Name()
-	newFilePath := fileName[:len(fileName)-len(".tmp")]
-	err = os.Rename(u.file.Name(), newFilePath)
 	if err != nil {
 		return err
 	}
@@ -225,6 +239,16 @@ func (f *file) WriteString(s string) (int, error) {
 	return 0, os.ErrPermission
 }
 
+func (f *file) updateNzbMetadata() error {
+	m := f.getMetadata()
+
+	f.nzb.Meta["file_size"] = strconv.FormatInt(m.FileSize, 10)
+	f.nzb.Meta["mod_time"] = m.ModTime.Format(time.DateTime)
+	f.file.Seek(0, 0)
+
+	return f.nzb.WriteIntoFile(f.file)
+}
+
 func (u *file) getMetadata() usenet.Metadata {
 	return usenet.Metadata{
 		FileName:      u.fileName,
@@ -256,7 +280,7 @@ func (u *file) addSegment(b []byte) error {
 
 	}(conn, na)
 
-	u.segments[u.currentPartNumber-1] = nzb.NzbSegment{
+	u.segments[u.currentPartNumber] = nzb.NzbSegment{
 		Bytes:  a.partSize,
 		Number: a.partNum,
 		Id:     a.msgId,

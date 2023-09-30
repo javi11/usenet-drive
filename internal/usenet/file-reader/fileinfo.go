@@ -88,7 +88,7 @@ func (fi *nzbFileInfo) IsDir() bool {
 }
 
 func (fi *nzbFileInfo) Sys() any {
-	return nil
+	return fi.nzbFileStat.Sys()
 }
 
 func (fi *nzbFileInfo) Name() string {

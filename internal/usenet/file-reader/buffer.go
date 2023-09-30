@@ -15,16 +15,8 @@ import (
 	"github.com/javi11/usenet-drive/pkg/yenc"
 )
 
-// Buffer is a usable block of data similar to a file
-type Buffer interface {
-	io.Reader
-	io.ReaderAt
-	io.Seeker
-	io.Closer
-}
-
 // Buf is a Buffer working on a slice of bytes.
-type Buf struct {
+type buffer struct {
 	size               int
 	nzbFile            *nzb.NzbFile
 	ptr                int64
@@ -36,7 +28,7 @@ type Buf struct {
 }
 
 // NewBuffer creates a new data volume based on a buffer
-func NewBuffer(nzbFile *nzb.NzbFile, size int, chunkSize int, cp connectionpool.UsenetConnectionPool) (*Buf, error) {
+func NewBuffer(nzbFile *nzb.NzbFile, size int, chunkSize int, cp connectionpool.UsenetConnectionPool) (*buffer, error) {
 	// Article cache can not be too big since it is stored in memory
 	// With 100 the max memory used is 100 * 740kb = 74mb peer stream
 	// This is mainly used to not redownload the same article multiple times if was not already
@@ -46,7 +38,7 @@ func NewBuffer(nzbFile *nzb.NzbFile, size int, chunkSize int, cp connectionpool.
 		return nil, err
 	}
 
-	return &Buf{
+	return &buffer{
 		chunkSize:          chunkSize,
 		size:               size,
 		nzbFile:            nzbFile,
@@ -64,7 +56,7 @@ func NewBuffer(nzbFile *nzb.NzbFile, size int, chunkSize int, cp connectionpool.
 //	2 (os.SEEK_END) means relative to the end of the file
 //
 // It returns the new offset and an error, if any.
-func (v *Buf) Seek(offset int64, whence int) (int64, error) {
+func (v *buffer) Seek(offset int64, whence int) (int64, error) {
 	var abs int64
 	switch whence {
 	case io.SeekStart: // Relative to the origin of the file
@@ -87,7 +79,7 @@ func (v *Buf) Seek(offset int64, whence int) (int64, error) {
 }
 
 // Close the buffer. Currently no effect.
-func (v *Buf) Close() error {
+func (v *buffer) Close() error {
 	v.cache.Purge()
 	return nil
 }
@@ -95,7 +87,7 @@ func (v *Buf) Close() error {
 // Read reads len(p) byte from the Buffer starting at the current offset.
 // It returns the number of bytes read and an error if any.
 // Returns io.EOF error if pointer is at the end of the Buffer.
-func (v *Buf) Read(p []byte) (int, error) {
+func (v *buffer) Read(p []byte) (int, error) {
 	n := 0
 
 	if len(p) == 0 {
@@ -129,7 +121,7 @@ func (v *Buf) Read(p []byte) (int, error) {
 // It returns the number of bytes read and the error, if any.
 // ReadAt always returns a non-nil error when n < len(b).
 // At end of file, that error is io.EOF.
-func (v *Buf) ReadAt(p []byte, off int64) (int, error) {
+func (v *buffer) ReadAt(p []byte, off int64) (int, error) {
 	n := 0
 
 	if len(p) == 0 {
@@ -158,7 +150,7 @@ func (v *Buf) ReadAt(p []byte, off int64) (int, error) {
 	return n, nil
 }
 
-func (v *Buf) downloadSegment(segment nzb.NzbSegment, groups []string, retryes int) (*yenc.Part, error) {
+func (v *buffer) downloadSegment(segment nzb.NzbSegment, groups []string, retryes int) (*yenc.Part, error) {
 	v.mx.RLock()
 	hit, _ := v.cache.Get(segment.Id)
 	v.mx.RUnlock()

@@ -17,7 +17,7 @@ import (
 
 type file struct {
 	name      string
-	buffer    Buffer
+	buffer    *buffer
 	innerFile *os.File
 	fsMutex   sync.RWMutex
 	log       *slog.Logger
@@ -107,11 +107,11 @@ func (f *file) Name() string {
 	return f.name
 }
 
-func (f *file) Read(b []byte) (n int, err error) {
+func (f *file) Read(b []byte) (int, error) {
 	f.fsMutex.RLock()
-	n, err = f.buffer.Read(b)
-	f.fsMutex.RUnlock()
-	return
+	defer f.fsMutex.RUnlock()
+
+	return f.buffer.Read(b)
 }
 
 func (f *file) ReadAt(b []byte, off int64) (int, error) {
@@ -132,26 +132,36 @@ func (f *file) Readdir(n int) ([]os.FileInfo, error) {
 	var merr multierror.Group
 
 	for i, info := range infos {
-		if isNzbFile(info.Name()) {
-			info := info
-			i := i
-			merr.Go(func() error {
-				n := filepath.Join(f.innerFile.Name(), info.Name())
-				inf, err := NewFileInfo(
-					n,
-					f.log,
-					f.nzbLoader,
-				)
-				if err != nil {
-					infos[i] = nil
-					return err
-				}
-
-				infos[i] = inf
-
-				return nil
-			})
+		name := info.Name()
+		i := i
+		if !isNzbFile(name) {
+			originalName := getOriginalNzb(info.Name())
+			if originalName != "" {
+				// If the file is a masked call the original nzb file
+				name = originalName
+			} else {
+				infos[i] = info
+				continue
+			}
 		}
+
+		merr.Go(func() error {
+			n := filepath.Join(f.innerFile.Name(), name)
+			inf, err := NewFileInfo(
+				n,
+				f.log,
+				f.nzbLoader,
+			)
+			if err != nil {
+				infos[i] = nil
+				return err
+			}
+
+			infos[i] = inf
+
+			return nil
+		})
+
 	}
 
 	if err := merr.Wait(); err != nil {

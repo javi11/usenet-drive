@@ -79,17 +79,20 @@ func (fs *remoteFilesystem) OpenFile(ctx context.Context, name string, flag int,
 		return nil
 	}
 	if flag == os.O_RDWR|os.O_CREATE|os.O_TRUNC && fs.fileWriter.HasAllowedFileExtension(name) {
+		finalSize, err := strconv.ParseInt(ctx.Value(reqContentLengthKey).(string), 10, 64)
+		if err != nil {
+			return nil, err
+		}
+
 		// If the file is an allowed upload file, and was opened for writing, when close, add it to the upload queue
 		onClose = func() error {
+			fs.log.InfoContext(ctx, "File uploaded", "name", name, "size", finalSize)
 			fs.refreshRcloneCache(ctx, name)
 
 			return nil
 		}
 
-		finalSize, err := strconv.ParseInt(ctx.Value(reqContentLengthKey).(string), 10, 64)
-		if err != nil {
-			return nil, err
-		}
+		fs.log.InfoContext(ctx, "Uploading file", "name", name, "size", finalSize)
 		return fs.fileWriter.OpenFile(ctx, name, finalSize, flag, perm, onClose)
 	}
 
