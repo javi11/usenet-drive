@@ -38,5 +38,5 @@ func (v *segmentBuffer) Clear() {
 }
 
 func (v *segmentBuffer) Bytes() []byte {
-	return v.buffer
+	return v.buffer[:v.ptr]
 }

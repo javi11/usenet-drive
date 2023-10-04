@@ -1,141 +1,336 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Container, Group, Loader, Select, Title, createStyles, rem, Text, Blockquote } from '@mantine/core';
+import { useMemo, useState } from 'react';
+import { Tooltip, ActionIcon, Flex, Button } from '@mantine/core';
+import {
+    MantineReactTable,
+    useMantineReactTable,
+    type MRT_ColumnDef,
+    type MRT_ColumnFiltersState,
+    type MRT_PaginationState,
+    type MRT_SortingState,
+    MRT_ColumnFilterFnsState,
+    MRT_ToggleFiltersButton,
+} from 'mantine-react-table';
+import {
+    useMutation,
+    useQuery, useQueryClient,
+} from '@tanstack/react-query';
+import { IconFileCheck, IconRefresh } from '@tabler/icons-react';
+import { CorruptedNzb, CorruptedNzbResponse } from '../data/corrupted-nzb';
 import { notifications } from '@mantine/notifications';
 import { modals } from '@mantine/modals';
-import { CorruptedNzbResponse } from '../data/corrupted-nzb';
-import CorruptedNzbTable from '../components/CorruptedNzbTable';
+import FileContent from '../components/FileContent';
 
-const useStyles = createStyles((theme) => ({
-    wrapper: {
-        display: 'flex',
-        alignItems: 'center',
-        padding: `calc(${theme.spacing.xl} * 2)`,
-        borderRadius: theme.radius.md,
-        backgroundColor: theme.colorScheme === 'dark' ? theme.colors.dark[8] : theme.white,
-        border: `${rem(1)} solid ${theme.colorScheme === 'dark' ? theme.colors.dark[8] : theme.colors.gray[3]
-            }`,
-        flexDirection: 'column',
-    },
-    title: {
-        color: theme.colorScheme === 'dark' ? theme.white : theme.black,
-        fontFamily: `Greycliff CF, ${theme.fontFamily}`,
-        lineHeight: 1,
-        marginBottom: theme.spacing.md,
-    },
-}));
+interface Params {
+    columnFilterFns: MRT_ColumnFilterFnsState;
+    columnFilters: MRT_ColumnFiltersState;
+    sorting: MRT_SortingState;
+    pagination: MRT_PaginationState;
+}
 
-const PAGE_SIZE = 10; // number of items per page
+function buildURL({
+    columnFilterFns,
+    columnFilters,
+    sorting,
+    pagination,
+}: Params) {
+    //build the URL (https://www.mantine-react-table.com/api/data?start=0&size=10&filters=[]&sorting=[])
+    const fetchURL = new URL(
+        `/api/v1/nzbs/corrupted`,
+        process.env.NODE_ENV === 'production'
+            ? window.location.origin
+            : 'http://localhost:8081',
+    );
+    fetchURL.searchParams.set(
+        'offset',
+        `${pagination.pageIndex * pagination.pageSize}`,
+    );
+    fetchURL.searchParams.set('limit', `${pagination.pageSize}`);
+    fetchURL.searchParams.set('filters', JSON.stringify(columnFilters ?? []));
+    fetchURL.searchParams.set(
+        'filterModes',
+        JSON.stringify(columnFilterFns ?? {}),
+    );
+    fetchURL.searchParams.set('sorting', JSON.stringify(sorting ?? []));
 
-export default function CorruptedNzbs() {
-    const [refreshInterval, setRefreshInterval] = useState(5000);
-    const { classes } = useStyles();
-    const [cNzbs, setCNzbs] = useState<CorruptedNzbResponse>({
-        total_count: 0,
-        limit: PAGE_SIZE,
-        offset: 0,
-        entries: []
+    return fetchURL;
+}
+
+function useCorruptedNzbs(params: Params) {
+    const fetchURL = buildURL(params)
+
+    return useQuery<CorruptedNzbResponse>({
+        queryKey: ['corruptednzb', fetchURL.href], //refetch whenever the URL changes (columnFilters, sorting, pagination)
+        queryFn: () => fetch(fetchURL.href).then((res) => res.json()),
+        keepPreviousData: true, //useful for paginated queries by keeping data from previous pages on screen while fetching the next page
+        staleTime: 30_000, //don't refetch previously viewed pages until cache is more than 30 seconds old
     });
-    const [isLoading, setIsLoading] = useState(true);
-    const [offset, setOffset] = useState(0);
+};
 
-    useEffect(() => {
-        const fetchJobs = async (offset: number) => {
-            try {
-                const res = await fetch(`/api/v1/nzbs/corrupted?limit=${PAGE_SIZE}&offset=${offset}`);
-                if (!res.ok) {
-                    const err: Error = await res.json();
-                    throw new Error(err.message);
-                }
-                const data: CorruptedNzbResponse = await res.json();
-                setCNzbs(data);
-                setIsLoading(false);
-            } catch (error) {
-                const err = error as Error
-                notifications.show({
-                    title: 'An error occurred.',
-                    message: `Unable to get corrupted nzbs list. ${err.message}`,
-                    color: 'red',
-                })
-            } finally {
-                setIsLoading(false);
-            }
-        };
+function useDiscardNzb(params: Params) {
+    const fetchURL = buildURL(params)
 
-        fetchJobs(offset);
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async (nzbPath: string) => {
+            const fetchURL = new URL(
+                '/api/v1/nzbs/corrupted/discard',
+                process.env.NODE_ENV === 'production'
+                    ? window.location.origin
+                    : 'http://localhost:8081',
+            );
+            const res = await fetch(fetchURL.href, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ path: nzbPath }),
+            });
 
-        const intervalId = setInterval(() => fetchJobs(offset), refreshInterval);
+            if (res.ok) {
+                notifications.show({ title: 'NZB discarded', color: 'green', message: nzbPath })
 
-        return () => clearInterval(intervalId);
-    }, [offset, refreshInterval]);
-    const handlePageChange = useCallback((page: number) => {
-        setOffset((page - 1) * PAGE_SIZE);
-    }, []);
-    const onDelete = useCallback((id: number, path: string) => modals.openConfirmModal({
-        title: <Title order={4}>Delete corrupted nzb</Title>,
-        centered: true,
-        children: (
-            <Text size="sm">
-                Are you sure you want to delete the file "{path}".
-            </Text>
-        ),
-        labels: { confirm: 'Delete file', cancel: 'Cancel' },
-        confirmProps: { color: 'red' },
-        onCancel: () => { },
-        onConfirm: async () => {
-            try {
-                const res = await fetch(`/api/v1/nzbs/corrupted/${id}`, { method: "DELETE" });
-                if (!res.ok) {
-                    throw new Error(`Error deleting corrupted nzb ${id}.`);
-                }
-                const entries = cNzbs.entries = cNzbs.entries.filter((item) => item.id !== id);
-                setCNzbs({
-                    ...cNzbs,
-                    total_count: cNzbs.total_count - 1,
-                    entries
-                });
+                return
+            } else {
+                const { error } = await res.json();
+                notifications.show({ title: 'Error discarding NZB', color: 'red', message: error })
 
-            } catch (error) {
-                notifications.show({
-                    title: 'An error occurred.',
-                    message: `Unable to delete corrupted nzb ${id}.`,
-                    color: 'red',
-                })
+                throw new Error(error)
             }
         },
-    }), []);
+        //client side optimistic update
+        onMutate: (path: string) => {
+            queryClient.setQueryData(
+                ['corruptednzb', fetchURL],
+                (prevNzbs: any) => {
+                    const res: CorruptedNzbResponse = prevNzbs
+                    return {
+                        ...res,
+                        entries: res.entries.filter((prevNzb: CorruptedNzb) => prevNzb.path !== path),
+                        total_count: res.total_count - 1
+                    }
+                },
+            );
+        },
+        onSettled: () => queryClient.invalidateQueries({ queryKey: ['corruptednzb', fetchURL] }), //refetch nzbs after mutation, disabled for demo
+    });
+}
 
-    return (
-        <Container size="lg" className={classes.wrapper}>
-            <Group>
-                <Title align="center" className={classes.title}>
-                    Corrupted Nzbs
-                </Title>
-                <Container size="xs" px="xs">
-                    <Select
-                        label="Refresh interval"
-                        placeholder="Pick one"
-                        defaultValue={refreshInterval.toString()}
-                        value={refreshInterval.toString()}
-                        onChange={(event) => setRefreshInterval(parseInt(event!))}
-                        data={[
-                            { value: '5000', label: '5s' },
-                            { value: '10000', label: '10s' },
-                            { value: '20000', label: '20s' },
-                            { value: '30000', label: '30s' },
-                        ]}
+function useDeleteNzb(params: Params) {
+    const fetchURL = buildURL(params)
 
-                        size='xs'
-                    />
-                </Container>
-            </Group>
-            {isLoading ? (
-                <Loader />
-            ) : (
-                <CorruptedNzbTable data={cNzbs} onPageChange={handlePageChange} onDelete={onDelete} />
-            )}
-            <Blockquote  >
-                These are nzbs that for some reason has an inparseable format, therefore, they won't appears on the file system.
-            </Blockquote>
-        </Container>
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async (nzbPath: string) => {
+            const fetchURL = new URL(
+                '/api/v1/nzbs/corrupted',
+                process.env.NODE_ENV === 'production'
+                    ? window.location.origin
+                    : 'http://localhost:8081',
+            );
+            const res = await fetch(fetchURL.href, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ path: nzbPath }),
+            });
+
+            if (res.ok) {
+                notifications.show({ title: 'NZB deleted', color: 'green', message: nzbPath })
+
+                return
+            } else {
+                const { error } = await res.json();
+                notifications.show({ title: 'Error deleting NZB', color: 'red', message: error })
+
+                throw new Error(error)
+            }
+        },
+        //client side optimistic update
+        onMutate: (path: string) => {
+            queryClient.setQueryData(
+                ['corruptednzb', fetchURL],
+                (prevNzb: any) =>
+                    prevNzb?.filter((prevNzb: CorruptedNzb) => prevNzb.path !== path),
+            );
+        },
+        onSettled: () => queryClient.invalidateQueries({ queryKey: ['corruptednzb', fetchURL] }), //refetch nzbs after mutation, disabled for demo
+    });
+}
+
+async function getNzbContent(id: string): Promise<ReadableStream<Uint8Array> | null> {
+    const res = await fetch(`/api/v1/nzbs/corrupted/${id}`, {
+        method: 'GET'
+    });
+
+    if (res.ok) {
+        return res.body;
+    } else {
+        const { error } = await res.json();
+        notifications.show({ title: 'Error getting NZB content', color: 'red', message: error })
+
+        return null;
+    }
+}
+
+export default function CorruptedNzbs() {
+    const openFileContentModal = (contentStream: ReadableStream<Uint8Array>) =>
+        modals.openConfirmModal({
+            title: 'File Content',
+            children: (
+                <FileContent contentStream={contentStream} />
+            ),
+        });
+
+    const columns = useMemo<MRT_ColumnDef<CorruptedNzb>[]>(
+        () => [
+            {
+                accessorKey: 'id',
+                header: 'ID',
+                enableHiding: true,
+            },
+            {
+                accessorKey: 'path',
+                header: 'Path',
+            },
+            {
+                accessorKey: 'created_at',
+                header: 'Created At',
+            },
+            {
+                accessorKey: 'error',
+                header: 'Error',
+            },
+        ],
+        [],
     );
+
+    //Manage MRT state that we want to pass to our API
+    const [columnFilters, setColumnFilters] = useState<MRT_ColumnFiltersState>(
+        [],
+    );
+    const [columnFilterFns, setColumnFilterFns] = //filter modes
+        useState<MRT_ColumnFilterFnsState>(
+            Object.fromEntries(
+                columns.map(({ accessorKey }) => [accessorKey, 'contains']),
+            ),
+        ); //default to "contains" for all columns
+    const [sorting, setSorting] = useState<MRT_SortingState>([]);
+    const [pagination, setPagination] = useState<MRT_PaginationState>({
+        pageIndex: 0,
+        pageSize: 10,
+    });
+
+    //call our custom react-query hook
+    const { data, isError, isFetching, isLoading, refetch } = useCorruptedNzbs({
+        columnFilterFns,
+        columnFilters,
+        pagination,
+        sorting,
+    });
+    const { mutateAsync: deleteNzb, isLoading: isDeleting } = useDeleteNzb({
+        columnFilterFns,
+        columnFilters,
+        pagination,
+        sorting,
+    });
+    const { mutateAsync: discardNzb, isLoading: isDiscarding } = useDiscardNzb({
+        columnFilterFns,
+        columnFilters,
+        pagination,
+        sorting,
+    });
+    const fetchedItems = data?.entries ?? [];
+    const totalRowCount = data?.total_count ?? 0;
+
+    const table = useMantineReactTable({
+        columns,
+        data: fetchedItems,
+        enableRowSelection: true,
+        enableSelectAll: true,
+        enableColumnFilterModes: true,
+        enableRowActions: true,
+        enablePinning: true,
+        columnFilterModeOptions: ['contains', 'startsWith', 'endsWith'],
+        initialState: { showColumnFilters: true },
+        manualFiltering: true,
+        manualPagination: true,
+        manualSorting: true,
+        mantineToolbarAlertBannerProps: isError
+            ? {
+                color: 'red',
+                children: 'Error loading data',
+            }
+            : undefined,
+        onColumnFilterFnsChange: setColumnFilterFns,
+        onColumnFiltersChange: setColumnFilters,
+        onPaginationChange: setPagination,
+        onSortingChange: setSorting,
+        rowCount: totalRowCount,
+        state: {
+            columnFilterFns,
+            columnFilters,
+            isLoading,
+            pagination,
+            showAlertBanner: isError,
+            showProgressBars: isFetching,
+            sorting,
+            isSaving: isDiscarding || isDeleting,
+        },
+        renderRowActions: ({ row }) => (
+            <Flex gap="md">
+                <Tooltip label="View file content">
+                    <ActionIcon onClick={async () => {
+                        const contentStream = await getNzbContent(row.getValue('id'));
+                        if (contentStream) {
+                            openFileContentModal(contentStream);
+                        }
+                    }} >
+                        <IconFileCheck />
+                    </ActionIcon>
+                </Tooltip>
+            </Flex>
+        ),
+        renderTopToolbar: ({ table }) => {
+            const handleDelete = async () => {
+                await Promise.allSettled(table.getSelectedRowModel().flatRows.map((row) => deleteNzb(row.getValue('path'))));
+            };
+            const handleDiscard = async () => {
+                await Promise.allSettled(table.getSelectedRowModel().flatRows.map((row) => discardNzb(row.getValue('path'))));
+            };
+
+            return (
+                <Flex p="md" justify="space-between">
+                    <Flex gap="xs">
+                        <Tooltip label="Refresh Data">
+                            <ActionIcon size="lg" onClick={() => refetch()}>
+                                <IconRefresh />
+                            </ActionIcon>
+                        </Tooltip>
+                        <MRT_ToggleFiltersButton table={table} />
+                    </Flex>
+                    <Flex sx={{ gap: '8px' }}>
+                        <Button
+                            color="red"
+                            disabled={!table.getIsSomeRowsSelected() && !table.getIsAllRowsSelected()}
+                            onClick={handleDelete}
+                            variant="filled"
+                        >
+                            Delete
+                        </Button>
+                        <Button
+                            color="red"
+                            disabled={!table.getIsSomeRowsSelected() && !table.getIsAllRowsSelected()}
+                            onClick={handleDiscard}
+                            variant="filled"
+                        >
+                            Discard
+                        </Button>
+                    </Flex>
+                </Flex>
+            );
+        },
+    });
+
+    return <MantineReactTable table={table} />;
 }

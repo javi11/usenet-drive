@@ -25,7 +25,6 @@ type file struct {
 	fileSize          int64
 	fileName          string
 	fileNameHash      string
-	file              *os.File
 	poster            string
 	group             string
 	cp                connectionpool.UsenetConnectionPool
@@ -35,8 +34,8 @@ type file struct {
 	wg                sync.WaitGroup
 	onClose           func() error
 	log               *slog.Logger
-	closed            bool
-	nzb               *nzb.Nzb
+	flag              int
+	perm              fs.FileMode
 }
 
 func openFile(
@@ -51,12 +50,6 @@ func openFile(
 	log *slog.Logger,
 	onClose func() error,
 ) (*file, error) {
-	tmpFileName := usenet.ReplaceFileExtension(fileName, ".nzb")
-	f, err := os.OpenFile(tmpFileName, flag, perm)
-	if err != nil {
-		return nil, err
-	}
-
 	parts := fileSize / segmentSize
 	rem := fileSize % segmentSize
 	if rem > 0 {
@@ -70,71 +63,35 @@ func openFile(
 
 	poster := generateRandomPoster()
 
-	wf := &file{
+	return &file{
 		segments:     make([]nzb.NzbSegment, parts),
 		parts:        parts,
 		segmentSize:  segmentSize,
 		fileSize:     fileSize,
 		fileName:     fileName,
 		fileNameHash: fileNameHash,
-		file:         f,
 		cp:           cp,
 		poster:       poster,
 		group:        randomGroup,
 		buffer:       NewSegmentBuffer(segmentSize),
 		log:          log,
 		onClose:      onClose,
-	}
-
-	subject := fmt.Sprintf("[1/1] - \"%s\" yEnc (1/%d)", fileNameHash, parts)
-	wf.nzb = &nzb.Nzb{
-		Files: []nzb.NzbFile{
-			{
-				Segments: nzb.NzbSegmentSlice{},
-				Subject:  subject,
-				Groups:   []string{wf.group},
-				Poster:   poster,
-				Date:     time.Now().UnixMilli(),
-			},
-		},
-		Meta: map[string]string{
-			"file_size":      strconv.FormatInt(wf.currentSize, 10),
-			"mod_time":       wf.modTime.Format(time.DateTime),
-			"file_extension": filepath.Ext(wf.fileName),
-			"file_name":      wf.fileName,
-			"chunk_size":     strconv.FormatInt(wf.segmentSize, 10),
-		},
-	}
-
-	// Create a timer that fires every 2 seconds
-	updateTimer := time.NewTimer(2 * time.Second)
-
-	// Start a goroutine that updates the metadata every time the timer fires
-	go func() {
-
-		for range updateTimer.C {
-			if wf.closed {
-				updateTimer.Stop()
-				return
-			}
-			wf.updateNzbMetadata()
-		}
-	}()
-
-	return wf, nil
+		flag:         flag,
+		perm:         perm,
+	}, nil
 }
 
-func (u *file) Write(b []byte) (int, error) {
-	n, err := u.buffer.Write(b)
+func (f *file) Write(b []byte) (int, error) {
+	n, err := f.buffer.Write(b)
 	if err != nil {
 		return n, err
 	}
-	if u.buffer.Size() == int(u.segmentSize) {
-		u.addSegment(u.buffer.Bytes())
-		u.buffer = NewSegmentBuffer(u.segmentSize)
+	if f.buffer.Size() == int(f.segmentSize) {
+		f.addSegment(f.buffer.Bytes())
+		f.buffer = NewSegmentBuffer(f.segmentSize)
 
 		if n < len(b) {
-			nb, err := u.buffer.Write(b[n:])
+			nb, err := f.buffer.Write(b[n:])
 			if err != nil {
 				return nb, err
 			}
@@ -143,47 +100,67 @@ func (u *file) Write(b []byte) (int, error) {
 		}
 	}
 
-	u.currentSize += int64(n)
-	u.modTime = time.Now()
+	f.currentSize += int64(n)
+	f.modTime = time.Now()
 
 	return n, nil
 }
 
-func (u *file) Close() error {
-	u.closed = true
+func (f *file) Close() error {
 	// Upload the rest of segments
-	if u.buffer.Size() > 0 {
-		u.addSegment(u.buffer.Bytes())
+	if f.buffer.Size() > 0 {
+		f.addSegment(f.buffer.Bytes())
 	}
 
 	// Wait for all uploads to finish
-	u.wg.Wait()
+	f.wg.Wait()
 
-	u.nzb.Files[0].Segments = u.segments
-	u.nzb.Meta["file_size"] = strconv.FormatInt(u.currentSize, 10)
-	u.nzb.Meta["mod_time"] = u.modTime.Format(time.DateTime)
+	subject := fmt.Sprintf("[1/1] - \"%s\" yEnc (1/%d)", f.fileNameHash, f.parts)
+	nzb := nzb.Nzb{
+		Files: []nzb.NzbFile{
+			{
+				Segments: f.segments,
+				Subject:  subject,
+				Groups:   []string{f.group},
+				Poster:   f.poster,
+				Date:     time.Now().UnixMilli(),
+			},
+		},
+		Meta: map[string]string{
+			"file_size":      strconv.FormatInt(f.currentSize, 10),
+			"mod_time":       f.modTime.Format(time.DateTime),
+			"file_extension": filepath.Ext(f.fileName),
+			"file_name":      f.fileName,
+			"chunk_size":     strconv.FormatInt(f.segmentSize, 10),
+		},
+	}
 
 	// Write and close the tmp nzb file
-	u.file.Seek(0, 0)
-	err := u.nzb.WriteIntoFile(u.file)
+	name := usenet.ReplaceFileExtension(f.fileName, ".nzb")
+	fl, err := os.OpenFile(name, f.flag, f.perm)
 	if err != nil {
 		return err
 	}
 
-	err = u.file.Close()
+	err = nzb.WriteIntoFile(fl)
 	if err != nil {
 		return err
 	}
 
-	return u.onClose()
+	err = fl.Close()
+	if err != nil {
+		return err
+	}
+
+	return f.onClose()
 }
 
 func (f *file) Fd() uintptr {
-	return f.file.Fd()
+	return 0
 }
 
 func (f *file) Name() string {
-	return f.file.Name()
+	return f.getMetadata().FileName
 }
 
 func (f *file) Read(b []byte) (int, error) {
@@ -220,7 +197,7 @@ func (f *file) SetWriteDeadline(t time.Time) error {
 
 func (f *file) Stat() (os.FileInfo, error) {
 	metadata := f.getMetadata()
-	return NewFileInfo(metadata, f.file.Name())
+	return NewFileInfo(metadata, metadata.FileName)
 }
 
 func (f *file) Sync() error {
@@ -239,80 +216,70 @@ func (f *file) WriteString(s string) (int, error) {
 	return 0, os.ErrPermission
 }
 
-func (f *file) updateNzbMetadata() error {
-	m := f.getMetadata()
-
-	f.nzb.Meta["file_size"] = strconv.FormatInt(m.FileSize, 10)
-	f.nzb.Meta["mod_time"] = m.ModTime.Format(time.DateTime)
-	f.file.Seek(0, 0)
-
-	return f.nzb.WriteIntoFile(f.file)
-}
-
-func (u *file) getMetadata() usenet.Metadata {
+func (f *file) getMetadata() usenet.Metadata {
 	return usenet.Metadata{
-		FileName:      u.fileName,
-		ModTime:       u.modTime,
-		FileSize:      u.currentSize,
-		FileExtension: filepath.Ext(u.fileName),
-		ChunkSize:     u.segmentSize,
+		FileName:      f.fileName,
+		ModTime:       f.modTime,
+		FileSize:      f.currentSize,
+		FileExtension: filepath.Ext(f.fileName),
+		ChunkSize:     f.segmentSize,
 	}
 }
 
-func (u *file) addSegment(b []byte) error {
-	a := u.buildArticleData()
+func (f *file) addSegment(b []byte) error {
+	a := f.buildArticleData()
 	na := NewNttpArticle(b, a)
 
-	conn, err := u.cp.Get()
+	conn, err := f.cp.Get()
 	if err != nil {
-		u.log.Error("Error getting connection from pool.", "error", err)
+		f.log.Error("Error getting connection from pool.", "error", err)
 		return err
 	}
-	u.wg.Add(1)
+	f.wg.Add(1)
 	go func(c *nntp.Conn, art *nntp.Article) {
-		defer u.wg.Done()
+		defer f.wg.Done()
 
-		err := u.upload(art, c)
+		err := f.upload(art, c)
 		if err != nil {
-			u.log.Error("Error uploading segment.", "error", err, "segment", art.Header)
+			f.log.Error("Error uploading segment.", "error", err, "segment", art.Header)
 			return
 		}
 
 	}(conn, na)
 
-	u.segments[u.currentPartNumber] = nzb.NzbSegment{
+	f.segments[f.currentPartNumber] = nzb.NzbSegment{
 		Bytes:  a.partSize,
 		Number: a.partNum,
 		Id:     a.msgId,
 	}
 
-	u.currentPartNumber++
+	f.currentPartNumber++
 	return nil
 }
 
-func (u *file) buildArticleData() *ArticleData {
-	start := u.currentPartNumber * u.segmentSize
-	end := min((u.currentPartNumber+1)*u.segmentSize, u.fileSize)
+func (f *file) buildArticleData() *ArticleData {
+	start := f.currentPartNumber * f.segmentSize
+	end := min((f.currentPartNumber+1)*f.segmentSize, f.fileSize)
 	msgId := generateMessageId()
 
 	return &ArticleData{
-		partNum:   u.currentPartNumber + 1,
-		partTotal: u.parts,
+		partNum:   f.currentPartNumber + 1,
+		partTotal: f.parts,
 		partSize:  end - start,
 		partBegin: start,
 		partEnd:   end,
 		fileNum:   1,
 		fileTotal: 1,
-		fileSize:  u.fileSize,
-		fileName:  u.fileNameHash,
-		poster:    u.poster,
-		group:     u.group,
+		fileSize:  f.fileSize,
+		fileName:  f.fileNameHash,
+		poster:    f.poster,
+		group:     f.group,
 		msgId:     msgId,
 	}
 }
 
-func (u *file) upload(a *nntp.Article, conn *nntp.Conn) error {
-	defer u.cp.Free(conn)
+func (f *file) upload(a *nntp.Article, conn *nntp.Conn) error {
+	defer f.cp.Free(conn)
 
 	var err error
 	for i := 0; i < 5; i++ {
@@ -320,7 +287,7 @@ func (u *file) upload(a *nntp.Article, conn *nntp.Conn) error {
 		if err == nil {
 			return nil
 		} else {
-			u.log.Error("Error uploading segment. Retrying", "error", err, "segment", a.Header)
+			f.log.Error("Error uploading segment. Retrying", "error", err, "segment", a.Header)
 		}
 	}
 

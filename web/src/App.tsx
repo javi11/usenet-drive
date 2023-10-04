@@ -83,9 +83,9 @@ export default function App() {
     >
       <Routes>
         {paths.map((link) => (
-          <Route path={link.href} element={link.elem} />
+          <Route key={link.href} path={link.href} element={link.elem} />
         ))}
-        <Route path="*" element={<NotFound />} />
+        <Route key="not-found" path="*" element={<NotFound />} />
       </Routes>
     </AppShell>
   );

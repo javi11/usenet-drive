@@ -94,7 +94,7 @@ var rootCmd = &cobra.Command{
 		// Server info
 		serverInfo := serverinfo.NewServerInfo(downloadConnPool, uploadConnPool, config.RootPath)
 
-		adminPanel := adminpanel.New(serverInfo, cNzbs, log)
+		adminPanel := adminpanel.New(serverInfo, cNzbs, log, config.Debug)
 		go adminPanel.Start(ctx, config.ApiPort)
 
 		nzbLoader, err := nzbloader.NewNzbLoader(config.NzbCacheSize, cNzbs)

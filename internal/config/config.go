@@ -16,6 +16,7 @@ type Config struct {
 	DBPath       string `yaml:"db_path" default:"/config/usenet-drive.db"`
 	NzbCacheSize int    `yaml:"nzb_cache_size" default:"100"`
 	Rclone       Rclone `yaml:"rclone"`
+	Debug        bool   `yaml:"debug" default:"false"`
 }
 
 type Rclone struct {

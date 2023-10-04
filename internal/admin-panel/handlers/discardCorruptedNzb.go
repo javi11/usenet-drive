@@ -7,18 +7,18 @@ import (
 	echo "github.com/labstack/echo/v4"
 )
 
-type deleteCorruptedNzbRequest struct {
+type discardCorruptedNzbRequest struct {
 	Path string `json:"path"`
 }
 
-func DeleteCorruptedNzbHandler(cNzb corruptednzbsmanager.CorruptedNzbsManager) echo.HandlerFunc {
+func DiscardCorruptedNzbHandler(cNzb corruptednzbsmanager.CorruptedNzbsManager) echo.HandlerFunc {
 	return func(c echo.Context) error {
-		req := new(deleteCorruptedNzbRequest)
+		req := new(discardCorruptedNzbRequest)
 		if err := c.Bind(req); err != nil {
 			return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 		}
 
-		if err := cNzb.Delete(c.Request().Context(), req.Path); err != nil {
+		if err := cNzb.Discard(c.Request().Context(), req.Path); err != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 		}
 

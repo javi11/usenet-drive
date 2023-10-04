@@ -71,7 +71,13 @@ export default function Home() {
 
         const fetchServerInfo = async () => {
             try {
-                const res = await fetch('/api/v1/server-info');
+                const fetchURL = new URL(
+                    '/api/v1/server-info',
+                    process.env.NODE_ENV === 'production'
+                        ? window.location.origin
+                        : 'http://localhost:8081',
+                );
+                const res = await fetch(fetchURL.href);
                 if (!res.ok) {
                     const err: Error = await res.json();
                     throw new Error(err.message);

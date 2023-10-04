@@ -2,30 +2,20 @@ package usenetfilewriter
 
 import (
 	"io/fs"
-	"os"
 	"time"
 
 	"github.com/javi11/usenet-drive/internal/usenet"
 )
 
 type fileInfo struct {
-	nzbFileStat          os.FileInfo
 	name                 string
 	originalFileMetadata usenet.Metadata
 }
 
 func NewFileInfo(metadata usenet.Metadata, name string) (fs.FileInfo, error) {
-	info, err := os.Stat(name)
-	if err != nil {
-		return nil, err
-	}
-
-	fileName := info.Name()
-
 	return &fileInfo{
-		nzbFileStat:          info,
 		originalFileMetadata: metadata,
-		name:                 usenet.ReplaceFileExtension(fileName, metadata.FileExtension),
+		name:                 usenet.ReplaceFileExtension(name, metadata.FileExtension),
 	}, nil
 }
 
@@ -52,5 +42,5 @@ func (fi *fileInfo) Name() string {
 }
 
 func (fi *fileInfo) Mode() fs.FileMode {
-	return fi.nzbFileStat.Mode()
+	return fs.ModeType
 }
