@@ -81,7 +81,7 @@ func (n *Nzb) UpdateMetadada(metadata UpdateableMetadata) *Nzb {
 
 func (n *Nzb) ToBytes() ([]byte, error) {
 	sort.Sort(n.Files)
-	for i, _ := range n.Files {
+	for i := range n.Files {
 		sort.Sort(n.Files[i].Segments)
 	}
 	xNzb := nzbToXNzb(n)
@@ -100,22 +100,22 @@ func NzbFromString(data string) (*Nzb, error) {
 }
 
 func NzbFromBuffer(buf io.Reader) (*Nzb, error) {
-	xnzb := new(xNzb)
+	xnzb := &xNzb{}
 	err := xml.NewDecoder(buf).Decode(xnzb)
 	if err != nil {
 		return nil, err
 	}
 	// convert to nicer format
-	nzb := new(Nzb)
+	nzb := &Nzb{}
 	// convert metadata
 	nzb.Meta = make(map[string]string)
 	for _, md := range xnzb.Head {
 		nzb.Meta[md.Type] = md.Value
 	}
 	// copy files into (sortable) NzbFileSlice
-	nzb.Files = make(NzbFileSlice, 0)
-	for i, _ := range xnzb.File {
-		nzb.Files = append(nzb.Files, xNzbFileToNzbFile(&xnzb.File[i]))
+	nzb.Files = make(NzbFileSlice, len(xnzb.File))
+	for i, file := range xnzb.File {
+		nzb.Files[i] = xNzbFileToNzbFile(&file)
 	}
 	return nzb, nil
 }

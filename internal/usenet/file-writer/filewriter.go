@@ -25,6 +25,7 @@ type fileWriter struct {
 	fileAllowlist []string
 	nzbLoader     *nzbloader.NzbLoader
 	cNzb          corruptednzbsmanager.CorruptedNzbsManager
+	dryRun        bool
 }
 
 func NewFileWriter(options ...Option) *fileWriter {
@@ -41,6 +42,7 @@ func NewFileWriter(options ...Option) *fileWriter {
 		fileAllowlist: config.fileAllowlist,
 		nzbLoader:     config.nzbLoader,
 		cNzb:          config.cNzb,
+		dryRun:        config.dryRun,
 	}
 }
 
@@ -65,6 +67,7 @@ func (u *fileWriter) OpenFile(
 		perm,
 		u.log,
 		u.nzbLoader,
+		u.dryRun,
 		onClose,
 	)
 }

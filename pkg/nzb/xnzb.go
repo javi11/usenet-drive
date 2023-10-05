@@ -32,44 +32,50 @@ type xNzbSegment struct {
 }
 
 func nzbToXNzb(nzb *Nzb) *xNzb {
-	xnzb := new(xNzb)
-	xnzb.XMLns = "http://www.newzbin.com/DTD/2003/nzb"
-	xnzb.Head = make([]xNzbMeta, 0)
+	head := make([]xNzbMeta, 0)
 	for k, v := range nzb.Meta {
-		xnzb.Head = append(xnzb.Head, xNzbMeta{Type: k, Value: v})
+		head = append(head, xNzbMeta{Type: k, Value: v})
 	}
-	xnzb.File = make([]xNzbFile, 0)
-	for _, f := range nzb.Files {
-		xnzb.File = append(xnzb.File, xNzbFile{
+	file := make([]xNzbFile, len(nzb.Files))
+	for i, f := range nzb.Files {
+		segments := make([]xNzbSegment, len(f.Segments))
+		for j, s := range f.Segments {
+			segments[j] = xNzbSegment{
+				Bytes:     s.Bytes,
+				Number:    s.Number,
+				MessageId: s.Id,
+			}
+		}
+
+		file[i] = xNzbFile{
 			Poster:   f.Poster,
 			Date:     f.Date,
 			Subject:  f.Subject,
 			Groups:   f.Groups,
-			Segments: make([]xNzbSegment, 0),
-		})
-		for _, s := range f.Segments {
-			xnzb.File[len(xnzb.File)-1].Segments = append(xnzb.File[len(xnzb.File)-1].Segments, xNzbSegment{
-				Bytes:     s.Bytes,
-				Number:    s.Number,
-				MessageId: s.Id,
-			})
+			Segments: segments,
 		}
 	}
-	return xnzb
+
+	return &xNzb{
+		XMLns: "http://www.newzbin.com/DTD/2003/nzb",
+		Head:  head,
+		File:  file,
+	}
 }
 
-func xNzbFileToNzbFile(x *xNzbFile) NzbFile {
-	nzbFile := NzbFile{
-		Poster:   x.Poster,
-		Date:     x.Date,
-		Subject:  x.Subject,
-		Groups:   x.Groups,
-		Segments: make(NzbSegmentSlice, 0),
+func xNzbFileToNzbFile(f *xNzbFile) NzbFile {
+	segments := make(NzbSegmentSlice, len(f.Segments))
+	for i, segment := range f.Segments {
+		segments[i] = xNzbSegmentToNzbSegment(&segment)
 	}
-	for i, _ := range x.Segments {
-		nzbFile.Segments = append(nzbFile.Segments, xNzbSegmentToNzbSegment(&x.Segments[i]))
+
+	return NzbFile{
+		Poster:   f.Poster,
+		Date:     f.Date,
+		Subject:  f.Subject,
+		Groups:   f.Groups,
+		Segments: segments,
 	}
-	return nzbFile
 }
 
 func xNzbSegmentToNzbSegment(x *xNzbSegment) NzbSegment {

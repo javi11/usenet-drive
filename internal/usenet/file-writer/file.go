@@ -19,6 +19,7 @@ import (
 )
 
 type file struct {
+	dryRun            bool
 	segments          []nzb.NzbSegment
 	currentPartNumber int64
 	parts             int64
@@ -32,17 +33,16 @@ type file struct {
 	buffer            *segmentBuffer
 	currentSize       int64
 	modTime           time.Time
-	wg                sync.WaitGroup
+	wg                *sync.WaitGroup
 	onClose           func() error
 	log               *slog.Logger
 	flag              int
 	perm              fs.FileMode
-	fsMutex           sync.RWMutex
 	nzbLoader         *nzbloader.NzbLoader
 }
 
 func openFile(
-	_ context.Context,
+	ctx context.Context,
 	fileSize int64,
 	segmentSize int64,
 	fileName string,
@@ -52,8 +52,14 @@ func openFile(
 	perm fs.FileMode,
 	log *slog.Logger,
 	nzbLoader *nzbloader.NzbLoader,
+	dryRun bool,
 	onClose func() error,
 ) (*file, error) {
+
+	if dryRun {
+		log.InfoContext(ctx, "Dry run. Skipping upload", "filename", fileName)
+	}
+
 	parts := fileSize / segmentSize
 	rem := fileSize % segmentSize
 	if rem > 0 {
@@ -68,6 +74,7 @@ func openFile(
 	poster := generateRandomPoster()
 
 	return &file{
+		dryRun:       dryRun,
 		segments:     make([]nzb.NzbSegment, parts),
 		parts:        parts,
 		segmentSize:  segmentSize,
@@ -83,18 +90,21 @@ func openFile(
 		flag:         flag,
 		perm:         perm,
 		nzbLoader:    nzbLoader,
+		wg:           &sync.WaitGroup{},
 	}, nil
 }
 
 func (f *file) Write(b []byte) (int, error) {
-	f.fsMutex.Lock()
-	defer f.fsMutex.Unlock()
 	n, err := f.buffer.Write(b)
 	if err != nil {
 		return n, err
 	}
+
 	if f.buffer.Size() == int(f.segmentSize) {
-		f.addSegment(f.buffer.Bytes())
+		err = f.addSegment(f.buffer.Bytes())
+		if err != nil {
+			return n, err
+		}
 		f.buffer = NewSegmentBuffer(f.segmentSize)
 
 		if n < len(b) {
@@ -114,8 +124,6 @@ func (f *file) Write(b []byte) (int, error) {
 }
 
 func (f *file) Close() error {
-	f.fsMutex.Lock()
-	defer f.fsMutex.Unlock()
 	// Upload the rest of segments
 	if f.buffer.Size() > 0 {
 		f.addSegment(f.buffer.Bytes())
@@ -125,7 +133,7 @@ func (f *file) Close() error {
 	f.wg.Wait()
 
 	subject := fmt.Sprintf("[1/1] - \"%s\" yEnc (1/%d)", f.fileNameHash, f.parts)
-	nzb := nzb.Nzb{
+	nzb := &nzb.Nzb{
 		Files: []nzb.NzbFile{
 			{
 				Segments: f.segments,
@@ -146,22 +154,17 @@ func (f *file) Close() error {
 
 	// Write and close the tmp nzb file
 	name := usenet.ReplaceFileExtension(f.fileName, ".nzb")
-	fl, err := os.OpenFile(name, f.flag, f.perm)
+	b, err := nzb.ToBytes()
 	if err != nil {
 		return err
 	}
 
-	err = nzb.WriteIntoFile(fl)
+	err = os.WriteFile(name, b, f.perm)
 	if err != nil {
 		return err
 	}
 
-	err = fl.Close()
-	if err != nil {
-		return err
-	}
-
-	_, err = f.nzbLoader.RefreshCachedNzb(name, &nzb)
+	_, err = f.nzbLoader.RefreshCachedNzb(name, nzb)
 	if err != nil {
 		return err
 	}
@@ -243,6 +246,9 @@ func (f *file) getMetadata() usenet.Metadata {
 func (f *file) addSegment(b []byte) error {
 	conn, err := f.cp.Get()
 	if err != nil {
+		if err = f.cp.Close(conn); err != nil {
+			f.log.Error("Error closing connection.", "error", err)
+		}
 		f.log.Error("Error getting connection from pool.", "error", err)
 		return err
 	}
@@ -293,6 +299,12 @@ func (f *file) buildArticleData() *ArticleData {
 
 func (f *file) upload(a *nntp.Article, conn *nntp.Conn) error {
 	defer f.cp.Free(conn)
+
+	if f.dryRun {
+		time.Sleep(2000 * time.Millisecond)
+
+		return nil
+	}
 
 	var err error
 	for i := 0; i < 5; i++ {

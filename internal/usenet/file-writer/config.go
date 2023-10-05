@@ -16,12 +16,19 @@ type Config struct {
 	fileAllowlist []string
 	nzbLoader     *nzbloader.NzbLoader
 	cNzb          corruptednzbsmanager.CorruptedNzbsManager
+	dryRun        bool
 }
 
 type Option func(*Config)
 
 func defaultConfig() *Config {
 	return &Config{}
+}
+
+func WithDryRun(dryRun bool) Option {
+	return func(c *Config) {
+		c.dryRun = dryRun
+	}
 }
 
 func WithSegmentSize(segmentSize int64) Option {

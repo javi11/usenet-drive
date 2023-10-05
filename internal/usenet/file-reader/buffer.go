@@ -6,7 +6,6 @@ import (
 	"io"
 	"log/slog"
 	"net/textproto"
-	"sync"
 
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/javi11/usenet-drive/internal/usenet"
@@ -22,7 +21,6 @@ type buffer struct {
 	ptr                int64
 	cache              *lru.Cache[string, *yenc.Part]
 	cp                 connectionpool.UsenetConnectionPool
-	mx                 sync.RWMutex
 	chunkSize          int
 	maxDownloadRetries int
 	log                *slog.Logger
@@ -156,9 +154,8 @@ func (v *buffer) ReadAt(p []byte, off int64) (int, error) {
 }
 
 func (v *buffer) downloadSegment(segment nzb.NzbSegment, groups []string, retryes int) (*yenc.Part, error) {
-	v.mx.RLock()
 	hit, _ := v.cache.Get(segment.Id)
-	v.mx.RUnlock()
+
 	var chunk *yenc.Part
 	if hit != nil {
 		chunk = hit
@@ -204,9 +201,7 @@ func (v *buffer) downloadSegment(segment nzb.NzbSegment, groups []string, retrye
 		}
 
 		chunk = yread
-		v.mx.Lock()
 		v.cache.Add(segment.Id, chunk)
-		v.mx.Unlock()
 	}
 
 	return chunk, nil

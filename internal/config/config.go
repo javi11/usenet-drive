@@ -30,6 +30,7 @@ type Usenet struct {
 }
 
 type Upload struct {
+	DryRun        bool           `yaml:"dry_run" default:"false"`
 	Provider      UsenetProvider `yaml:"provider"`
 	FileAllowlist []string       `yaml:"file_allow_list"`
 }

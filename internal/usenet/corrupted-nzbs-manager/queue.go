@@ -106,7 +106,7 @@ func (q *corruptedNzbsManager) Discard(ctx context.Context, path string) error {
 	err = row.Scan(&j.ID, &j.Path, &j.CreatedAt)
 	if err != nil {
 		tx.Commit()
-		return err
+		return nil
 	}
 
 	_, err = tx.ExecContext(ctx, "DELETE FROM corrupted_nzbs WHERE path = ?", path)
