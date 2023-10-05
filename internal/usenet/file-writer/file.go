@@ -105,8 +105,8 @@ func (f *file) Write(b []byte) (int, error) {
 		if err != nil {
 			return n, err
 		}
-		f.buffer = NewSegmentBuffer(f.segmentSize)
 
+		f.buffer.Clear()
 		if n < len(b) {
 			nb, err := f.buffer.Write(b[n:])
 			if err != nil {
@@ -128,6 +128,8 @@ func (f *file) Close() error {
 	if f.buffer.Size() > 0 {
 		f.addSegment(f.buffer.Bytes())
 	}
+
+	f.buffer.Clear()
 
 	// Wait for all uploads to finish
 	f.wg.Wait()
@@ -264,6 +266,7 @@ func (f *file) addSegment(b []byte) error {
 
 	f.wg.Add(1)
 	go func(c *nntp.Conn, art *nntp.Article) {
+		defer f.cp.Free(conn)
 		defer f.wg.Done()
 
 		err := f.upload(art, c)
@@ -298,8 +301,6 @@ func (f *file) buildArticleData() *ArticleData {
 }
 
 func (f *file) upload(a *nntp.Article, conn *nntp.Conn) error {
-	defer f.cp.Free(conn)
-
 	if f.dryRun {
 		time.Sleep(2000 * time.Millisecond)
 

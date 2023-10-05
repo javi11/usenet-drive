@@ -38,6 +38,13 @@ var rootCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
+		// Setup logger
+		options := &slog.HandlerOptions{}
+
+		if config.Debug {
+			options.Level = slog.LevelDebug
+		}
+
 		jsonHandler := slog.NewJSONHandler(
 			io.MultiWriter(
 				os.Stdout,
@@ -46,7 +53,7 @@ var rootCmd = &cobra.Command{
 					MaxSize:    5,
 					MaxAge:     14,
 					MaxBackups: 5,
-				}), nil)
+				}), options)
 		log := slog.New(jsonHandler)
 
 		// download connection pool
