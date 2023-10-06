@@ -19,4 +19,4 @@ RUN go mod download
 COPY . ./
 
 EXPOSE 8080 8081
-VOLUME ["/config", "/nzbs", "/tmp-files"]
+VOLUME ["/config", "/nzbs"]

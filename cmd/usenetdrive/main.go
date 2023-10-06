@@ -24,6 +24,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
+var Version = "dev"
 var configFile string
 
 var rootCmd = &cobra.Command{
@@ -55,6 +56,8 @@ var rootCmd = &cobra.Command{
 					MaxBackups: 5,
 				}), options)
 		log := slog.New(jsonHandler)
+
+		log.InfoContext(ctx, fmt.Sprintf("Starting Usenet Drive %s", Version))
 
 		// download connection pool
 		downloadConnPool, err := connectionpool.NewConnectionPool(

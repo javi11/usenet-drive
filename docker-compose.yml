@@ -12,7 +12,6 @@ services:
     volumes:
       - ./config:/config
       - ./nzbs:/nzbs
-      - ./tmp-files:/tmp-files
     environment:
       - PUID=1000
       - PGID=1000

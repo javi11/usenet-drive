@@ -31,7 +31,7 @@ jobs:
           goarch: ${{ matrix.goarch }}
           binary_name: 'usenet-drive'
           extra_files: README.md
-          project_path: './cmd/usenet-drive'
+          project_path: './cmd/usenetdrive'
   release-docker:
     name: Release Docker Image
     runs-on: ubuntu-latest

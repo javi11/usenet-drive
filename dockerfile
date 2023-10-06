@@ -31,5 +31,5 @@ LABEL maintainer="laris11"
 COPY --from=builder /app/bin/ /
 # Expose the port that the application will listen on
 EXPOSE 8080 8081
-VOLUME ["/config", "/nzbs", "/tmp-files"]
+VOLUME ["/config", "/nzbs"]
 
