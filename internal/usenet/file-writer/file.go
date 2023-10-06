@@ -57,7 +57,6 @@ func openFile(
 	dryRun bool,
 	onClose func() error,
 ) (*file, error) {
-
 	if dryRun {
 		log.InfoContext(ctx, "Dry run. Skipping upload", "filename", filePath)
 	}
@@ -281,7 +280,6 @@ func (f *file) addSegment(b []byte, segmentIndex int64, retries int) error {
 
 	f.merr.Go(func() error {
 		defer f.cp.Free(conn)
-
 		a := f.buildArticleData(segmentIndex)
 		na := NewNttpArticle(b, a)
 		f.segments[segmentIndex] = nzb.NzbSegment{

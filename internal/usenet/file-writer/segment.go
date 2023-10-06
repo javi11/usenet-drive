@@ -38,5 +38,8 @@ func (v *segmentBuffer) Clear() {
 }
 
 func (v *segmentBuffer) Bytes() []byte {
-	return v.buffer[:v.ptr]
+	tmp := make([]byte, v.ptr)
+	copy(tmp, v.buffer[:v.ptr])
+
+	return tmp
 }

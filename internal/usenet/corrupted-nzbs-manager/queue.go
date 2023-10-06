@@ -8,6 +8,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/javi11/usenet-drive/internal/usenet"
 	"github.com/javi11/usenet-drive/internal/utils"
 )
 
@@ -207,7 +208,7 @@ func (q *corruptedNzbsManager) List(ctx context.Context, limit, offset int, filt
 
 		jobs = append(jobs, cNzb{
 			ID:        int64(id),
-			Path:      path,
+			Path:      usenet.ReplaceFileExtension(path, ".nzb"),
 			CreatedAt: createdAt,
 			Error:     error,
 		})
