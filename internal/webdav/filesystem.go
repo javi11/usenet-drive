@@ -9,7 +9,7 @@ import (
 	"strings"
 	"sync"
 
-	rclonecli "github.com/javi11/usenet-drive/pkg/rclone-cli"
+	"github.com/javi11/usenet-drive/pkg/rclonecli"
 	"golang.org/x/net/webdav"
 )
 

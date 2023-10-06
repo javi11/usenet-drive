@@ -1,4 +1,4 @@
-package usenetfilereader
+package filereader
 
 import (
 	"context"
@@ -13,8 +13,8 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/javi11/usenet-drive/internal/usenet"
-	connectionpool "github.com/javi11/usenet-drive/internal/usenet/connection-pool"
-	corruptednzbsmanager "github.com/javi11/usenet-drive/internal/usenet/corrupted-nzbs-manager"
+	"github.com/javi11/usenet-drive/internal/usenet/connectionpool"
+	"github.com/javi11/usenet-drive/internal/usenet/corruptednzbsmanager"
 	"github.com/javi11/usenet-drive/internal/usenet/nzbloader"
 )
 

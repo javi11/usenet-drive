@@ -1,4 +1,4 @@
-package usenetfilereader
+package filereader
 
 import "errors"
 

@@ -6,7 +6,7 @@ import (
 
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/javi11/usenet-drive/internal/usenet"
-	corruptednzbsmanager "github.com/javi11/usenet-drive/internal/usenet/corrupted-nzbs-manager"
+	"github.com/javi11/usenet-drive/internal/usenet/corruptednzbsmanager"
 	"github.com/javi11/usenet-drive/pkg/nzb"
 )
 

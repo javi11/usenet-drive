@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	corruptednzbsmanager "github.com/javi11/usenet-drive/internal/usenet/corrupted-nzbs-manager"
+	"github.com/javi11/usenet-drive/internal/usenet/corruptednzbsmanager"
 	"github.com/javi11/usenet-drive/internal/utils"
 	echo "github.com/labstack/echo/v4"
 )

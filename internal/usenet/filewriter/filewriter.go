@@ -1,4 +1,4 @@
-package usenetfilewriter
+package filewriter
 
 import (
 	"context"
@@ -10,8 +10,8 @@ import (
 	"strings"
 
 	"github.com/javi11/usenet-drive/internal/usenet"
-	connectionpool "github.com/javi11/usenet-drive/internal/usenet/connection-pool"
-	corruptednzbsmanager "github.com/javi11/usenet-drive/internal/usenet/corrupted-nzbs-manager"
+	"github.com/javi11/usenet-drive/internal/usenet/connectionpool"
+	"github.com/javi11/usenet-drive/internal/usenet/corruptednzbsmanager"
 	"github.com/javi11/usenet-drive/internal/usenet/nzbloader"
 	"github.com/javi11/usenet-drive/pkg/nzb"
 	"golang.org/x/net/webdav"

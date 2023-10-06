@@ -1,4 +1,4 @@
-package usenetfilewriter
+package filewriter
 
 import (
 	"crypto/md5"

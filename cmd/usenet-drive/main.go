@@ -8,16 +8,16 @@ import (
 	"net/http"
 	"os"
 
-	adminpanel "github.com/javi11/usenet-drive/internal/admin-panel"
+	"github.com/javi11/usenet-drive/internal/adminpanel"
 	"github.com/javi11/usenet-drive/internal/config"
-	serverinfo "github.com/javi11/usenet-drive/internal/server-info"
-	connectionpool "github.com/javi11/usenet-drive/internal/usenet/connection-pool"
-	corruptednzbsmanager "github.com/javi11/usenet-drive/internal/usenet/corrupted-nzbs-manager"
-	usenetfilereader "github.com/javi11/usenet-drive/internal/usenet/file-reader"
-	usenetfilewriter "github.com/javi11/usenet-drive/internal/usenet/file-writer"
+	"github.com/javi11/usenet-drive/internal/serverinfo"
+	"github.com/javi11/usenet-drive/internal/usenet/connectionpool"
+	"github.com/javi11/usenet-drive/internal/usenet/corruptednzbsmanager"
+	"github.com/javi11/usenet-drive/internal/usenet/filereader"
+	"github.com/javi11/usenet-drive/internal/usenet/filewriter"
 	"github.com/javi11/usenet-drive/internal/usenet/nzbloader"
 	"github.com/javi11/usenet-drive/internal/webdav"
-	rclonecli "github.com/javi11/usenet-drive/pkg/rclone-cli"
+	"github.com/javi11/usenet-drive/pkg/rclonecli"
 	"github.com/natefinch/lumberjack"
 	"github.com/spf13/cobra"
 
@@ -110,30 +110,30 @@ var rootCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		usenetFileWriter := usenetfilewriter.NewFileWriter(
-			usenetfilewriter.WithSegmentSize(config.Usenet.ArticleSizeInBytes),
-			usenetfilewriter.WithConnectionPool(uploadConnPool),
-			usenetfilewriter.WithPostGroups(config.Usenet.Upload.Provider.Groups),
-			usenetfilewriter.WithLogger(log),
-			usenetfilewriter.WithFileAllowlist(config.Usenet.Upload.FileAllowlist),
-			usenetfilewriter.WithCorruptedNzbsManager(cNzbs),
-			usenetfilewriter.WithNzbLoader(nzbLoader),
-			usenetfilewriter.WithDryRun(config.Usenet.Upload.DryRun),
+		filewriter := filewriter.NewFileWriter(
+			filewriter.WithSegmentSize(config.Usenet.ArticleSizeInBytes),
+			filewriter.WithConnectionPool(uploadConnPool),
+			filewriter.WithPostGroups(config.Usenet.Upload.Provider.Groups),
+			filewriter.WithLogger(log),
+			filewriter.WithFileAllowlist(config.Usenet.Upload.FileAllowlist),
+			filewriter.WithCorruptedNzbsManager(cNzbs),
+			filewriter.WithNzbLoader(nzbLoader),
+			filewriter.WithDryRun(config.Usenet.Upload.DryRun),
 		)
 
-		usenetFileReader := usenetfilereader.NewFileReader(
-			usenetfilereader.WithConnectionPool(downloadConnPool),
-			usenetfilereader.WithLogger(log),
-			usenetfilereader.WithNzbLoader(nzbLoader),
-			usenetfilereader.WithCorruptedNzbsManager(cNzbs),
+		filereader := filereader.NewFileReader(
+			filereader.WithConnectionPool(downloadConnPool),
+			filereader.WithLogger(log),
+			filereader.WithNzbLoader(nzbLoader),
+			filereader.WithCorruptedNzbsManager(cNzbs),
 		)
 
 		// Build webdav server
 		webDavOptions := []webdav.Option{
 			webdav.WithLogger(log),
 			webdav.WithRootPath(config.RootPath),
-			webdav.WithFileWriter(usenetFileWriter),
-			webdav.WithFileReader(usenetFileReader),
+			webdav.WithFileWriter(filewriter),
+			webdav.WithFileReader(filereader),
 		}
 
 		if config.Rclone.VFSUrl != "" {

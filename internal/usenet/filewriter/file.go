@@ -1,4 +1,4 @@
-package usenetfilewriter
+package filewriter
 
 import (
 	"context"
@@ -13,7 +13,7 @@ import (
 	"github.com/chrisfarms/nntp"
 	"github.com/hashicorp/go-multierror"
 	"github.com/javi11/usenet-drive/internal/usenet"
-	connectionpool "github.com/javi11/usenet-drive/internal/usenet/connection-pool"
+	"github.com/javi11/usenet-drive/internal/usenet/connectionpool"
 	"github.com/javi11/usenet-drive/internal/usenet/nzbloader"
 	"github.com/javi11/usenet-drive/pkg/nzb"
 )

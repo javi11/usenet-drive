@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/javi11/usenet-drive/internal/admin-panel/handlers"
-	serverinfo "github.com/javi11/usenet-drive/internal/server-info"
-	corruptednzbsmanager "github.com/javi11/usenet-drive/internal/usenet/corrupted-nzbs-manager"
+	"github.com/javi11/usenet-drive/internal/adminpanel/handlers"
+	"github.com/javi11/usenet-drive/internal/serverinfo"
+	"github.com/javi11/usenet-drive/internal/usenet/corruptednzbsmanager"
 	"github.com/javi11/usenet-drive/web"
 	echo "github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"

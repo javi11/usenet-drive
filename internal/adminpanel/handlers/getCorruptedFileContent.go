@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strconv"
 
-	corruptednzbsmanager "github.com/javi11/usenet-drive/internal/usenet/corrupted-nzbs-manager"
+	"github.com/javi11/usenet-drive/internal/usenet/corruptednzbsmanager"
 	echo "github.com/labstack/echo/v4"
 )
 

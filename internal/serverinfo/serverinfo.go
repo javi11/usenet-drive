@@ -1,7 +1,7 @@
 package serverinfo
 
 import (
-	connectionpool "github.com/javi11/usenet-drive/internal/usenet/connection-pool"
+	"github.com/javi11/usenet-drive/internal/usenet/connectionpool"
 	"github.com/ricochet2200/go-disk-usage/du"
 )
 

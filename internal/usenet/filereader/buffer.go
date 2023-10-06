@@ -1,4 +1,4 @@
-package usenetfilereader
+package filereader
 
 import (
 	"errors"
@@ -9,7 +9,7 @@ import (
 
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/javi11/usenet-drive/internal/usenet"
-	connectionpool "github.com/javi11/usenet-drive/internal/usenet/connection-pool"
+	"github.com/javi11/usenet-drive/internal/usenet/connectionpool"
 	"github.com/javi11/usenet-drive/pkg/nzb"
 	"github.com/javi11/usenet-drive/pkg/yenc"
 )

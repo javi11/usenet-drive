@@ -3,7 +3,7 @@ package webdav
 import (
 	"log/slog"
 
-	rclonecli "github.com/javi11/usenet-drive/pkg/rclone-cli"
+	"github.com/javi11/usenet-drive/pkg/rclonecli"
 )
 
 type Config struct {

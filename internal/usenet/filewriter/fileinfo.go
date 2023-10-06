@@ -1,4 +1,4 @@
-package usenetfilewriter
+package filewriter
 
 import (
 	"io/fs"

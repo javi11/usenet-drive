@@ -3,7 +3,7 @@ package handlers
 import (
 	"net/http"
 
-	serverinfo "github.com/javi11/usenet-drive/internal/server-info"
+	"github.com/javi11/usenet-drive/internal/serverinfo"
 	"github.com/labstack/echo/v4"
 )
 
