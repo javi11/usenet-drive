@@ -21,3 +21,4 @@
 go.work
 example
 test-mount
+.tools
