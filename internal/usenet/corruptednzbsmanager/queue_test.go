@@ -2,8 +2,7 @@ package corruptednzbsmanager
 
 import (
 	"context"
-	"io/ioutil"
-	"os"
+	"io"
 	"testing"
 	"time"
 
@@ -175,21 +174,25 @@ func TestCorruptedNzbsManager_GetFileContent(t *testing.T) {
 	ctx := context.Background()
 
 	// Test GetFileContent
-	mock.ExpectQuery("SELECT path FROM corrupted_nzbs WHERE id = \\?").
+	mock.ExpectQuery("SELECT path FROM corrupted_nzbs WHERE id = (.+)").
 		WithArgs(1).
 		WillReturnRows(sqlmock.NewRows([]string{"path"}).AddRow("test.nzb"))
-	file, err := os.Open("testdata/test.nzb")
-	assert.NoError(t, err)
-	defer file.Close()
 
+	expectedContent := []byte("test")
+	f := osfs.NewMockFile(ctrl)
+	f.EXPECT().Read(gomock.Any()).DoAndReturn(func(p []byte) (int, error) {
+		copy(p, expectedContent)
+		return len(expectedContent), io.EOF
+	})
+	f.EXPECT().Close().Return(nil)
+	fs.EXPECT().Open("test.nzb").Return(f, nil)
 	assert.NoError(t, mock.ExpectationsWereMet())
 
 	content, err := manager.GetFileContent(ctx, 1)
 	assert.NoError(t, err)
 	defer content.Close()
-	expectedContent, err := ioutil.ReadAll(file)
 	assert.NoError(t, err)
-	actualContent, err := ioutil.ReadAll(content)
+	actualContent, err := io.ReadAll(content)
 	assert.NoError(t, err)
 	assert.Equal(t, expectedContent, actualContent)
 }
