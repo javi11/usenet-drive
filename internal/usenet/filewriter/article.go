@@ -24,7 +24,7 @@ type ArticleData struct {
 	msgId     string
 }
 
-func NewNttpArticle(p []byte, data *ArticleData) *nntp.Article {
+func NewNttpArticle(p []byte, data *ArticleData) (*nntp.Article, error) {
 	buf := new(bytes.Buffer)
 	a := &nntp.Article{
 		Header: map[string][]string{},
@@ -57,12 +57,15 @@ func NewNttpArticle(p []byte, data *ArticleData) *nntp.Article {
 	buf.WriteString(fmt.Sprintf("=ypart begin=%d end=%d\r\n", data.partBegin+1, data.partEnd))
 
 	// Encoded data
-	yenc.Encode(p, buf)
+	err := yenc.Encode(p, buf)
+	if err != nil {
+		return nil, err
+	}
 	// yEnc end line
 	h := crc32.NewIEEE()
 	h.Write(p)
 	buf.WriteString(fmt.Sprintf("=yend size=%d part=%d pcrc32=%08X\r\n", data.partSize, data.partNum, h.Sum32()))
 	a.Body = buf
 
-	return a
+	return a, nil
 }

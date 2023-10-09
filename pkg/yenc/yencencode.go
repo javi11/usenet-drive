@@ -28,7 +28,7 @@ type encoder struct {
 //     return t
 // }
 
-func (e *encoder) encode() {
+func (e *encoder) encode() error {
 	// misc vars
 	var y byte
 	count := 0
@@ -59,7 +59,10 @@ func (e *encoder) encode() {
 			count += 2
 
 			// write the line to the output
-			e.output.Write(line[:count])
+			_, err := e.output.Write(line[:count])
+			if err != nil {
+				return err
+			}
 
 			// reset variables
 			count = 0
@@ -73,11 +76,16 @@ func (e *encoder) encode() {
 		count += 2
 
 		// write the line to the output file
-		e.output.Write(line[:count])
+		_, err := e.output.Write(line[:count])
+		if err != nil {
+			return err
+		}
 	}
+
+	return nil
 }
 
-func Encode(input []byte, output io.Writer) {
+func Encode(input []byte, output io.Writer) error {
 	e := &encoder{input: input, output: output}
-	e.encode()
+	return e.encode()
 }

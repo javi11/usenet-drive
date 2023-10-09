@@ -58,7 +58,10 @@ func FromFile(path string) (*Config, error) {
 		return nil, err
 	}
 
-	defaults.Set(&config)
+	err = defaults.Set(&config)
+	if err != nil {
+		return nil, err
+	}
 
 	return &config, nil
 }

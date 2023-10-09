@@ -1,13 +1,13 @@
 package main
 
 import (
-	"database/sql"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"os"
 
+	"github.com/javi11/usenet-drive/db"
 	"github.com/javi11/usenet-drive/internal/adminpanel"
 	"github.com/javi11/usenet-drive/internal/config"
 	"github.com/javi11/usenet-drive/internal/serverinfo"
@@ -17,6 +17,7 @@ import (
 	"github.com/javi11/usenet-drive/internal/usenet/filewriter"
 	"github.com/javi11/usenet-drive/internal/usenet/nzbloader"
 	"github.com/javi11/usenet-drive/internal/webdav"
+	"github.com/javi11/usenet-drive/pkg/osfs"
 	"github.com/javi11/usenet-drive/pkg/rclonecli"
 	"github.com/natefinch/lumberjack"
 	"github.com/spf13/cobra"
@@ -59,6 +60,8 @@ var rootCmd = &cobra.Command{
 
 		log.InfoContext(ctx, fmt.Sprintf("Starting Usenet Drive %s", Version))
 
+		osFs := osfs.New()
+
 		// download connection pool
 		downloadConnPool, err := connectionpool.NewConnectionPool(
 			connectionpool.WithHost(config.Usenet.Download.Host),
@@ -88,18 +91,14 @@ var rootCmd = &cobra.Command{
 		}
 
 		// Create corrupted nzb list
-		sqlLite, err := sql.Open("sqlite3", config.DBPath)
+		sqlLite, err := db.NewDB(config.DBPath)
 		if err != nil {
 			log.ErrorContext(ctx, "Failed to open database: %v", err)
 			os.Exit(1)
 		}
 		defer sqlLite.Close()
 
-		cNzbs, err := corruptednzbsmanager.New(sqlLite)
-		if err != nil {
-			log.ErrorContext(ctx, "Failed to create corrupted nzbs: %v", err)
-			os.Exit(1)
-		}
+		cNzbs := corruptednzbsmanager.New(sqlLite, osFs)
 
 		// Server info
 		serverInfo := serverinfo.NewServerInfo(downloadConnPool, uploadConnPool, config.RootPath)
@@ -160,7 +159,10 @@ var rootCmd = &cobra.Command{
 func init() {
 	rootCmd.PersistentFlags().
 		StringVarP(&configFile, "config", "c", "", "path to YAML config file")
-	rootCmd.MarkPersistentFlagRequired("config")
+	err := rootCmd.MarkPersistentFlagRequired("config")
+	if err != nil {
+		panic(err)
+	}
 }
 
 func main() {

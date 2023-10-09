@@ -171,7 +171,11 @@ func (v *buffer) downloadSegment(segment nzb.NzbSegment, groups []string, retrye
 
 			return nil, err
 		}
-		defer v.cp.Free(conn)
+		defer func() {
+			if err = v.cp.Free(conn); err != nil {
+				v.log.Error("Error freeing connection on downloading a file.", "error", err)
+			}
+		}()
 
 		err = usenet.FindGroup(conn, groups)
 		if err != nil {

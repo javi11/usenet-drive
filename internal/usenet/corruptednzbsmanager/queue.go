@@ -3,13 +3,14 @@ package corruptednzbsmanager
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"io"
-	"os"
 	"time"
 
 	"github.com/javi11/usenet-drive/internal/usenet"
 	"github.com/javi11/usenet-drive/internal/utils"
+	"github.com/javi11/usenet-drive/pkg/osfs"
 )
 
 type Filters struct {
@@ -50,22 +51,11 @@ type cNzb struct {
 
 type corruptedNzbsManager struct {
 	db *sql.DB
+	fs osfs.FileSystem
 }
 
-func New(db *sql.DB) (CorruptedNzbsManager, error) {
-	_, err := db.Exec(`
-		CREATE TABLE IF NOT EXISTS corrupted_nzbs (
-			id INTEGER PRIMARY KEY,
-			path TEXT UNIQUE,
-			error TEXT,
-			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-		);
-	`)
-	if err != nil {
-		return nil, err
-	}
-
-	return &corruptedNzbsManager{db: db}, nil
+func New(db *sql.DB, fs osfs.FileSystem) CorruptedNzbsManager {
+	return &corruptedNzbsManager{db: db, fs: fs}
 }
 
 func (q *corruptedNzbsManager) Add(ctx context.Context, path, error string) error {
@@ -89,8 +79,8 @@ func (q *corruptedNzbsManager) Delete(ctx context.Context, id int) error {
 		return err
 	}
 
-	if _, err := os.Stat(cnzb.Path); err == nil {
-		return os.Remove(cnzb.Path)
+	if _, err := q.fs.Stat(cnzb.Path); err == nil {
+		return q.fs.Remove(cnzb.Path)
 	}
 
 	return nil
@@ -107,13 +97,19 @@ func (q *corruptedNzbsManager) DiscardByPath(ctx context.Context, path string) (
 	var j cNzb
 	err = row.Scan(&j.ID, &j.Path, &j.CreatedAt)
 	if err != nil {
-		tx.Commit()
-		return nil, nil
+		e := tx.Commit()
+		if e != nil {
+			return nil, errors.Join(err, e)
+		}
+		return nil, err
 	}
 
 	_, err = tx.ExecContext(ctx, "DELETE FROM corrupted_nzbs WHERE id = ?", path)
 	if err != nil {
-		tx.Rollback()
+		e := tx.Rollback()
+		if e != nil {
+			return nil, errors.Join(err, e)
+		}
 		return nil, err
 	}
 
@@ -131,13 +127,19 @@ func (q *corruptedNzbsManager) Discard(ctx context.Context, id int) (*cNzb, erro
 	var j cNzb
 	err = row.Scan(&j.ID, &j.Path, &j.CreatedAt)
 	if err != nil {
-		tx.Commit()
-		return nil, nil
+		e := tx.Commit()
+		if e != nil {
+			return nil, errors.Join(err, e)
+		}
+		return nil, err
 	}
 
 	_, err = tx.ExecContext(ctx, "DELETE FROM corrupted_nzbs WHERE id = ?", id)
 	if err != nil {
-		tx.Rollback()
+		e := tx.Rollback()
+		if e != nil {
+			return nil, errors.Join(err, e)
+		}
 		return nil, err
 	}
 
@@ -157,11 +159,19 @@ func (q *corruptedNzbsManager) Update(ctx context.Context, oldPath, newPath stri
 	var j cNzb
 	err = row.Scan(&j.ID, &j.Path, &j.CreatedAt)
 	if err != nil {
+		e := tx.Commit()
+		if e != nil {
+			return errors.Join(err, e)
+		}
 		return err
 	}
 
 	_, err = tx.ExecContext(ctx, "UPDATE corrupted_nzbs SET path = ? WHERE id = ?", newPath, j.ID)
 	if err != nil {
+		e := tx.Rollback()
+		if e != nil {
+			return errors.Join(err, e)
+		}
 		return err
 	}
 
@@ -256,7 +266,7 @@ func (q *corruptedNzbsManager) GetFileContent(ctx context.Context, id int) (io.R
 		return nil, err
 	}
 
-	file, err := os.Open(usenet.ReplaceFileExtension(path, ".nzb"))
+	file, err := q.fs.Open(usenet.ReplaceFileExtension(path, ".nzb"))
 	if err != nil {
 		return nil, err
 	}

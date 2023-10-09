@@ -11,28 +11,6 @@ import (
 	"strings"
 )
 
-func parseHeaders(inputBytes []byte) map[string]string {
-	values := make(map[string]string)
-	input := string(inputBytes)
-	// get the filename name off the end
-	ni := strings.Index(input, "name=")
-	if ni > -1 {
-		values["name"] = input[ni:]
-	} else {
-		ni = len(input)
-	}
-	// get other header values
-	for _, header := range strings.Split(input[:ni], " ") {
-		kv := strings.SplitN(strings.TrimSpace(header), "=", 2)
-		if len(kv) < 2 {
-			continue
-		}
-		values[kv[0]] = kv[1]
-	}
-	// done
-	return values
-}
-
 type Part struct {
 	// part num
 	Number int
@@ -147,7 +125,7 @@ func (d *decoder) readPartHeader() (err error) {
 	}
 	// split on space for headers
 	parts := strings.Split(s[6:], " ")
-	for i, _ := range parts {
+	for i := range parts {
 		kv := strings.Split(strings.TrimSpace(parts[i]), "=")
 		if len(kv) < 2 {
 			continue
@@ -165,7 +143,7 @@ func (d *decoder) readPartHeader() (err error) {
 func (d *decoder) parseTrailer(line string) error {
 	// split on space for headers
 	parts := strings.Split(line, " ")
-	for i, _ := range parts {
+	for i := range parts {
 		kv := strings.Split(strings.TrimSpace(parts[i]), "=")
 		if len(kv) < 2 {
 			continue

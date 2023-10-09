@@ -3,6 +3,7 @@ package filewriter
 import (
 	"context"
 	"fmt"
+	"io"
 	"io/fs"
 	"log/slog"
 	"os"
@@ -133,21 +134,28 @@ func (f *file) Write(b []byte) (int, error) {
 func (f *file) Close() error {
 	// Upload the rest of segments
 	if f.buffer.Size() > 0 {
-		f.addSegment(f.buffer.Bytes(), f.currentSegmentIndex, f.maxDownloadRetries)
+		err := f.addSegment(f.buffer.Bytes(), f.currentSegmentIndex, f.maxDownloadRetries)
+		if err != nil {
+			f.log.Error("Error uploading the file. The file will not be written.", "fileName", f.fileName, "error", err)
+
+			return io.ErrUnexpectedEOF
+		}
 	}
 
 	f.buffer.Clear()
 
 	// Wait for all uploads to finish
 	if err := f.merr.Wait().ErrorOrNil(); err != nil {
-		return err
+		f.log.Error("Error uploading the file. The file will not be written.", "fileName", f.fileName, "error", err)
+
+		return io.ErrUnexpectedEOF
 	}
 
 	for _, segment := range f.segments {
 		if segment.Bytes == 0 {
 			f.log.Warn("Upload was canceled. The file will not be written.", "fileName", f.fileName)
 
-			return nil
+			return io.ErrUnexpectedEOF
 		}
 	}
 
@@ -281,16 +289,26 @@ func (f *file) addSegment(b []byte, segmentIndex int64, retries int) error {
 	}
 
 	f.merr.Go(func() error {
-		defer f.cp.Free(conn)
+		defer func() {
+			if err = f.cp.Free(conn); err != nil {
+				f.log.Error("Error freeing connection on upload file.", "error", err, "fileName", f.fileName)
+			}
+		}()
+
 		a := f.buildArticleData(segmentIndex)
-		na := NewNttpArticle(b, a)
+		na, err := NewNttpArticle(b, a)
+		if err != nil {
+			f.log.Error("Error building article.", "error", err, "segment", a)
+			return err
+		}
+
 		f.segments[segmentIndex] = nzb.NzbSegment{
 			Bytes:  a.partSize,
 			Number: a.partNum,
 			Id:     a.msgId,
 		}
 
-		err := f.upload(na, conn)
+		err = f.upload(na, conn)
 		if err != nil {
 			f.log.Error("Error uploading segment.", "error", err, "segment", na.Header)
 			return err

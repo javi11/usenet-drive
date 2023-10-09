@@ -30,17 +30,3 @@ func generateMessageId() string {
 func isNzbFile(name string) bool {
 	return strings.HasSuffix(name, ".nzb")
 }
-
-func truncateFileName(name string, extension string, length int) string {
-	if len(name) <= length {
-		return name
-	}
-
-	name = strings.TrimSuffix(name, extension)
-
-	if len(name) <= length {
-		return name + extension
-	}
-
-	return name[:length] + extension
-}
