@@ -13,7 +13,7 @@ type xNzb struct {
 
 type xNzbMeta struct {
 	Type  string `xml:"type,attr"`
-	Value string `xml:",innerxml"`
+	Value string `xml:",chardata"`
 }
 
 type xNzbFile struct {

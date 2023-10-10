@@ -8,7 +8,6 @@ permissions:
 
 jobs:
   releases-matrix:
-    if: "!contains(github.ref_name, 'beta')"
     name: Release Go Binary
     runs-on: ubuntu-latest
     strategy:
@@ -27,7 +26,6 @@ jobs:
       - name: Create binary release
         uses: wangyoucao577/go-release-action@v1
         with:
-          release_tag: 'beta'
           github_token: ${{ secrets.GITHUB_TOKEN }}
           goos: ${{ matrix.goos }}
           goarch: ${{ matrix.goarch }}
