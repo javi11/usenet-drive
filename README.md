@@ -36,15 +36,15 @@ Add a new crypt remote with the following parameters:
 - **Encrypt the filenames**: `off`
 - **Option directory_name_encryption**: `Don't encrypt directory names, leave them intact`
 
-```bash
+````bash
 
 ### Mount the remote
 
 ```bash
 rclone mount --allow-other --async-read=true --dir-cache-time=1000h --buffer-size=32M --poll-interval=15s --rc --rc-no-auth --rc-addr=localhost:5572 --use-mmap --vfs-read-ahead=128M --vfs-read-chunk-size=32M --vfs-read-chunk-size-limit=2G --vfs-cache-max-age=504h --vfs-cache-mode=full --vfs-cache-poll-interval=30s --vfs-cache-max-size=50G --timeout=10m usenet: ${PATH_TO_MOUNT} --umask=002
-```
+````
 
-***When mounting it's high recommended to use a vfs cache to avoid problems with uploads and downloads.***
+**_When mounting it's high recommended to use a vfs cache to avoid problems with uploads and downloads._**
 
 ### API
 
@@ -53,7 +53,6 @@ An API to control the server, is available at `http://localhost:8081/api/v1/`.
 ### WebAdmin
 
 WebAdmin, is available at `http://localhost:8081`.
-
 
 #### Endpoints
 
@@ -180,7 +179,7 @@ The `Upload` struct defines the Usenet provider for uploading.
 ### Fields
 
 - `provider` (UsenetProvider): Usenet provider to upload files
-Alternatively, you can use the same provider and split the available connections to allow more parallel uploads.
+  Alternatively, you can use the same provider and split the available connections to allow more parallel uploads.
 - `file_allow_list` ([]string): The list of allowed file extensions. For example, `[".mkv", ".mp4"]`, in this case only files with the extensions `.mkv` and `.mp4` will be uploaded to usenet. Take care not upload files that change frequently, like subtitules or text files, since they will be uploaded every time they change. In usenet you can not edit files. **_If using rclone crypt all file extensions will ends with .bin so in order to specify the real extension, you must add .bin at the end. Ex: .mkv.bin ._**
 
 ## UsenetProvider Struct
@@ -201,3 +200,9 @@ The `UsenetProvider` struct defines the Usenet provider configuration.
 
 - Files uploaded to usenet can not be edited. If you need to edit a file, you need to upload a new file with the changes. This is more a limitation of usenet itself than the tool. (Future workaround can be done)
 - The number of reads by file is limited by the number of connections to the usenet provider, normally not more than 3 connections are needed peer file read.
+
+## Profiling
+
+```bash
+go tool pprof -http=:8082 http://localhost:8080/debug/pprof/profile
+```

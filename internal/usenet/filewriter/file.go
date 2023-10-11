@@ -20,6 +20,7 @@ import (
 )
 
 type file struct {
+	io.ReaderFrom
 	dryRun              bool
 	segments            []nzb.NzbSegment
 	currentSegmentIndex int64
@@ -32,8 +33,7 @@ type file struct {
 	poster              string
 	group               string
 	cp                  connectionpool.UsenetConnectionPool
-	maxDownloadRetries  int
-	buffer              *segmentBuffer
+	maxUploadRetries    int
 	currentSize         int64
 	modTime             time.Time
 	merr                *multierror.Group
@@ -78,72 +78,56 @@ func openFile(
 	poster := generateRandomPoster()
 
 	return &file{
-		maxDownloadRetries: 5,
-		dryRun:             dryRun,
-		segments:           make([]nzb.NzbSegment, parts),
-		parts:              parts,
-		segmentSize:        segmentSize,
-		fileSize:           fileSize,
-		fileName:           fileName,
-		filePath:           filePath,
-		fileNameHash:       fileNameHash,
-		cp:                 cp,
-		poster:             poster,
-		group:              randomGroup,
-		buffer:             NewSegmentBuffer(segmentSize),
-		log:                log,
-		onClose:            onClose,
-		flag:               flag,
-		perm:               perm,
-		nzbLoader:          nzbLoader,
-		merr:               &multierror.Group{},
+		maxUploadRetries: 5,
+		dryRun:           dryRun,
+		segments:         make([]nzb.NzbSegment, parts),
+		parts:            parts,
+		segmentSize:      segmentSize,
+		fileSize:         fileSize,
+		fileName:         fileName,
+		filePath:         filePath,
+		fileNameHash:     fileNameHash,
+		cp:               cp,
+		poster:           poster,
+		group:            randomGroup,
+		log:              log,
+		onClose:          onClose,
+		flag:             flag,
+		perm:             perm,
+		nzbLoader:        nzbLoader,
+		merr:             &multierror.Group{},
 	}, nil
 }
 
-func (f *file) Write(b []byte) (int, error) {
-	n, err := f.buffer.Write(b)
-	if err != nil {
-		return n, err
-	}
-
-	if f.buffer.Size() == int(f.segmentSize) {
-		err = f.addSegment(f.buffer.Bytes(), f.currentSegmentIndex, f.maxDownloadRetries)
-		if err != nil {
-			return n, err
-		}
-
-		f.currentSegmentIndex += 1
-		f.buffer.Clear()
-
-		if n < len(b) {
-			nb, err := f.buffer.Write(b[n:])
+func (f *file) ReadFrom(src io.Reader) (written int64, err error) {
+	for {
+		buf := make([]byte, f.segmentSize)
+		nr, er := src.Read(buf)
+		if nr > 0 {
+			err = f.addSegment(buf[0:nr], f.currentSegmentIndex, f.maxUploadRetries)
 			if err != nil {
-				return nb, err
+				return written, err
 			}
-
-			n += nb
+			written += int64(nr)
+			f.currentSegmentIndex += 1
+		}
+		if er != nil {
+			if er != io.EOF {
+				err = er
+			}
+			break
 		}
 	}
 
-	f.currentSize += int64(n)
-	f.modTime = time.Now()
+	return written, err
+}
 
-	return n, nil
+func (f *file) Write(b []byte) (int, error) {
+	f.log.Error("Write not permited. Use ReadFrom instead.")
+	return 0, os.ErrPermission
 }
 
 func (f *file) Close() error {
-	// Upload the rest of segments
-	if f.buffer.Size() > 0 {
-		err := f.addSegment(f.buffer.Bytes(), f.currentSegmentIndex, f.maxDownloadRetries)
-		if err != nil {
-			f.log.Error("Error uploading the file. The file will not be written.", "fileName", f.fileName, "error", err)
-
-			return io.ErrUnexpectedEOF
-		}
-	}
-
-	f.buffer.Clear()
-
 	// Wait for all uploads to finish
 	if err := f.merr.Wait().ErrorOrNil(); err != nil {
 		f.log.Error("Error uploading the file. The file will not be written.", "fileName", f.fileName, "error", err)
@@ -290,8 +274,9 @@ func (f *file) addSegment(b []byte, segmentIndex int64, retries int) error {
 
 	f.merr.Go(func() error {
 		defer func() {
-			if err = f.cp.Free(conn); err != nil {
-				f.log.Error("Error freeing connection on upload file.", "error", err, "fileName", f.fileName)
+			err := f.cp.Free(conn)
+			if err != nil {
+				f.log.Debug("Error freeing the connection.", "error", err)
 			}
 		}()
 
@@ -344,19 +329,34 @@ func (f *file) buildArticleData(segmentIndex int64) *ArticleData {
 
 func (f *file) upload(a *nntp.Article, conn *nntp.Conn) error {
 	if f.dryRun {
-		time.Sleep(2000 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond)
 
 		return nil
 	}
 
 	var err error
-	for i := 0; i < f.maxDownloadRetries; i++ {
+	for i := 0; i < f.maxUploadRetries; i++ {
 		err = conn.Post(a)
 		if err == nil {
 			return nil
-		} else {
-			f.log.Error("Error uploading segment. Retrying", "error", err, "segment", a.Header)
 		}
+
+		f.log.Error("Error uploading segment. Retrying", "error", err, "segment", a.Header)
+		err := f.cp.Close(conn)
+		if err != nil {
+			f.log.Error("Error closing connection.", "error", err)
+		}
+		conn, err = f.cp.Get()
+		if err != nil {
+			f.log.Error("Error getting connection from pool.", "error", err)
+		}
+		defer func() {
+			err := f.cp.Free(conn)
+			if err != nil {
+				f.log.Error("Error freeing the connection.", "error", err)
+			}
+		}()
+
 	}
 
 	return err

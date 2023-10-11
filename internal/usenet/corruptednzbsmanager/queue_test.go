@@ -164,7 +164,7 @@ func TestCorruptedNzbsManager_List(t *testing.T) {
 func TestCorruptedNzbsManager_GetFileContent(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	fs := osfs.NewMockFileSystem(ctrl)
-	db, mock, err := sqlmock.New()
+	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
 	assert.NoError(t, err)
 	defer db.Close()
 
@@ -174,7 +174,7 @@ func TestCorruptedNzbsManager_GetFileContent(t *testing.T) {
 	ctx := context.Background()
 
 	// Test GetFileContent
-	mock.ExpectQuery("SELECT path FROM corrupted_nzbs WHERE id = (.+)").
+	mock.ExpectQuery("SELECT path FROM corrupted_nzbs WHERE id = ?").
 		WithArgs(1).
 		WillReturnRows(sqlmock.NewRows([]string{"path"}).AddRow("test.nzb"))
 
@@ -186,7 +186,6 @@ func TestCorruptedNzbsManager_GetFileContent(t *testing.T) {
 	})
 	f.EXPECT().Close().Return(nil)
 	fs.EXPECT().Open("test.nzb").Return(f, nil)
-	assert.NoError(t, mock.ExpectationsWereMet())
 
 	content, err := manager.GetFileContent(ctx, 1)
 	assert.NoError(t, err)
@@ -195,4 +194,5 @@ func TestCorruptedNzbsManager_GetFileContent(t *testing.T) {
 	actualContent, err := io.ReadAll(content)
 	assert.NoError(t, err)
 	assert.Equal(t, expectedContent, actualContent)
+	assert.NoError(t, mock.ExpectationsWereMet())
 }

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/javi11/usenet-drive/internal/pprof"
 	"golang.org/x/net/webdav"
 )
 
@@ -48,7 +49,7 @@ func (s *webdavServer) Start(ctx context.Context, port string) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		r = r.WithContext(context.WithValue(r.Context(), reqContentLengthKey, r.Header.Get("Content-Length")))
-		s.handler.ServeHTTP(w, r)
+		pprof.Middleware(s.handler).ServeHTTP(w, r)
 	})
 	addr := fmt.Sprintf(":%s", port)
 

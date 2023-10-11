@@ -1,13 +1,10 @@
-//Copyright 2013, Daniel Morsing
-//For licensing information, See the LICENSE file
-
-// This file contains a muxer that will limit the amount of connections
-// that are concurrently running.
+//go:generate mockgen -source=./connectionpool.go -destination=./connectionpool_mock.go -package=connectionpool UsenetConnectionPool, NntpConnection
 
 package connectionpool
 
 import (
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"time"
@@ -15,6 +12,30 @@ import (
 	"github.com/chrisfarms/nntp"
 	"github.com/silenceper/pool"
 )
+
+type NntpConnection interface {
+	Article(id string) (*nntp.Article, error)
+	ArticleText(id string) (io.Reader, error)
+	Authenticate(username string, password string) error
+	Body(id string) (io.Reader, error)
+	Capabilities() ([]string, error)
+	Date() (time.Time, error)
+	Group(group string) (number int, low int, high int, err error)
+	Head(id string) (*nntp.Article, error)
+	HeadText(id string) (io.Reader, error)
+	Help() (io.Reader, error)
+	Last() (number string, msgid string, err error)
+	List(a ...string) ([]string, error)
+	ModeReader() error
+	NewGroups(since time.Time) ([]*nntp.Group, error)
+	NewNews(group string, since time.Time) ([]string, error)
+	Next() (number string, msgid string, err error)
+	Overview(begin int, end int) ([]nntp.MessageOverview, error)
+	Post(a *nntp.Article) error
+	Quit() error
+	RawPost(r io.Reader) error
+	Stat(id string) (number string, msgid string, err error)
+}
 
 type UsenetConnectionPool interface {
 	Get() (*nntp.Conn, error)
@@ -47,7 +68,7 @@ func NewConnectionPool(options ...Option) (*connectionPool, error) {
 
 	poolConfig := &pool.Config{
 		InitialCap: twentyPercent,
-		MaxIdle:    twentyPercent,
+		MaxIdle:    config.maxConnections,
 		MaxCap:     config.maxConnections,
 		Factory:    factory,
 		Close:      close,
