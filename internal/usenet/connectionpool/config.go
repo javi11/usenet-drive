@@ -15,6 +15,7 @@ type Config struct {
 	tlsConfig      *tls.Config
 	maxConnections int
 	log            *slog.Logger
+	dryRun         bool
 }
 
 func (c *Config) getConnectionString() string {
@@ -25,7 +26,8 @@ type Option func(*Config)
 
 func defaultConfig() *Config {
 	return &Config{
-		tls: false,
+		tls:    false,
+		dryRun: false,
 	}
 }
 
@@ -74,5 +76,11 @@ func WithMaxConnections(maxConnections int) Option {
 func WithLogger(log *slog.Logger) Option {
 	return func(c *Config) {
 		c.log = log
+	}
+}
+
+func WithDryRun(dryRun bool) Option {
+	return func(c *Config) {
+		c.dryRun = dryRun
 	}
 }

@@ -117,6 +117,10 @@ func (p *connectionPool) GetFreeConnections() int {
 }
 
 func dialNNTP(config *Config) (*nntp.Conn, error) {
+	if config.dryRun {
+		return &nntp.Conn{}, nil
+	}
+
 	dialStr := config.getConnectionString()
 	var err error
 	var c *nntp.Conn

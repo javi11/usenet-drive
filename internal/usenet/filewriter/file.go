@@ -2,6 +2,7 @@ package filewriter
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -19,29 +20,30 @@ import (
 	"github.com/javi11/usenet-drive/pkg/nzb"
 )
 
+var ErrUnexpectedFileSize = errors.New("file size does not match the expected size")
+
 type file struct {
 	io.ReaderFrom
-	dryRun              bool
-	segments            []nzb.NzbSegment
-	currentSegmentIndex int64
-	parts               int64
-	segmentSize         int64
-	fileSize            int64
-	fileName            string
-	fileNameHash        string
-	filePath            string
-	poster              string
-	group               string
-	cp                  connectionpool.UsenetConnectionPool
-	maxUploadRetries    int
-	currentSize         int64
-	modTime             time.Time
-	merr                *multierror.Group
-	onClose             func() error
-	log                 *slog.Logger
-	flag                int
-	perm                fs.FileMode
-	nzbLoader           *nzbloader.NzbLoader
+	dryRun           bool
+	segments         []nzb.NzbSegment
+	parts            int64
+	segmentSize      int64
+	fileSize         int64
+	fileName         string
+	fileNameHash     string
+	filePath         string
+	poster           string
+	group            string
+	cp               connectionpool.UsenetConnectionPool
+	maxUploadRetries int
+	currentSize      int64
+	modTime          time.Time
+	merr             *multierror.Group
+	onClose          func() error
+	log              *slog.Logger
+	flag             int
+	perm             fs.FileMode
+	nzbLoader        *nzbloader.NzbLoader
 }
 
 func openFile(
@@ -90,7 +92,7 @@ func openFile(
 		cp:               cp,
 		poster:           poster,
 		group:            randomGroup,
-		log:              log,
+		log:              log.With("filename", fileName),
 		onClose:          onClose,
 		flag:             flag,
 		perm:             perm,
@@ -100,16 +102,21 @@ func openFile(
 }
 
 func (f *file) ReadFrom(src io.Reader) (written int64, err error) {
-	for {
+	for i := 0; ; i++ {
+		if i+1 > int(f.parts) {
+			f.log.Error("Unexpected file size", "expected", f.fileSize, "actual", written, "expectedParts", f.parts, "actualParts", i)
+			err = ErrUnexpectedFileSize
+			break
+		}
+
 		buf := make([]byte, f.segmentSize)
 		nr, er := src.Read(buf)
 		if nr > 0 {
-			err = f.addSegment(buf[0:nr], f.currentSegmentIndex, f.maxUploadRetries)
+			err = f.addSegment(buf[0:nr], i, f.maxUploadRetries)
 			if err != nil {
 				return written, err
 			}
 			written += int64(nr)
-			f.currentSegmentIndex += 1
 		}
 		if er != nil {
 			if er != io.EOF {
@@ -123,7 +130,7 @@ func (f *file) ReadFrom(src io.Reader) (written int64, err error) {
 }
 
 func (f *file) Write(b []byte) (int, error) {
-	f.log.Error("Write not permited. Use ReadFrom instead.")
+	f.log.Error("Write not permitted. Use ReadFrom instead.")
 	return 0, os.ErrPermission
 }
 
@@ -255,7 +262,7 @@ func (f *file) getMetadata() usenet.Metadata {
 	}
 }
 
-func (f *file) addSegment(b []byte, segmentIndex int64, retries int) error {
+func (f *file) addSegment(b []byte, segmentIndex int, retries int) error {
 	conn, err := f.cp.Get()
 	if err != nil {
 		if conn != nil {
@@ -280,7 +287,7 @@ func (f *file) addSegment(b []byte, segmentIndex int64, retries int) error {
 			}
 		}()
 
-		a := f.buildArticleData(segmentIndex)
+		a := f.buildArticleData(int64(segmentIndex))
 		na, err := NewNttpArticle(b, a)
 		if err != nil {
 			f.log.Error("Error building article.", "error", err, "segment", a)
