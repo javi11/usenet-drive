@@ -189,7 +189,7 @@ func (v *buffer) downloadSegment(segment nzb.NzbSegment, groups []string, retrie
 
 		err = usenet.FindGroup(conn, groups)
 		if err != nil {
-			if connectionpool.IsRetirableErr(err) && retries < v.maxDownloadRetries {
+			if connectionpool.IsRetryable(err) && retries < v.maxDownloadRetries {
 				return v.downloadSegment(segment, groups, retries+1)
 			}
 			v.log.Error("Error finding nntp group:", "error", err)
@@ -198,7 +198,7 @@ func (v *buffer) downloadSegment(segment nzb.NzbSegment, groups []string, retrie
 
 		body, err := conn.Body(fmt.Sprintf("<%v>", segment.Id))
 		if err != nil {
-			if connectionpool.IsRetirableErr(err) && retries < v.maxDownloadRetries {
+			if connectionpool.IsRetryable(err) && retries < v.maxDownloadRetries {
 				return v.downloadSegment(segment, groups, retries+1)
 			}
 

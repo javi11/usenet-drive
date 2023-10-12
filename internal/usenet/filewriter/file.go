@@ -43,7 +43,7 @@ type file struct {
 	log              *slog.Logger
 	flag             int
 	perm             fs.FileMode
-	nzbLoader        *nzbloader.NzbLoader
+	nzbLoader        nzbloader.NzbLoader
 }
 
 func openFile(
@@ -56,7 +56,7 @@ func openFile(
 	flag int,
 	perm fs.FileMode,
 	log *slog.Logger,
-	nzbLoader *nzbloader.NzbLoader,
+	nzbLoader nzbloader.NzbLoader,
 	dryRun bool,
 	onClose func() error,
 ) (*file, error) {
@@ -348,7 +348,12 @@ func (f *file) upload(a *nntp.Article, conn connectionpool.NntpConnection) error
 			return nil
 		}
 
-		f.log.Error("Error uploading segment. Retrying", "error", err, "segment", a.Header)
+		if !connectionpool.IsRetryable(err) {
+			f.log.Error("Error uploading segment.", "error", err, "segment", a.Header, "retryable", false)
+			return err
+		}
+
+		f.log.Error("Error uploading segment. Retrying", "error", err, "segment", a.Header, "retryable", true)
 		err := f.cp.Close(conn)
 		if err != nil {
 			f.log.Error("Error closing connection.", "error", err)
@@ -356,6 +361,7 @@ func (f *file) upload(a *nntp.Article, conn connectionpool.NntpConnection) error
 		conn, err = f.cp.Get()
 		if err != nil {
 			f.log.Error("Error getting connection from pool.", "error", err)
+			return err
 		}
 		defer func() {
 			err := f.cp.Free(conn)

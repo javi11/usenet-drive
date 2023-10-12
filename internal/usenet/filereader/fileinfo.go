@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/javi11/usenet-drive/internal/usenet"
 	"github.com/javi11/usenet-drive/internal/usenet/nzbloader"
+	"github.com/javi11/usenet-drive/pkg/osfs"
 )
 
 type nzbFileInfo struct {
@@ -18,7 +19,12 @@ type nzbFileInfo struct {
 	originalFileMetadata usenet.Metadata
 }
 
-func NewFileInfo(name string, log *slog.Logger, nzbLoader *nzbloader.NzbLoader) (fs.FileInfo, error) {
+func NewFileInfo(
+	name string,
+	log *slog.Logger,
+	nzbLoader nzbloader.NzbLoader,
+	fs osfs.FileSystem,
+) (fs.FileInfo, error) {
 	var nzbFileStat os.FileInfo
 	var metadata usenet.Metadata
 	var eg multierror.Group
@@ -36,7 +42,7 @@ func NewFileInfo(name string, log *slog.Logger, nzbLoader *nzbloader.NzbLoader) 
 	})
 
 	eg.Go(func() error {
-		info, err := os.Stat(name)
+		info, err := fs.Stat(name)
 		nzbFileStat = info
 		if err != nil {
 			return err
@@ -58,8 +64,12 @@ func NewFileInfo(name string, log *slog.Logger, nzbLoader *nzbloader.NzbLoader) 
 	}, nil
 }
 
-func NeFileInfoWithMetadata(metadata usenet.Metadata, name string) (fs.FileInfo, error) {
-	info, err := os.Stat(name)
+func NeFileInfoWithMetadata(
+	metadata usenet.Metadata,
+	name string,
+	fs osfs.FileSystem,
+) (fs.FileInfo, error) {
+	info, err := fs.Stat(name)
 	if err != nil {
 		return nil, err
 	}

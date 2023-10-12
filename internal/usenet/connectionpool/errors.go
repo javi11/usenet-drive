@@ -1,12 +1,20 @@
 package connectionpool
 
-import "github.com/chrisfarms/nntp"
+import (
+	"strings"
+
+	"github.com/chrisfarms/nntp"
+)
 
 var retirableErrors = []uint{
 	441,
 }
 
-func IsRetirableErr(err error) bool {
+func IsRetryable(err error) bool {
+	if strings.Contains(err.Error(), "broken pipe") {
+		return true
+	}
+
 	if _, ok := err.(nntp.ProtocolError); ok {
 		return true
 	}

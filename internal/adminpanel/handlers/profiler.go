@@ -1,4 +1,4 @@
-package pprof
+package handlers
 
 import (
 	"net/http"
@@ -22,13 +22,8 @@ func init() {
 	handler = mux
 }
 
-// Handler returns a pprof handler for the routes: /debug/pprof/*
-func Handler() http.Handler {
-	return handler
-}
-
 // Middleware execute pprof handler if the request path starts with /debug/pprof/ or the next handler otherwise
-func Middleware(next http.Handler) http.Handler {
+func PProfMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, DefaultPrefix) {
 			handler.ServeHTTP(w, r)

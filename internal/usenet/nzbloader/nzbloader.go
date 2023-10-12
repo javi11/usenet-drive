@@ -1,5 +1,7 @@
 package nzbloader
 
+//go:generate mockgen -source=./nzbloader.go -destination=./nzbloader_mock.go -package=nzbloader NzbLoader
+
 import (
 	"context"
 	"os"
@@ -8,31 +10,39 @@ import (
 	"github.com/javi11/usenet-drive/internal/usenet"
 	"github.com/javi11/usenet-drive/internal/usenet/corruptednzbsmanager"
 	"github.com/javi11/usenet-drive/pkg/nzb"
+	"github.com/javi11/usenet-drive/pkg/osfs"
 )
 
-type nzbCache struct {
+type NzbLoader interface {
+	LoadFromFile(name string) (*NzbCache, error)
+	LoadFromFileReader(f osfs.File) (*NzbCache, error)
+	EvictFromCache(name string) bool
+	RefreshCachedNzb(name string, nzb *nzb.Nzb) (bool, error)
+}
+
+type NzbCache struct {
 	Nzb      *nzb.Nzb
 	Metadata usenet.Metadata
 }
 
-type NzbLoader struct {
-	cache *lru.Cache[string, *nzbCache]
+type nzbLoader struct {
+	cache *lru.Cache[string, *NzbCache]
 	cNzb  corruptednzbsmanager.CorruptedNzbsManager
 }
 
-func NewNzbLoader(maxCacheSize int, cNzb corruptednzbsmanager.CorruptedNzbsManager) (*NzbLoader, error) {
-	cache, err := lru.New[string, *nzbCache](maxCacheSize)
+func NewNzbLoader(maxCacheSize int, cNzb corruptednzbsmanager.CorruptedNzbsManager) (NzbLoader, error) {
+	cache, err := lru.New[string, *NzbCache](maxCacheSize)
 	if err != nil {
 		return nil, err
 	}
 
-	return &NzbLoader{
+	return &nzbLoader{
 		cache: cache,
 		cNzb:  cNzb,
 	}, nil
 }
 
-func (n *NzbLoader) LoadFromFile(name string) (*nzbCache, error) {
+func (n *nzbLoader) LoadFromFile(name string) (*NzbCache, error) {
 	if nzb, ok := n.cache.Get(name); ok {
 		return nzb, nil
 	}
@@ -55,7 +65,7 @@ func (n *NzbLoader) LoadFromFile(name string) (*nzbCache, error) {
 		}
 	}
 
-	nzbCache := &nzbCache{
+	nzbCache := &NzbCache{
 		Nzb:      nzb,
 		Metadata: metadata,
 	}
@@ -65,7 +75,7 @@ func (n *NzbLoader) LoadFromFile(name string) (*nzbCache, error) {
 	return nzbCache, nil
 }
 
-func (n *NzbLoader) LoadFromFileReader(f *os.File) (*nzbCache, error) {
+func (n *nzbLoader) LoadFromFileReader(f osfs.File) (*NzbCache, error) {
 	if nzb, ok := n.cache.Get(f.Name()); ok {
 		return nzb, nil
 	}
@@ -83,7 +93,7 @@ func (n *NzbLoader) LoadFromFileReader(f *os.File) (*nzbCache, error) {
 		}
 	}
 
-	nzbCache := &nzbCache{
+	nzbCache := &NzbCache{
 		Nzb:      nzb,
 		Metadata: metadata,
 	}
@@ -93,7 +103,7 @@ func (n *NzbLoader) LoadFromFileReader(f *os.File) (*nzbCache, error) {
 	return nzbCache, nil
 }
 
-func (n *NzbLoader) EvictFromCache(name string) bool {
+func (n *nzbLoader) EvictFromCache(name string) bool {
 	if n.cache.Contains(name) {
 		return n.cache.Remove(name)
 	}
@@ -101,13 +111,13 @@ func (n *NzbLoader) EvictFromCache(name string) bool {
 	return false
 }
 
-func (n *NzbLoader) RefreshCachedNzb(name string, nzb *nzb.Nzb) (bool, error) {
+func (n *nzbLoader) RefreshCachedNzb(name string, nzb *nzb.Nzb) (bool, error) {
 	metadata, err := usenet.LoadMetadataFromNzb(nzb)
 	if err != nil {
 		return false, err
 	}
 
-	return n.cache.Add(name, &nzbCache{
+	return n.cache.Add(name, &NzbCache{
 		Nzb:      nzb,
 		Metadata: metadata,
 	}), nil

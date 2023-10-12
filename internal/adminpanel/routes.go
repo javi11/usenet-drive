@@ -8,7 +8,6 @@ import (
 	"os"
 
 	"github.com/javi11/usenet-drive/internal/adminpanel/handlers"
-	"github.com/javi11/usenet-drive/internal/pprof"
 	"github.com/javi11/usenet-drive/internal/serverinfo"
 	"github.com/javi11/usenet-drive/internal/usenet/corruptednzbsmanager"
 	"github.com/javi11/usenet-drive/web"
@@ -45,7 +44,7 @@ func New(
 		}))
 
 		// Register profile handlers to /debug/pprof/profile
-		pprof.Middleware(e)
+		handlers.PProfMiddleware(e)
 	}
 
 	v1 := e.Group("/api/v1")

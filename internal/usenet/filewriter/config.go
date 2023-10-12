@@ -14,7 +14,7 @@ type Config struct {
 	postGroups    []string
 	log           *slog.Logger
 	fileAllowlist []string
-	nzbLoader     *nzbloader.NzbLoader
+	nzbLoader     nzbloader.NzbLoader
 	cNzb          corruptednzbsmanager.CorruptedNzbsManager
 	dryRun        bool
 }
@@ -61,7 +61,7 @@ func WithFileAllowlist(fileAllowlist []string) Option {
 	}
 }
 
-func WithNzbLoader(nzbLoader *nzbloader.NzbLoader) Option {
+func WithNzbLoader(nzbLoader nzbloader.NzbLoader) Option {
 	return func(c *Config) {
 		c.nzbLoader = nzbLoader
 	}

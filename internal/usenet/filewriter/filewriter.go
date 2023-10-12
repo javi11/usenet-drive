@@ -23,7 +23,7 @@ type fileWriter struct {
 	postGroups    []string
 	log           *slog.Logger
 	fileAllowlist []string
-	nzbLoader     *nzbloader.NzbLoader
+	nzbLoader     nzbloader.NzbLoader
 	cNzb          corruptednzbsmanager.CorruptedNzbsManager
 	dryRun        bool
 }

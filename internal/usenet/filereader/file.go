@@ -16,18 +16,20 @@ import (
 	"github.com/javi11/usenet-drive/internal/usenet/connectionpool"
 	"github.com/javi11/usenet-drive/internal/usenet/corruptednzbsmanager"
 	"github.com/javi11/usenet-drive/internal/usenet/nzbloader"
+	"github.com/javi11/usenet-drive/pkg/osfs"
 )
 
 type file struct {
 	name      string
 	buffer    *buffer
-	innerFile *os.File
+	innerFile osfs.File
 	fsMutex   sync.RWMutex
 	log       *slog.Logger
 	metadata  usenet.Metadata
-	nzbLoader *nzbloader.NzbLoader
+	nzbLoader nzbloader.NzbLoader
 	onClose   func() error
 	cNzb      corruptednzbsmanager.CorruptedNzbsManager
+	fs        osfs.FileSystem
 }
 
 func openFile(
@@ -38,11 +40,12 @@ func openFile(
 	cp connectionpool.UsenetConnectionPool,
 	log *slog.Logger,
 	onClose func() error,
-	nzbLoader *nzbloader.NzbLoader,
+	nzbLoader nzbloader.NzbLoader,
 	cNzb corruptednzbsmanager.CorruptedNzbsManager,
+	fs osfs.FileSystem,
 ) (bool, *file, error) {
 	if !isNzbFile(name) {
-		originalName := getOriginalNzb(name)
+		originalName := getOriginalNzb(fs, name)
 		if originalName != "" {
 			// If the file is a masked call the original nzb file
 			name = originalName
@@ -51,7 +54,7 @@ func openFile(
 		}
 	}
 
-	f, err := os.OpenFile(name, flag, perm)
+	f, err := fs.OpenFile(name, flag, perm)
 	if err != nil {
 		return true, nil, err
 	}
@@ -76,6 +79,7 @@ func openFile(
 		nzbLoader: nzbLoader,
 		onClose:   onClose,
 		cNzb:      cNzb,
+		fs:        fs,
 	}, nil
 }
 
@@ -171,7 +175,7 @@ func (f *file) Readdir(n int) ([]os.FileInfo, error) {
 		name := info.Name()
 		i := i
 		if !isNzbFile(name) {
-			originalName := getOriginalNzb(info.Name())
+			originalName := getOriginalNzb(f.fs, info.Name())
 			if originalName != "" {
 				// If the file is a masked call the original nzb file
 				name = originalName
@@ -187,6 +191,7 @@ func (f *file) Readdir(n int) ([]os.FileInfo, error) {
 				n,
 				f.log,
 				f.nzbLoader,
+				f.fs,
 			)
 			if err != nil {
 				infos[i] = nil
@@ -246,7 +251,11 @@ func (f *file) Stat() (os.FileInfo, error) {
 	f.fsMutex.RLock()
 	defer f.fsMutex.RUnlock()
 
-	return NeFileInfoWithMetadata(f.metadata, f.innerFile.Name())
+	return NeFileInfoWithMetadata(
+		f.metadata,
+		f.innerFile.Name(),
+		f.fs,
+	)
 }
 
 func (f *file) Sync() error {
