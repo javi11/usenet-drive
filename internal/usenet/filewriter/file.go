@@ -334,7 +334,7 @@ func (f *file) buildArticleData(segmentIndex int64) *ArticleData {
 	}
 }
 
-func (f *file) upload(a *nntp.Article, conn *nntp.Conn) error {
+func (f *file) upload(a *nntp.Article, conn connectionpool.NntpConnection) error {
 	if f.dryRun {
 		time.Sleep(100 * time.Millisecond)
 

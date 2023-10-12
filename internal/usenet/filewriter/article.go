@@ -25,7 +25,7 @@ type ArticleData struct {
 }
 
 func NewNttpArticle(p []byte, data *ArticleData) (*nntp.Article, error) {
-	buf := new(bytes.Buffer)
+	buf := &bytes.Buffer{}
 	a := &nntp.Article{
 		Header: map[string][]string{},
 	}

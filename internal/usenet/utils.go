@@ -4,10 +4,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/chrisfarms/nntp"
+	"github.com/javi11/usenet-drive/internal/usenet/connectionpool"
 )
 
-func FindGroup(c *nntp.Conn, groups []string) error {
+func FindGroup(c connectionpool.NntpConnection, groups []string) error {
 	var err error
 	for _, g := range groups {
 		_, _, _, err = c.Group(g)

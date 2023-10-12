@@ -379,7 +379,7 @@ func (m *MockUsenetConnectionPool) EXPECT() *MockUsenetConnectionPoolMockRecorde
 }
 
 // Close mocks base method.
-func (m *MockUsenetConnectionPool) Close(c *nntp.Conn) error {
+func (m *MockUsenetConnectionPool) Close(c NntpConnection) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close", c)
 	ret0, _ := ret[0].(error)
@@ -393,7 +393,7 @@ func (mr *MockUsenetConnectionPoolMockRecorder) Close(c interface{}) *gomock.Cal
 }
 
 // Free mocks base method.
-func (m *MockUsenetConnectionPool) Free(c *nntp.Conn) error {
+func (m *MockUsenetConnectionPool) Free(c NntpConnection) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Free", c)
 	ret0, _ := ret[0].(error)
@@ -407,10 +407,10 @@ func (mr *MockUsenetConnectionPoolMockRecorder) Free(c interface{}) *gomock.Call
 }
 
 // Get mocks base method.
-func (m *MockUsenetConnectionPool) Get() (*nntp.Conn, error) {
+func (m *MockUsenetConnectionPool) Get() (NntpConnection, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Get")
-	ret0, _ := ret[0].(*nntp.Conn)
+	ret0, _ := ret[0].(NntpConnection)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

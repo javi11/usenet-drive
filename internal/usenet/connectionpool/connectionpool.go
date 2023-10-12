@@ -38,9 +38,9 @@ type NntpConnection interface {
 }
 
 type UsenetConnectionPool interface {
-	Get() (*nntp.Conn, error)
-	Close(c *nntp.Conn) error
-	Free(c *nntp.Conn) error
+	Get() (NntpConnection, error)
+	Close(c NntpConnection) error
+	Free(c NntpConnection) error
 	GetActiveConnections() int
 	GetMaxConnections() int
 	GetFreeConnections() int
@@ -88,7 +88,7 @@ func NewConnectionPool(options ...Option) (*connectionPool, error) {
 	}, nil
 }
 
-func (p *connectionPool) Get() (*nntp.Conn, error) {
+func (p *connectionPool) Get() (NntpConnection, error) {
 	conn, err := p.pool.Get()
 	if err != nil {
 		return nil, err
@@ -96,11 +96,11 @@ func (p *connectionPool) Get() (*nntp.Conn, error) {
 	return conn.(*nntp.Conn), nil
 }
 
-func (p *connectionPool) Close(c *nntp.Conn) error {
+func (p *connectionPool) Close(c NntpConnection) error {
 	return p.pool.Close(c)
 }
 
-func (p *connectionPool) Free(c *nntp.Conn) error {
+func (p *connectionPool) Free(c NntpConnection) error {
 	return p.pool.Put(c)
 }
 
@@ -116,7 +116,7 @@ func (p *connectionPool) GetFreeConnections() int {
 	return p.maxConnections - p.pool.Len()
 }
 
-func dialNNTP(config *Config) (*nntp.Conn, error) {
+func dialNNTP(config *Config) (NntpConnection, error) {
 	if config.dryRun {
 		return &nntp.Conn{}, nil
 	}
