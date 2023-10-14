@@ -115,7 +115,7 @@ func (u *fileWriter) RenameFile(ctx context.Context, fileName string, newFileNam
 				return false, err
 			}
 
-			n := c.Nzb.UpdateMetadada(nzb.UpdateableMetadata{
+			n := c.Nzb.UpdateMetadata(nzb.UpdateableMetadata{
 				FileExtension: filepath.Ext(newFileName),
 			})
 			b, err := c.Nzb.ToBytes()

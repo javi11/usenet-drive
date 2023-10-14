@@ -87,7 +87,7 @@ func TestGetOriginalNzb(t *testing.T) {
 		fs.EXPECT().Stat("file-1.nzb").Return(fsInfo, nil).Times(1)
 		fs.EXPECT().IsNotExist(nil).Return(false).Times(1)
 
-		if got := getOriginalNzb(fs, "file-1.nzb"); got != "file-1.nzb" {
+		if got := getOriginalNzb(fs, "file-1.nzb"); got != fsInfo {
 			t.Errorf("getOriginalNzb() = %v, want %v", got, "file-1.nzb")
 		}
 	})
@@ -97,7 +97,7 @@ func TestGetOriginalNzb(t *testing.T) {
 		fs.EXPECT().Stat("file-2.nzb").Return(nil, os.ErrNotExist).Times(1)
 		fs.EXPECT().IsNotExist(os.ErrNotExist).Return(true).Times(1)
 
-		if got := getOriginalNzb(fs, "file-2.nzb"); got != "" {
+		if got := getOriginalNzb(fs, "file-2.nzb"); got != nil {
 			t.Errorf("getOriginalNzb() = %v, want %v", got, "")
 		}
 	})

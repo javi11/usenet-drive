@@ -1,5 +1,7 @@
 package corruptednzbsmanager
 
+//go:generate mockgen -source=./queue.go -destination=./queue_mock.go -package=corruptednzbsmanager CorruptedNzbsManager
+
 import (
 	"context"
 	"database/sql"
@@ -26,7 +28,7 @@ type SortBy struct {
 }
 
 type CorruptedNzbsManager interface {
-	Add(ctx context.Context, path, error string) error
+	Add(ctx context.Context, path, errorMessage string) error
 	Delete(ctx context.Context, id int) error
 	Discard(ctx context.Context, id int) (*cNzb, error)
 	DiscardByPath(ctx context.Context, path string) (*cNzb, error)
@@ -58,14 +60,14 @@ func New(db *sql.DB, fs osfs.FileSystem) CorruptedNzbsManager {
 	return &corruptedNzbsManager{db: db, fs: fs}
 }
 
-func (q *corruptedNzbsManager) Add(ctx context.Context, path, error string) error {
+func (q *corruptedNzbsManager) Add(ctx context.Context, path, errorMessage string) error {
 	stmt, err := q.db.PrepareContext(ctx, "INSERT OR IGNORE INTO corrupted_nzbs (path, error) VALUES (?, ?)")
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
 
-	_, err = stmt.ExecContext(ctx, usenet.ReplaceFileExtension(path, ".nzb"), error)
+	_, err = stmt.ExecContext(ctx, usenet.ReplaceFileExtension(path, ".nzb"), errorMessage)
 	if err != nil {
 		return err
 	}

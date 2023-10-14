@@ -1,5 +1,7 @@
 package filereader
 
+//go:generate mockgen -source=./buffer.go -destination=./buffer_mock.go -package=filereader Buffer
+
 import (
 	"errors"
 	"fmt"
@@ -19,6 +21,12 @@ var (
 	ErrSeekTooFar    = errors.New("seek: too far")
 )
 
+type Buffer interface {
+	io.ReaderAt
+	io.ReadSeeker
+	io.Closer
+}
+
 // Buf is a Buffer working on a slice of bytes.
 type buffer struct {
 	size               int
@@ -32,7 +40,7 @@ type buffer struct {
 }
 
 // NewBuffer creates a new data volume based on a buffer
-func NewBuffer(nzbFile *nzb.NzbFile, size int, chunkSize int, cp connectionpool.UsenetConnectionPool, log *slog.Logger) (*buffer, error) {
+func NewBuffer(nzbFile *nzb.NzbFile, size int, chunkSize int, cp connectionpool.UsenetConnectionPool, log *slog.Logger) (Buffer, error) {
 	// Article cache can not be too big since it is stored in memory
 	// With 100 the max memory used is 100 * 740kb = 74mb peer stream
 	// This is mainly used to not download twice the same article multiple times if was not already

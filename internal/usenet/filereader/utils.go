@@ -19,12 +19,12 @@ func isNzbFile(name string) bool {
 	return strings.HasSuffix(name, ".nzb")
 }
 
-func getOriginalNzb(fs osfs.FileSystem, name string) string {
+func getOriginalNzb(fs osfs.FileSystem, name string) osfs.FileInfo {
 	originalName := usenet.ReplaceFileExtension(name, ".nzb")
-	_, err := fs.Stat(originalName)
+	stat, err := fs.Stat(originalName)
 	if fs.IsNotExist(err) {
-		return ""
+		return nil
 	}
 
-	return originalName
+	return stat
 }

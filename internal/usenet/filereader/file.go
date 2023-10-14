@@ -21,7 +21,7 @@ import (
 
 type file struct {
 	name      string
-	buffer    *buffer
+	buffer    Buffer
 	innerFile osfs.File
 	fsMutex   sync.RWMutex
 	log       *slog.Logger
@@ -45,10 +45,10 @@ func openFile(
 	fs osfs.FileSystem,
 ) (bool, *file, error) {
 	if !isNzbFile(name) {
-		originalName := getOriginalNzb(fs, name)
-		if originalName != "" {
+		originalFile := getOriginalNzb(fs, name)
+		if originalFile != nil {
 			// If the file is a masked call the original nzb file
-			name = originalName
+			name = originalFile.Name()
 		} else {
 			return false, nil, nil
 		}
@@ -172,13 +172,16 @@ func (f *file) Readdir(n int) ([]os.FileInfo, error) {
 	var merr multierror.Group
 
 	for i, info := range infos {
-		name := info.Name()
 		i := i
+		stat := info
+		name := stat.Name()
+
 		if !isNzbFile(name) {
-			originalName := getOriginalNzb(f.fs, info.Name())
-			if originalName != "" {
+			originalFile := getOriginalNzb(f.fs, name)
+			if originalFile != nil {
 				// If the file is a masked call the original nzb file
-				name = originalName
+				stat = originalFile
+				name = stat.Name()
 			} else {
 				infos[i] = info
 				continue
@@ -186,12 +189,12 @@ func (f *file) Readdir(n int) ([]os.FileInfo, error) {
 		}
 
 		merr.Go(func() error {
-			n := filepath.Join(f.innerFile.Name(), name)
-			inf, err := NewFileInfo(
-				n,
+			path := filepath.Join(f.innerFile.Name(), name)
+			inf, err := NewFileInfoWithStat(
+				path,
 				f.log,
 				f.nzbLoader,
-				f.fs,
+				stat,
 			)
 			if err != nil {
 				infos[i] = nil
@@ -223,8 +226,6 @@ func (f *file) Readdir(n int) ([]os.FileInfo, error) {
 }
 
 func (f *file) Readdirnames(n int) ([]string, error) {
-	f.fsMutex.RLock()
-	defer f.fsMutex.RUnlock()
 	return f.innerFile.Readdirnames(n)
 }
 

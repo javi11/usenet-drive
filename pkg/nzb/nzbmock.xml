@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE nzb PUBLIC "-//newzBin//DTD NZB 1.1//EN" "http://www.newzbin.com/DTD/nzb/nzb-1.1.dtd">
+<nzb xmlns="http://www.newzbin.com/DTD/2003/nzb">
+  <head>
+    <meta type="file_size">1442682314</meta>
+    <meta type="file_name">some-file.mp4</meta>
+    <meta type="mod_time">2023-09-22 20:06:09</meta>
+    <meta type="file_extension">.bin</meta>
+  </head>
+  <file poster="hEglQTo &lt;wpsLDMm@ZqWgGlu.info&gt;" date="1695410374" subject="[1/1] - 0cc7fabce3cf0a994d94ecf67a43b04f - size=768000 - yEnc (1/9) 1442682314">
+    <groups>
+      <group>alt.binaries.etc</group>
+    </groups>
+    <segments>
+      <segment bytes="792451" number="1">QfStNhWlNpAjWtMkEyZcRtLs-1695410374682@nyuu</segment>
+      <segment bytes="792344" number="2">InWeQyNyJaSlQhHsMgJnZwQm-1695410374683@nyuu</segment>
+      <segment bytes="792746" number="3">JsArJnDeVuRwLaLaAlMkReTd-1695410374692@nyuu</segment>
+      <segment bytes="792422" number="4">EbLbAxFnOqYiJcKqHoKmPfVd-1695410374693@nyuu</segment>
+      <segment bytes="792498" number="5">UpAmHqNoCiKmStXySpClVhSe-1695410374702@nyuu</segment>
+      <segment bytes="792581" number="6">NdTkKlQbLxUfOlDfGmFtBdEd-1695410374703@nyuu</segment>
+      <segment bytes="792613" number="7">MqVhYnSpVyQwTkRoNeCmNePh-1695410374712@nyuu</segment>
+      <segment bytes="792346" number="8">JfRnFrVaBdQrIwXoAqJdXtGb-1695410374713@nyuu</segment>
+      <segment bytes="792503" number="9">AlIyOsHqTiKtMiDfLuGwTyCu-1695410374723@nyuu</segment>
+    </segments>
+  </file>
+</nzb>

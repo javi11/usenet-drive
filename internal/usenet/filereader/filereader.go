@@ -4,6 +4,7 @@ import (
 	"context"
 	"io/fs"
 	"log/slog"
+	"os"
 
 	"github.com/javi11/usenet-drive/internal/usenet/connectionpool"
 	"github.com/javi11/usenet-drive/internal/usenet/corruptednzbsmanager"
@@ -51,25 +52,35 @@ func (fr *fileReader) OpenFile(ctx context.Context, name string, flag int, perm 
 }
 
 func (fr *fileReader) Stat(name string) (bool, fs.FileInfo, error) {
+	var stat fs.FileInfo
 	if !isNzbFile(name) {
-		originalName := getOriginalNzb(fr.fs, name)
-		if originalName != "" {
+		originalFile := getOriginalNzb(fr.fs, name)
+		if originalFile != nil {
 			// If the file is a masked call the original nzb file
-			name = originalName
+			name = originalFile.Name()
+			stat = originalFile
 		} else {
 			return false, nil, nil
 		}
+	} else {
+		s, err := fr.fs.Stat(name)
+		if err != nil {
+			return true, nil, err
+		}
+
+		stat = s
+		name = stat.Name()
 	}
 
 	// If file is a nzb file return a custom file that will mask the nzb
-	fi, err := NewFileInfo(
+	fi, err := NewFileInfoWithStat(
 		name,
 		fr.log,
 		fr.nzbLoader,
-		fr.fs,
+		stat,
 	)
 	if err != nil {
-		return true, nil, err
+		return true, nil, os.ErrNotExist
 	}
 	return true, fi, nil
 }

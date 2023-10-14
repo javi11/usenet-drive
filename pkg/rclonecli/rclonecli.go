@@ -1,5 +1,7 @@
 package rclonecli
 
+//go:generate mockgen -source=./rclonecli.go -destination=./rclonecli_mock.go -package=rclonecli RcloneRcClient
+
 import (
 	"bytes"
 	"context"

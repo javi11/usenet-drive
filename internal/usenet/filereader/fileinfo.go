@@ -83,6 +83,31 @@ func NeFileInfoWithMetadata(
 	}, nil
 }
 
+func NewFileInfoWithStat(
+	path string,
+	log *slog.Logger,
+	nzbLoader nzbloader.NzbLoader,
+	nzbFileStat os.FileInfo,
+) (fs.FileInfo, error) {
+	var metadata usenet.Metadata
+
+	n, err := nzbLoader.LoadFromFile(path)
+	if err != nil {
+		log.Error(fmt.Sprintf("Error getting file %s, this file will be ignored", path), "error", err)
+		return nil, err
+	}
+
+	metadata = n.Metadata
+
+	fileName := nzbFileStat.Name()
+
+	return &nzbFileInfo{
+		nzbFileStat:          nzbFileStat,
+		originalFileMetadata: metadata,
+		name:                 usenet.ReplaceFileExtension(fileName, metadata.FileExtension),
+	}, nil
+}
+
 func (fi *nzbFileInfo) Size() int64 {
 	// We need the original file size to display it.
 	return fi.originalFileMetadata.FileSize

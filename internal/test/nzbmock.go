@@ -11,6 +11,8 @@ import (
 var nzbmock []byte
 
 func NewNzbMock() (*nzb.Nzb, error) {
+	nzbParser := nzb.NewNzbParser()
+
 	buff := bytes.NewBuffer(nzbmock)
-	return nzb.NzbFromBuffer(buff)
+	return nzbParser.Parse(buff)
 }

@@ -1,11 +1,48 @@
 package nzb
 
+//go:generate mockgen -source=./nzb.go -destination=./nzb_mock.go -package=nzb NzbParser
+
 import (
 	"bytes"
 	"encoding/xml"
 	"io"
-	"os"
 )
+
+type NzbParser interface {
+	Parse(buf io.Reader) (*Nzb, error)
+	ParseFromString(data string) (*Nzb, error)
+}
+
+type nzbParser struct{}
+
+func NewNzbParser() NzbParser {
+	return &nzbParser{}
+}
+
+func (p *nzbParser) ParseFromString(data string) (*Nzb, error) {
+	return p.Parse(bytes.NewBufferString(data))
+}
+
+func (p *nzbParser) Parse(buf io.Reader) (*Nzb, error) {
+	xnzb := &xNzb{}
+	err := xml.NewDecoder(buf).Decode(xnzb)
+	if err != nil {
+		return nil, err
+	}
+	// convert to nicer format
+	nzb := &Nzb{}
+	// convert metadata
+	nzb.Meta = make(map[string]string)
+	for _, md := range xnzb.Head {
+		nzb.Meta[md.Type] = md.Value
+	}
+
+	nzb.Files = make([]NzbFile, len(xnzb.File))
+	for i, file := range xnzb.File {
+		nzb.Files[i] = xNzbFileToNzbFile(&file)
+	}
+	return nzb, nil
+}
 
 const (
 	NzbHeader  = `<?xml version="1.0" encoding="UTF-8"?>` + "\n"
@@ -38,19 +75,7 @@ type UpdateableMetadata struct {
 	FileExtension string
 }
 
-func (n *Nzb) WriteIntoFile(f *os.File) error {
-	nzb := nzbToXNzb(n)
-	if output, err := xml.MarshalIndent(nzb, "", "    "); err == nil {
-		output = []byte(NzbHeader + NzbDoctype + string(output))
-		_, err := f.Write(output)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (n *Nzb) UpdateMetadada(metadata UpdateableMetadata) *Nzb {
+func (n *Nzb) UpdateMetadata(metadata UpdateableMetadata) *Nzb {
 	if metadata.FileName != "" {
 		n.Meta["file_name"] = metadata.FileName
 	}
@@ -65,36 +90,11 @@ func (n *Nzb) UpdateMetadada(metadata UpdateableMetadata) *Nzb {
 func (n *Nzb) ToBytes() ([]byte, error) {
 	xNzb := nzbToXNzb(n)
 
-	output, err := xml.MarshalIndent(xNzb, "", "    ")
+	output, err := xml.MarshalIndent(xNzb, "", "  ")
 	if err != nil {
 		return nil, err
 	}
 	output = []byte(NzbHeader + NzbDoctype + string(output))
 
 	return output, nil
-}
-
-func NzbFromString(data string) (*Nzb, error) {
-	return NzbFromBuffer(bytes.NewBufferString(data))
-}
-
-func NzbFromBuffer(buf io.Reader) (*Nzb, error) {
-	xnzb := &xNzb{}
-	err := xml.NewDecoder(buf).Decode(xnzb)
-	if err != nil {
-		return nil, err
-	}
-	// convert to nicer format
-	nzb := &Nzb{}
-	// convert metadata
-	nzb.Meta = make(map[string]string)
-	for _, md := range xnzb.Head {
-		nzb.Meta[md.Type] = md.Value
-	}
-
-	nzb.Files = make([]NzbFile, len(xnzb.File))
-	for i, file := range xnzb.File {
-		nzb.Files[i] = xNzbFileToNzbFile(&file)
-	}
-	return nzb, nil
 }
