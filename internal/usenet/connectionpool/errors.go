@@ -1,7 +1,8 @@
 package connectionpool
 
 import (
-	"strings"
+	"errors"
+	"syscall"
 
 	"github.com/chrisfarms/nntp"
 )
@@ -11,7 +12,9 @@ var retirableErrors = []uint{
 }
 
 func IsRetryable(err error) bool {
-	if strings.Contains(err.Error(), "broken pipe") {
+	if errors.Is(err, syscall.EPIPE) ||
+		errors.Is(err, syscall.ECONNRESET) ||
+		errors.Is(err, syscall.ETIMEDOUT) {
 		return true
 	}
 

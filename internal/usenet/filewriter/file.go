@@ -369,7 +369,6 @@ func (f *file) upload(a *nntp.Article, conn connectionpool.NntpConnection) error
 				f.log.Error("Error freeing the connection.", "error", err)
 			}
 		}()
-
 	}
 
 	return err

@@ -77,7 +77,7 @@ var rootCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		// Upload connectin pool
+		// Upload connection pool
 		uploadConnPool, err := connectionpool.NewConnectionPool(
 			connectionpool.WithHost(config.Usenet.Upload.Provider.Host),
 			connectionpool.WithPort(config.Usenet.Upload.Provider.Port),
