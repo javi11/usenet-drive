@@ -1,105 +1,110 @@
 package rclonecli
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
-	"errors"
-	"io/ioutil"
 	"net/http"
 	"testing"
 
-	"github.com/golang/mock/gomock"
+	"github.com/steinfletcher/apitest"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestRefreshCache(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+	host := "http://localhost:5572"
+	hc := &http.Client{}
 
-	mockHTTPClient := NewMockHTTPClient(ctrl)
+	defer apitest.NewMock().
+		HttpClient(hc).
+		Postf("%s/vfs/refresh", host).
+		Header("Content-Type", "application/json").
+		Body(`{"_async":"true","recursive":"false"}`).
+		RespondWith().
+		Status(http.StatusOK).
+		Body(`{"status":"ok"}`).
+		EndStandalone()()
 
-	client := NewRcloneRcClient("http://localhost:5572", mockHTTPClient)
+	client := NewRcloneRcClient(host, hc)
 
-	ctx := context.Background()
-
-	dir := "/path/to/dir"
-	async := true
-	recursive := false
-
-	expectedData := map[string]string{
-		"_async":    "true",
-		"recursive": "false",
-		"dir":       dir,
-	}
-
-	expectedPayload, err := json.Marshal(expectedData)
-	assert.NoError(t, err)
-
-	expectedResp := &http.Response{
-		StatusCode: http.StatusOK,
-		Body:       ioutil.NopCloser(bytes.NewBufferString("")),
-	}
-
-	mockHTTPClient.EXPECT().Do(gomock.Any()).DoAndReturn(func(req *http.Request) (*http.Response, error) {
-		assert.Equal(t, "POST", req.Method)
-		assert.Equal(t, "http://localhost:5572/vfs/refresh", req.URL.String())
-
-		body, err := ioutil.ReadAll(req.Body)
-		assert.NoError(t, err)
-		assert.Equal(t, expectedPayload, body)
-
-		assert.Equal(t, "application/json", req.Header.Get("Content-Type"))
-
-		return expectedResp, nil
-	})
-
-	err = client.RefreshCache(ctx, dir, async, recursive)
+	err := client.RefreshCache(context.Background(), "", true, false)
 	assert.NoError(t, err)
 }
 
-func TestRefreshCache_Error(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+func TestRefreshCacheWithDir(t *testing.T) {
+	host := "http://localhost:5572"
+	hc := &http.Client{}
 
-	mockHTTPClient := NewMockHTTPClient(ctrl)
+	defer apitest.NewMock().
+		HttpClient(hc).
+		Postf("%s/vfs/refresh", host).
+		Header("Content-Type", "application/json").
+		Body(`{"_async":"true","dir":"/foo","recursive":"false"}`).
+		RespondWith().
+		Status(http.StatusOK).
+		Body(`{"status":"ok"}`).
+		EndStandalone()()
 
-	client := NewRcloneRcClient("http://localhost:5572", mockHTTPClient)
+	client := NewRcloneRcClient(host, hc)
 
-	ctx := context.Background()
-
-	dir := "/path/to/dir"
-	async := true
-	recursive := false
-
-	expectedData := map[string]string{
-		"_async":    "true",
-		"recursive": "false",
-		"dir":       dir,
-	}
-
-	expectedPayload, err := json.Marshal(expectedData)
+	err := client.RefreshCache(context.Background(), "/foo", true, false)
 	assert.NoError(t, err)
+}
 
-	expectedResp := &http.Response{
-		StatusCode: http.StatusInternalServerError,
-		Body:       ioutil.NopCloser(bytes.NewBufferString("error message")),
-	}
+func TestRefreshCacheWithDirAndRecursive(t *testing.T) {
+	host := "http://localhost:5572"
+	hc := &http.Client{}
 
-	mockHTTPClient.EXPECT().Do(gomock.Any()).DoAndReturn(func(req *http.Request) (*http.Response, error) {
-		assert.Equal(t, "POST", req.Method)
-		assert.Equal(t, "http://localhost:5572/vfs/refresh", req.URL.String())
+	defer apitest.NewMock().
+		HttpClient(hc).
+		Postf("%s/vfs/refresh", host).
+		Header("Content-Type", "application/json").
+		Body(`{"_async":"true","dir":"/foo","recursive":"true"}`).
+		RespondWith().
+		Status(http.StatusOK).
+		Body(`{"status":"ok"}`).
+		EndStandalone()()
 
-		body, err := ioutil.ReadAll(req.Body)
-		assert.NoError(t, err)
-		assert.Equal(t, expectedPayload, body)
+	client := NewRcloneRcClient(host, hc)
 
-		assert.Equal(t, "application/json", req.Header.Get("Content-Type"))
+	err := client.RefreshCache(context.Background(), "/foo", true, true)
+	assert.NoError(t, err)
+}
 
-		return expectedResp, nil
-	})
+func TestRefreshCacheWithDirAndRecursiveAndNotAsync(t *testing.T) {
+	host := "http://localhost:5572"
+	hc := &http.Client{}
 
-	err = client.RefreshCache(ctx, dir, async, recursive)
+	defer apitest.NewMock().
+		HttpClient(hc).
+		Postf("%s/vfs/refresh", host).
+		Header("Content-Type", "application/json").
+		Body(`{"_async":"false","dir":"/foo","recursive":"true"}`).
+		RespondWith().
+		Status(http.StatusOK).
+		Body(`{"status":"ok"}`).
+		EndStandalone()()
+
+	client := NewRcloneRcClient(host, hc)
+
+	err := client.RefreshCache(context.Background(), "/foo", false, true)
+	assert.NoError(t, err)
+}
+
+func TestRefreshCacheWithError(t *testing.T) {
+	host := "http://localhost:5572"
+	hc := &http.Client{}
+
+	defer apitest.NewMock().
+		HttpClient(hc).
+		Postf("%s/vfs/refresh", host).
+		Header("Content-Type", "application/json").
+		Body(`{"_async":"false","dir":"/foo","recursive":"true"}`).
+		RespondWith().
+		Status(http.StatusInternalServerError).
+		Body(`{"error":"error"}`).
+		EndStandalone()()
+
+	client := NewRcloneRcClient(host, hc)
+
+	err := client.RefreshCache(context.Background(), "/foo", false, true)
 	assert.Error(t, err)
-	assert.True(t, errors.Is(err, ErrUnexpectedStatusCode))
 }
