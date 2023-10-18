@@ -10,21 +10,24 @@ import (
 )
 
 type Config struct {
-	segmentSize   int64
-	cp            connectionpool.UsenetConnectionPool
-	postGroups    []string
-	log           *slog.Logger
-	fileAllowlist []string
-	nzbLoader     nzbloader.NzbLoader
-	cNzb          corruptednzbsmanager.CorruptedNzbsManager
-	dryRun        bool
-	fs            osfs.FileSystem
+	segmentSize      int64
+	cp               connectionpool.UsenetConnectionPool
+	postGroups       []string
+	log              *slog.Logger
+	fileAllowlist    []string
+	nzbLoader        nzbloader.NzbLoader
+	cNzb             corruptednzbsmanager.CorruptedNzbsManager
+	dryRun           bool
+	fs               osfs.FileSystem
+	maxUploadRetries int
 }
 
 type Option func(*Config)
 
 func defaultConfig() *Config {
-	return &Config{}
+	return &Config{
+		maxUploadRetries: 5,
+	}
 }
 
 func WithDryRun(dryRun bool) Option {
@@ -78,5 +81,11 @@ func WithCorruptedNzbsManager(cNzb corruptednzbsmanager.CorruptedNzbsManager) Op
 func WithFileSystem(fs osfs.FileSystem) Option {
 	return func(c *Config) {
 		c.fs = fs
+	}
+}
+
+func WithMaxUploadRetries(maxUploadRetries int) Option {
+	return func(c *Config) {
+		c.maxUploadRetries = maxUploadRetries
 	}
 }

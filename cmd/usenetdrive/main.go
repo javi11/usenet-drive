@@ -124,6 +124,8 @@ var rootCmd = &cobra.Command{
 			filewriter.WithCorruptedNzbsManager(cNzbs),
 			filewriter.WithNzbLoader(nzbLoader),
 			filewriter.WithDryRun(config.Usenet.Upload.DryRun),
+			filewriter.WithFileSystem(osFs),
+			filewriter.WithMaxUploadRetries(config.Usenet.Upload.MaxRetries),
 		)
 
 		filereader := filereader.NewFileReader(

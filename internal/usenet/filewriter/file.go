@@ -30,7 +30,6 @@ type nzbMetadata struct {
 	parts            int64
 	group            string
 	poster           string
-	segments         []nzb.NzbSegment
 	expectedFileSize int64
 }
 
@@ -41,13 +40,13 @@ type file struct {
 	metadata         *usenet.Metadata
 	cp               connectionpool.UsenetConnectionPool
 	maxUploadRetries int
-	merr             *multierror.Group
 	onClose          func() error
 	log              *slog.Logger
 	flag             int
 	perm             fs.FileMode
 	nzbLoader        nzbloader.NzbLoader
 	fs               osfs.FileSystem
+	ctx              context.Context
 }
 
 func openFile(
@@ -61,6 +60,7 @@ func openFile(
 	randomGroup string,
 	log *slog.Logger,
 	nzbLoader nzbloader.NzbLoader,
+	maxUploadRetries int,
 	dryRun bool,
 	onClose func() error,
 	fs osfs.FileSystem,
@@ -85,7 +85,8 @@ func openFile(
 	poster := generateRandomPoster()
 
 	return &file{
-		maxUploadRetries: 5,
+		ctx:              ctx,
+		maxUploadRetries: maxUploadRetries,
 		dryRun:           dryRun,
 		cp:               cp,
 		nzbLoader:        nzbLoader,
@@ -94,14 +95,12 @@ func openFile(
 		onClose:          onClose,
 		flag:             flag,
 		perm:             perm,
-		merr:             &multierror.Group{},
 		nzbMetadata: &nzbMetadata{
 			fileNameHash:     fileNameHash,
 			filePath:         filePath,
 			parts:            parts,
 			group:            randomGroup,
 			poster:           poster,
-			segments:         make([]nzb.NzbSegment, parts),
 			expectedFileSize: fileSize,
 		},
 		metadata: &usenet.Metadata{
@@ -114,43 +113,131 @@ func openFile(
 	}, nil
 }
 
-func (f *file) ReadFrom(src io.Reader) (written int64, err error) {
-	for i := 0; ; i++ {
-		buf := make([]byte, f.metadata.ChunkSize)
-		nr, er := src.Read(buf)
-		if nr > 0 {
-			if i+1 > int(f.nzbMetadata.parts) {
-				f.log.Error(
-					"Unexpected file size", "expected",
-					f.nzbMetadata.expectedFileSize,
-					"actual",
-					written,
-					"expectedParts",
-					f.nzbMetadata.parts,
-					"actualParts",
-					i+1,
-				)
-				err = ErrUnexpectedFileSize
-				break
-			}
+func (f *file) ReadFrom(src io.Reader) (int64, error) {
+	var written int64
+	merr := &multierror.Group{}
+	segments := make([]nzb.NzbSegment, f.nzbMetadata.parts)
 
-			err = f.addSegment(buf[0:nr], i, f.maxUploadRetries)
-			if err != nil {
+	ctx, cancel := context.WithCancelCause(f.ctx)
+	for i := 0; ; i++ {
+		select {
+		case <-ctx.Done():
+			if err := context.Cause(ctx); err != nil {
+				f.log.Error("Error uploading the file", "error", err)
+
 				return written, err
 			}
-			written += int64(nr)
-			f.metadata.FileSize = written
-			f.metadata.ModTime = time.Now()
-		}
-		if er != nil {
-			if er != io.EOF {
-				err = er
+
+			return written, nil
+		default:
+			buf := make([]byte, f.metadata.ChunkSize)
+			nr, er := src.Read(buf)
+			if nr > 0 {
+				if i+1 > int(f.nzbMetadata.parts) {
+					f.log.Error(
+						"Unexpected file size", "expected",
+						f.nzbMetadata.expectedFileSize,
+						"actual",
+						written,
+						"expectedParts",
+						f.nzbMetadata.parts,
+						"actualParts",
+						i+1,
+					)
+					cancel(ErrUnexpectedFileSize)
+
+					continue
+				}
+
+				i := i
+				retryErr := retry.Do(func() error {
+					conn, err := f.cp.Get()
+					if err != nil {
+						if conn != nil {
+							if e := f.cp.Close(conn); e != nil {
+								f.log.Error("Error closing connection.", "error", e)
+							}
+						}
+
+						return err
+					}
+
+					merr.Go(func() error {
+						return f.addSegment(ctx, conn, segments, buf[0:nr], i)
+					})
+
+					return nil
+				},
+					retry.Context(ctx),
+					retry.Attempts(uint(f.maxUploadRetries)),
+					retry.Delay(1*time.Second),
+					retry.DelayType(retry.FixedDelay),
+					retry.OnRetry(func(n uint, err error) {
+						f.log.Info("Error uploading segment. Retrying", "error", err, "segment", i, "retry", n)
+					}),
+					retry.RetryIf(func(err error) bool {
+						return connectionpool.IsRetryable(err)
+					}),
+				)
+				if retryErr != nil {
+					err := retryErr
+					var e retry.Error
+					if errors.As(err, &e) {
+						err = errors.Join(e.WrappedErrors()...)
+					}
+
+					cancel(err)
+					continue
+				}
+				written += int64(nr)
+				f.metadata.FileSize = written
+				f.metadata.ModTime = time.Now()
 			}
-			break
+			if er != nil {
+				if er != io.EOF {
+					f.log.Error("Error reading the file", "error", er)
+					cancel(er)
+
+					continue
+				}
+
+				if written < f.nzbMetadata.expectedFileSize {
+					f.log.Error(
+						"Unexpected file size", "expected",
+						f.nzbMetadata.expectedFileSize,
+						"actual",
+						written,
+						"expectedParts",
+						f.nzbMetadata.parts,
+						"actualParts",
+						i+1,
+					)
+					cancel(io.ErrShortWrite)
+
+					continue
+				}
+
+				if err := merr.Wait().ErrorOrNil(); err != nil {
+					f.log.Error("Error uploading the file. The file will not be written.", "error", err)
+
+					cancel(io.ErrUnexpectedEOF)
+					continue
+				}
+
+				err := f.writeFinalNzb(segments)
+				if err != nil {
+					f.log.Error("Error writing the nzb file. The file will not be written.", "error", err)
+					cancel(io.ErrUnexpectedEOF)
+					continue
+				}
+
+				f.log.Info("Upload finished successfully.")
+				cancel(nil)
+
+				return written, nil
+			}
 		}
 	}
-
-	return written, err
 }
 
 func (f *file) Write(b []byte) (int, error) {
@@ -159,63 +246,6 @@ func (f *file) Write(b []byte) (int, error) {
 }
 
 func (f *file) Close() error {
-	// Wait for all uploads to finish
-	if err := f.merr.Wait().ErrorOrNil(); err != nil {
-		f.log.Error("Error uploading the file. The file will not be written.", "error", err)
-
-		return io.ErrUnexpectedEOF
-	}
-
-	for _, segment := range f.nzbMetadata.segments {
-		if segment.Bytes == 0 {
-			f.log.Warn("Upload was canceled. The file will not be written.")
-
-			return io.ErrUnexpectedEOF
-		}
-	}
-
-	// Create and upload the nzb file
-	subject := fmt.Sprintf("[1/1] - \"%s\" yEnc (1/%d)", f.nzbMetadata.fileNameHash, f.nzbMetadata.parts)
-	nzb := &nzb.Nzb{
-		Files: []nzb.NzbFile{
-			{
-				Segments: f.nzbMetadata.segments,
-				Subject:  subject,
-				Groups:   []string{f.nzbMetadata.group},
-				Poster:   f.nzbMetadata.group,
-				Date:     time.Now().UnixMilli(),
-			},
-		},
-		Meta: map[string]string{
-			"file_size":      strconv.FormatInt(f.metadata.FileSize, 10),
-			"mod_time":       f.metadata.ModTime.Format(time.DateTime),
-			"file_extension": filepath.Ext(f.metadata.FileName),
-			"file_name":      f.metadata.FileName,
-			"chunk_size":     strconv.FormatInt(f.metadata.ChunkSize, 10),
-		},
-	}
-
-	// Write and close the tmp nzb file
-	nzbFilePath := usenet.ReplaceFileExtension(f.nzbMetadata.filePath, ".nzb")
-	b, err := nzb.ToBytes()
-	if err != nil {
-		f.log.Error("Malformed xml during nzb file writing.", "error", err)
-
-		return io.ErrUnexpectedEOF
-	}
-
-	err = f.fs.WriteFile(nzbFilePath, b, f.perm)
-	if err != nil {
-		f.log.Error(fmt.Sprintf("Error writing the nzb file to %s.", nzbFilePath), "error", err)
-
-		return io.ErrUnexpectedEOF
-	}
-
-	_, err = f.nzbLoader.RefreshCachedNzb(nzbFilePath, nzb)
-	if err != nil {
-		f.log.Error("Error refreshing Nzb Cache", "error", err)
-	}
-
 	return f.onClose()
 }
 
@@ -296,50 +326,30 @@ func (f *file) getMetadata() usenet.Metadata {
 	return *f.metadata
 }
 
-func (f *file) addSegment(b []byte, segmentIndex int, retries int) error {
-	conn, err := f.cp.Get()
+func (f *file) addSegment(ctx context.Context, conn connectionpool.NntpConnection, segments []nzb.NzbSegment, b []byte, segmentIndex int) error {
+	a := f.buildArticleData(int64(segmentIndex))
+	na, err := NewNttpArticle(b, a)
 	if err != nil {
-		if conn != nil {
-			if e := f.cp.Close(conn); e != nil {
-				f.log.Error("Error closing connection.", "error", e)
-			}
-		}
-		f.log.Error("Error getting connection from pool.", "error", err)
-
-		if retries > 0 {
-			return f.addSegment(b, segmentIndex, retries-1)
+		f.log.Error("Error building article.", "error", err, "segment", a)
+		err := f.cp.Free(conn)
+		if err != nil {
+			f.log.Error("Error freeing connection.", "error", err)
 		}
 
 		return err
 	}
 
-	f.merr.Go(func() error {
-		a := f.buildArticleData(int64(segmentIndex))
-		na, err := NewNttpArticle(b, a)
-		if err != nil {
-			f.log.Error("Error building article.", "error", err, "segment", a)
-			err := f.cp.Free(conn)
-			if err != nil {
-				f.log.Error("Error freeing connection.", "error", err)
-			}
+	segments[segmentIndex] = nzb.NzbSegment{
+		Bytes:  a.partSize,
+		Number: a.partNum,
+		Id:     a.msgId,
+	}
 
-			return err
-		}
-
-		f.nzbMetadata.segments[segmentIndex] = nzb.NzbSegment{
-			Bytes:  a.partSize,
-			Number: a.partNum,
-			Id:     a.msgId,
-		}
-
-		err = f.upload(na, conn)
-		if err != nil {
-			f.log.Error("Error uploading segment.", "error", err, "segment", na.Header)
-			return err
-		}
-
-		return nil
-	})
+	err = f.upload(ctx, na, conn)
+	if err != nil {
+		f.log.Error("Error uploading segment.", "error", err, "segment", na.Header)
+		return err
+	}
 
 	return nil
 }
@@ -365,7 +375,7 @@ func (f *file) buildArticleData(segmentIndex int64) *ArticleData {
 	}
 }
 
-func (f *file) upload(a *nntp.Article, conn connectionpool.NntpConnection) error {
+func (f *file) upload(ctx context.Context, a *nntp.Article, conn connectionpool.NntpConnection) error {
 	if f.dryRun {
 		time.Sleep(100 * time.Millisecond)
 
@@ -380,6 +390,7 @@ func (f *file) upload(a *nntp.Article, conn connectionpool.NntpConnection) error
 
 		return f.cp.Free(conn)
 	},
+		retry.Context(ctx),
 		retry.Attempts(uint(f.maxUploadRetries)),
 		retry.Delay(1*time.Second),
 		retry.DelayType(retry.FixedDelay),
@@ -404,12 +415,73 @@ func (f *file) upload(a *nntp.Article, conn connectionpool.NntpConnection) error
 	)
 
 	if err != nil {
-		err = f.cp.Close(conn)
-		if err != nil {
-			f.log.Error("Error closing connection.", "error", err)
+		if errors.Is(err, context.Canceled) {
+			err = f.cp.Free(conn)
+			if err != nil {
+				f.log.Error("Error freeing the connection.", "error", err)
+			}
+		} else {
+			err = f.cp.Close(conn)
+			if err != nil {
+				f.log.Error("Error closing the connection.", "error", err)
+			}
 		}
 
 		return err
+	}
+
+	return nil
+}
+
+func (f *file) writeFinalNzb(segments []nzb.NzbSegment) error {
+	for _, segment := range segments {
+		if segment.Bytes == 0 {
+			f.log.Warn("Upload was canceled. The file will not be written.")
+
+			return io.ErrUnexpectedEOF
+		}
+	}
+
+	// Create and upload the nzb file
+	subject := fmt.Sprintf("[1/1] - \"%s\" yEnc (1/%d)", f.nzbMetadata.fileNameHash, f.nzbMetadata.parts)
+	nzb := &nzb.Nzb{
+		Files: []nzb.NzbFile{
+			{
+				Segments: segments,
+				Subject:  subject,
+				Groups:   []string{f.nzbMetadata.group},
+				Poster:   f.nzbMetadata.group,
+				Date:     time.Now().UnixMilli(),
+			},
+		},
+		Meta: map[string]string{
+			"file_size":      strconv.FormatInt(f.metadata.FileSize, 10),
+			"mod_time":       f.metadata.ModTime.Format(time.DateTime),
+			"file_extension": filepath.Ext(f.metadata.FileName),
+			"file_name":      f.metadata.FileName,
+			"chunk_size":     strconv.FormatInt(f.metadata.ChunkSize, 10),
+		},
+	}
+
+	// Write and close the tmp nzb file
+	nzbFilePath := usenet.ReplaceFileExtension(f.nzbMetadata.filePath, ".nzb")
+	b, err := nzb.ToBytes()
+	if err != nil {
+		f.log.Error("Malformed xml during nzb file writing.", "error", err)
+
+		return io.ErrUnexpectedEOF
+	}
+
+	err = f.fs.WriteFile(nzbFilePath, b, f.perm)
+	if err != nil {
+		f.log.Error(fmt.Sprintf("Error writing the nzb file to %s.", nzbFilePath), "error", err)
+
+		return io.ErrUnexpectedEOF
+	}
+
+	_, err = f.nzbLoader.RefreshCachedNzb(nzbFilePath, nzb)
+	if err != nil {
+		f.log.Error("Error refreshing Nzb Cache", "error", err)
 	}
 
 	return nil

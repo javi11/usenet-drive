@@ -18,15 +18,16 @@ import (
 )
 
 type fileWriter struct {
-	segmentSize   int64
-	cp            connectionpool.UsenetConnectionPool
-	postGroups    []string
-	log           *slog.Logger
-	fileAllowlist []string
-	nzbLoader     nzbloader.NzbLoader
-	cNzb          corruptednzbsmanager.CorruptedNzbsManager
-	dryRun        bool
-	fs            osfs.FileSystem
+	segmentSize      int64
+	cp               connectionpool.UsenetConnectionPool
+	postGroups       []string
+	log              *slog.Logger
+	fileAllowlist    []string
+	nzbLoader        nzbloader.NzbLoader
+	cNzb             corruptednzbsmanager.CorruptedNzbsManager
+	dryRun           bool
+	fs               osfs.FileSystem
+	maxUploadRetries int
 }
 
 func NewFileWriter(options ...Option) *fileWriter {
@@ -36,15 +37,16 @@ func NewFileWriter(options ...Option) *fileWriter {
 	}
 
 	return &fileWriter{
-		segmentSize:   config.segmentSize,
-		cp:            config.cp,
-		postGroups:    config.postGroups,
-		log:           config.log,
-		fileAllowlist: config.fileAllowlist,
-		nzbLoader:     config.nzbLoader,
-		cNzb:          config.cNzb,
-		dryRun:        config.dryRun,
-		fs:            config.fs,
+		segmentSize:      config.segmentSize,
+		cp:               config.cp,
+		postGroups:       config.postGroups,
+		log:              config.log,
+		fileAllowlist:    config.fileAllowlist,
+		nzbLoader:        config.nzbLoader,
+		cNzb:             config.cNzb,
+		dryRun:           config.dryRun,
+		fs:               config.fs,
+		maxUploadRetries: config.maxUploadRetries,
 	}
 }
 
@@ -69,6 +71,7 @@ func (u *fileWriter) OpenFile(
 		randomGroup,
 		u.log,
 		u.nzbLoader,
+		u.maxUploadRetries,
 		u.dryRun,
 		onClose,
 		u.fs,

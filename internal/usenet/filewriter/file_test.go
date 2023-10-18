@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -50,6 +51,7 @@ func TestOpenFile(t *testing.T) {
 		randomGroup,
 		log,
 		mockNzbLoader,
+		5,
 		dryRun,
 		onClose,
 		fs,
@@ -75,6 +77,7 @@ func TestCloseFile(t *testing.T) {
 	fileName := "test.mkv"
 
 	f := &file{
+		ctx:              context.Background(),
 		maxUploadRetries: 5,
 		dryRun:           dryRun,
 		cp:               cp,
@@ -89,7 +92,6 @@ func TestCloseFile(t *testing.T) {
 			parts:            parts,
 			group:            randomGroup,
 			poster:           poster,
-			segments:         make([]nzb.NzbSegment, parts),
 			expectedFileSize: fileSize,
 		},
 		metadata: &usenet.Metadata{
@@ -100,110 +102,25 @@ func TestCloseFile(t *testing.T) {
 			ChunkSize:     segmentSize,
 		},
 	}
-	t.Run("Error uploading a file", func(t *testing.T) {
-		merr := &multierror.Group{}
-		merr.Go(func() error { return errors.New("error uploading file") })
-		closedFile := f
-		closedFile.merr = merr
 
-		err := f.Close()
-		assert.Equal(t, io.ErrUnexpectedEOF, err)
-	})
+	onClosedCalled := false
+	onClose := func() error {
+		onClosedCalled = true
+		return nil
+	}
+	merr := &multierror.Group{}
+	merr.Go(func() error { return nil })
+	closedFile := f
+	closedFile.onClose = onClose
 
-	t.Run("Upload was canceled  resulting on 0 bytes segments", func(t *testing.T) {
-		merr := &multierror.Group{}
-		merr.Go(func() error { return nil })
-		closedFile := f
-		closedFile.merr = merr
-		segments := make([]nzb.NzbSegment, parts)
-		segments[0] = nzb.NzbSegment{
-			Bytes: 0,
-		}
-		closedFile.nzbMetadata.segments = segments
-
-		err := f.Close()
-		assert.Equal(t, io.ErrUnexpectedEOF, err)
-	})
-
-	t.Run("Error writing the file", func(t *testing.T) {
-		merr := &multierror.Group{}
-		merr.Go(func() error { return nil })
-		closedFile := f
-		closedFile.merr = merr
-		segments := make([]nzb.NzbSegment, parts)
-		for i := int64(0); i < parts; i++ {
-			segments[i] = nzb.NzbSegment{
-				Bytes: segmentSize,
-			}
-		}
-
-		closedFile.nzbMetadata.segments = segments
-
-		fs.EXPECT().WriteFile("test.nzb", gomock.Any(), os.FileMode(0644)).Return(errors.New("error writing file"))
-
-		err := f.Close()
-		assert.Equal(t, io.ErrUnexpectedEOF, err)
-	})
-
-	t.Run("Success", func(t *testing.T) {
-		onClosedCalled := false
-		onClose := func() error {
-			onClosedCalled = true
-			return nil
-		}
-		merr := &multierror.Group{}
-		merr.Go(func() error { return nil })
-		closedFile := f
-		closedFile.merr = merr
-		closedFile.onClose = onClose
-		segments := make([]nzb.NzbSegment, parts)
-		for i := int64(0); i < parts; i++ {
-			segments[i] = nzb.NzbSegment{
-				Bytes: segmentSize,
-			}
-		}
-
-		closedFile.nzbMetadata.segments = segments
-
-		fs.EXPECT().WriteFile("test.nzb", gomock.Any(), os.FileMode(0644)).Return(nil)
-		mockNzbLoader.EXPECT().RefreshCachedNzb("test.nzb", gomock.Any()).Return(true, nil)
-
-		err := f.Close()
-		assert.NoError(t, err)
-		assert.True(t, onClosedCalled)
-	})
-
-	t.Run("An error refreshing nzb cache should not stop the close to succeed", func(t *testing.T) {
-		onClosedCalled := false
-		onClose := func() error {
-			onClosedCalled = true
-			return nil
-		}
-		merr := &multierror.Group{}
-		merr.Go(func() error { return nil })
-		closedFile := f
-		closedFile.merr = merr
-		closedFile.onClose = onClose
-		segments := make([]nzb.NzbSegment, parts)
-		for i := int64(0); i < parts; i++ {
-			segments[i] = nzb.NzbSegment{
-				Bytes: segmentSize,
-			}
-		}
-
-		closedFile.nzbMetadata.segments = segments
-
-		fs.EXPECT().WriteFile("test.nzb", gomock.Any(), os.FileMode(0644)).Return(nil)
-		mockNzbLoader.EXPECT().RefreshCachedNzb("test.nzb", gomock.Any()).Return(false, errors.New("error refreshing nzb cache"))
-
-		err := f.Close()
-		assert.NoError(t, err)
-		assert.True(t, onClosedCalled)
-	})
-
+	err := f.Close()
+	assert.NoError(t, err)
+	assert.True(t, onClosedCalled)
 }
 
 func TestSystemFileMethods(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	log := slog.Default()
 	mockNzbLoader := nzbloader.NewMockNzbLoader(ctrl)
@@ -221,6 +138,7 @@ func TestSystemFileMethods(t *testing.T) {
 	modTime := time.Now()
 
 	f := &file{
+		ctx:              context.Background(),
 		maxUploadRetries: 5,
 		dryRun:           dryRun,
 		cp:               cp,
@@ -235,7 +153,6 @@ func TestSystemFileMethods(t *testing.T) {
 			parts:            parts,
 			group:            randomGroup,
 			poster:           poster,
-			segments:         make([]nzb.NzbSegment, parts),
 			expectedFileSize: fileSize,
 		},
 		metadata: &usenet.Metadata{
@@ -343,11 +260,10 @@ func TestSystemFileMethods(t *testing.T) {
 }
 
 func TestReadFrom(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	t.Parallel()
+
 	log := slog.Default()
-	mockNzbLoader := nzbloader.NewMockNzbLoader(ctrl)
-	fs := osfs.NewMockFileSystem(ctrl)
-	cp := connectionpool.NewMockUsenetConnectionPool(ctrl)
+	ctrl := gomock.NewController(t)
 	fileSize := int64(100)
 	segmentSize := int64(10)
 	randomGroup := "alt.binaries.test"
@@ -360,7 +276,19 @@ func TestReadFrom(t *testing.T) {
 	maxUploadRetries := 5
 
 	t.Run("File uploaded", func(t *testing.T) {
+		mockNzbLoader := nzbloader.NewMockNzbLoader(ctrl)
+		fs := osfs.NewMockFileSystem(ctrl)
+		cp := connectionpool.NewMockUsenetConnectionPool(ctrl)
+		metadata := &usenet.Metadata{
+			FileName:      fileName,
+			ModTime:       time.Now(),
+			FileSize:      0,
+			FileExtension: filepath.Ext(fileName),
+			ChunkSize:     segmentSize,
+		}
+
 		openedFile := &file{
+			ctx:              context.Background(),
 			maxUploadRetries: maxUploadRetries,
 			dryRun:           dryRun,
 			cp:               cp,
@@ -375,17 +303,9 @@ func TestReadFrom(t *testing.T) {
 				parts:            parts,
 				group:            randomGroup,
 				poster:           poster,
-				segments:         make([]nzb.NzbSegment, parts),
 				expectedFileSize: fileSize,
 			},
-			metadata: &usenet.Metadata{
-				FileName:      fileName,
-				ModTime:       time.Now(),
-				FileSize:      0,
-				FileExtension: filepath.Ext(fileName),
-				ChunkSize:     segmentSize,
-			},
-			merr: &multierror.Group{},
+			metadata: metadata,
 		}
 
 		// 100 bytes
@@ -396,16 +316,29 @@ func TestReadFrom(t *testing.T) {
 		cp.EXPECT().Get().Return(mockConn, nil).Times(10)
 		cp.EXPECT().Free(mockConn).Return(nil).Times(10)
 
+		segments := make([]nzb.NzbSegment, parts)
+		for i := int64(0); i < parts; i++ {
+			segments[i] = nzb.NzbSegment{
+				Bytes: segmentSize,
+			}
+		}
+
+		fs.EXPECT().WriteFile("test.nzb", gomock.Any(), os.FileMode(0644)).Return(nil)
+		mockNzbLoader.EXPECT().RefreshCachedNzb("test.nzb", gomock.Any()).Return(true, nil)
+
 		n, e := openedFile.ReadFrom(src)
 		assert.NoError(t, e)
 		assert.Equal(t, int64(100), n)
-
-		err := openedFile.merr.Wait().ErrorOrNil()
-		assert.NoError(t, err)
+		assert.Equal(t, metadata.FileSize, n)
 	})
 
-	t.Run("Unexpected file size", func(t *testing.T) {
+	t.Run("Wrong expected file size", func(t *testing.T) {
+		mockNzbLoader := nzbloader.NewMockNzbLoader(ctrl)
+		fs := osfs.NewMockFileSystem(ctrl)
+		cp := connectionpool.NewMockUsenetConnectionPool(ctrl)
+
 		openedFile := &file{
+			ctx:              context.Background(),
 			maxUploadRetries: maxUploadRetries,
 			dryRun:           dryRun,
 			cp:               cp,
@@ -420,7 +353,6 @@ func TestReadFrom(t *testing.T) {
 				parts:            1,
 				group:            randomGroup,
 				poster:           poster,
-				segments:         make([]nzb.NzbSegment, parts),
 				expectedFileSize: fileSize,
 			},
 			metadata: &usenet.Metadata{
@@ -430,25 +362,27 @@ func TestReadFrom(t *testing.T) {
 				FileExtension: filepath.Ext(fileName),
 				ChunkSize:     segmentSize,
 			},
-			merr: &multierror.Group{},
 		}
 
-		src := strings.NewReader("this is the input")
+		src := strings.NewReader("Et dignissimos incidunt ipsam molestiae occaecati. Fugit quo autem corporis occaecati sint. lorem it")
 
 		mockConn := connectionpool.NewMockNntpConnection(ctrl)
-		mockConn.EXPECT().Post(gomock.Any()).Return(nil).Times(1)
+		// Due to the async nature of the upload, post can be called 1 or 0 times since the context will be canceled when the error ocurred.
+		mockConn.EXPECT().Post(gomock.Any()).Return(nil).AnyTimes()
 		cp.EXPECT().Get().Return(mockConn, nil).Times(1)
 		cp.EXPECT().Free(mockConn).Return(nil).Times(1)
 
 		_, e := openedFile.ReadFrom(src)
 		assert.ErrorIs(t, e, ErrUnexpectedFileSize)
-
-		err := openedFile.merr.Wait().ErrorOrNil()
-		assert.NoError(t, err)
 	})
 
-	t.Run("Retry if get connection failed", func(t *testing.T) {
+	t.Run("Read stops before the write the expected size", func(t *testing.T) {
+		mockNzbLoader := nzbloader.NewMockNzbLoader(ctrl)
+		fs := osfs.NewMockFileSystem(ctrl)
+		cp := connectionpool.NewMockUsenetConnectionPool(ctrl)
+
 		openedFile := &file{
+			ctx:              context.Background(),
 			maxUploadRetries: maxUploadRetries,
 			dryRun:           dryRun,
 			cp:               cp,
@@ -463,7 +397,6 @@ func TestReadFrom(t *testing.T) {
 				parts:            parts,
 				group:            randomGroup,
 				poster:           poster,
-				segments:         make([]nzb.NzbSegment, parts),
 				expectedFileSize: fileSize,
 			},
 			metadata: &usenet.Metadata{
@@ -473,7 +406,51 @@ func TestReadFrom(t *testing.T) {
 				FileExtension: filepath.Ext(fileName),
 				ChunkSize:     segmentSize,
 			},
-			merr: &multierror.Group{},
+		}
+
+		// Less than 100 bytes
+		src := strings.NewReader("Et dignissimos")
+
+		mockConn := connectionpool.NewMockNntpConnection(ctrl)
+		// Due to the async nature of the upload, post can be called 1 or 0 times since the context will be canceled when the error ocurred.
+		mockConn.EXPECT().Post(gomock.Any()).Return(nil).AnyTimes()
+		cp.EXPECT().Get().Return(mockConn, nil).AnyTimes()
+		cp.EXPECT().Free(mockConn).Return(nil).AnyTimes()
+
+		_, e := openedFile.ReadFrom(src)
+		assert.ErrorIs(t, e, io.ErrShortWrite)
+	})
+
+	t.Run("Retry if get connection failed", func(t *testing.T) {
+		mockNzbLoader := nzbloader.NewMockNzbLoader(ctrl)
+		fs := osfs.NewMockFileSystem(ctrl)
+		cp := connectionpool.NewMockUsenetConnectionPool(ctrl)
+
+		openedFile := &file{
+			ctx:              context.Background(),
+			maxUploadRetries: maxUploadRetries,
+			dryRun:           dryRun,
+			cp:               cp,
+			nzbLoader:        mockNzbLoader,
+			fs:               fs,
+			log:              log,
+			flag:             os.O_WRONLY,
+			perm:             os.FileMode(0644),
+			nzbMetadata: &nzbMetadata{
+				fileNameHash:     fileNameHash,
+				filePath:         filePath,
+				parts:            parts,
+				group:            randomGroup,
+				poster:           poster,
+				expectedFileSize: fileSize,
+			},
+			metadata: &usenet.Metadata{
+				FileName:      fileName,
+				ModTime:       time.Now(),
+				FileSize:      0,
+				FileExtension: filepath.Ext(fileName),
+				ChunkSize:     segmentSize,
+			},
 		}
 
 		// 100 bytes
@@ -481,21 +458,25 @@ func TestReadFrom(t *testing.T) {
 
 		mockConn := connectionpool.NewMockNntpConnection(ctrl)
 		mockConn.EXPECT().Post(gomock.Any()).Return(nil).Times(10)
-		cp.EXPECT().Get().Return(mockConn, errors.New("test")).Times(1)
+		cp.EXPECT().Get().Return(mockConn, syscall.ETIMEDOUT).Times(1)
 		cp.EXPECT().Get().Return(mockConn, nil).Times(10)
 		cp.EXPECT().Close(mockConn).Return(nil).Times(1)
 		cp.EXPECT().Free(mockConn).Return(nil).Times(10)
+		fs.EXPECT().WriteFile("test.nzb", gomock.Any(), os.FileMode(0644)).Return(nil)
+		mockNzbLoader.EXPECT().RefreshCachedNzb("test.nzb", gomock.Any()).Return(true, nil)
 
 		n, e := openedFile.ReadFrom(src)
 		assert.NoError(t, e)
 		assert.Equal(t, int64(100), n)
-
-		err := openedFile.merr.Wait().ErrorOrNil()
-		assert.NoError(t, err)
 	})
 
-	t.Run("If max number of retries are exhausted throw an error", func(t *testing.T) {
+	t.Run("If max number of retries are exhausted on get connection throw an error", func(t *testing.T) {
+		mockNzbLoader := nzbloader.NewMockNzbLoader(ctrl)
+		fs := osfs.NewMockFileSystem(ctrl)
+		cp := connectionpool.NewMockUsenetConnectionPool(ctrl)
+
 		openedFile := &file{
+			ctx:              context.Background(),
 			maxUploadRetries: maxUploadRetries,
 			dryRun:           dryRun,
 			cp:               cp,
@@ -510,7 +491,6 @@ func TestReadFrom(t *testing.T) {
 				parts:            parts,
 				group:            randomGroup,
 				poster:           poster,
-				segments:         make([]nzb.NzbSegment, parts),
 				expectedFileSize: fileSize,
 			},
 			metadata: &usenet.Metadata{
@@ -520,23 +500,70 @@ func TestReadFrom(t *testing.T) {
 				FileExtension: filepath.Ext(fileName),
 				ChunkSize:     segmentSize,
 			},
-			merr: &multierror.Group{},
 		}
 
 		// 100 bytes
 		src := strings.NewReader("Et dignissimos incidunt ipsam molestiae occaecati. Fugit quo autem corporis occaecati sint. lorem it")
 
-		e := errors.New("test")
 		mockConn := connectionpool.NewMockNntpConnection(ctrl)
-		cp.EXPECT().Get().Return(mockConn, e).Times(maxUploadRetries + 1)
-		cp.EXPECT().Close(mockConn).Return(nil).Times(maxUploadRetries + 1)
+		cp.EXPECT().Get().Return(mockConn, syscall.ETIMEDOUT).Times(maxUploadRetries)
+		cp.EXPECT().Close(mockConn).Return(nil).Times(maxUploadRetries)
+
+		_, err := openedFile.ReadFrom(src)
+		assert.ErrorIs(t, err, syscall.ETIMEDOUT)
+	})
+
+	t.Run("If error is not retryable get connection, do not retry", func(t *testing.T) {
+		mockNzbLoader := nzbloader.NewMockNzbLoader(ctrl)
+		fs := osfs.NewMockFileSystem(ctrl)
+		cp := connectionpool.NewMockUsenetConnectionPool(ctrl)
+
+		openedFile := &file{
+			ctx:              context.Background(),
+			maxUploadRetries: maxUploadRetries,
+			dryRun:           dryRun,
+			cp:               cp,
+			nzbLoader:        mockNzbLoader,
+			fs:               fs,
+			log:              log,
+			flag:             os.O_WRONLY,
+			perm:             os.FileMode(0644),
+			nzbMetadata: &nzbMetadata{
+				fileNameHash:     fileNameHash,
+				filePath:         filePath,
+				parts:            parts,
+				group:            randomGroup,
+				poster:           poster,
+				expectedFileSize: fileSize,
+			},
+			metadata: &usenet.Metadata{
+				FileName:      fileName,
+				ModTime:       time.Now(),
+				FileSize:      0,
+				FileExtension: filepath.Ext(fileName),
+				ChunkSize:     segmentSize,
+			},
+		}
+
+		// 100 bytes
+		src := strings.NewReader("Et dignissimos incidunt ipsam molestiae occaecati. Fugit quo autem corporis occaecati sint. lorem it")
+
+		e := errors.New("no retryable")
+		mockConn := connectionpool.NewMockNntpConnection(ctrl)
+		cp.EXPECT().Get().Return(mockConn, e).Times(1)
+		cp.EXPECT().Close(mockConn).Return(nil).Times(1)
 
 		_, err := openedFile.ReadFrom(src)
 		assert.ErrorIs(t, err, e)
 	})
 
 	t.Run("Retry if upload throws a retryable error", func(t *testing.T) {
+		mockNzbLoader := nzbloader.NewMockNzbLoader(ctrl)
+		fs := osfs.NewMockFileSystem(ctrl)
+		cp := connectionpool.NewMockUsenetConnectionPool(ctrl)
+
 		openedFile := &file{
+			ctx:              context.Background(),
 			maxUploadRetries: maxUploadRetries,
 			dryRun:           dryRun,
 			cp:               cp,
@@ -551,7 +578,6 @@ func TestReadFrom(t *testing.T) {
 				parts:            parts,
 				group:            randomGroup,
 				poster:           poster,
-				segments:         make([]nzb.NzbSegment, parts),
 				expectedFileSize: fileSize,
 			},
 			metadata: &usenet.Metadata{
@@ -561,7 +587,6 @@ func TestReadFrom(t *testing.T) {
 				FileExtension: filepath.Ext(fileName),
 				ChunkSize:     segmentSize,
 			},
-			merr: &multierror.Group{},
 		}
 
 		// 100 bytes
@@ -577,13 +602,158 @@ func TestReadFrom(t *testing.T) {
 		cp.EXPECT().Get().Return(mockConn2, nil).Times(10)
 		cp.EXPECT().Close(mockConn).Return(nil).Times(1)
 		cp.EXPECT().Free(mockConn2).Return(nil).Times(10)
+		fs.EXPECT().WriteFile("test.nzb", gomock.Any(), os.FileMode(0644)).Return(nil)
+		mockNzbLoader.EXPECT().RefreshCachedNzb("test.nzb", gomock.Any()).Return(true, nil)
 
 		n, e := openedFile.ReadFrom(src)
 		assert.NoError(t, e)
 		assert.Equal(t, int64(100), n)
-
-		err := openedFile.merr.Wait().ErrorOrNil()
-		assert.NoError(t, err)
 	})
 
+	t.Run("Return an error if file write failed", func(t *testing.T) {
+		mockNzbLoader := nzbloader.NewMockNzbLoader(ctrl)
+		fs := osfs.NewMockFileSystem(ctrl)
+		cp := connectionpool.NewMockUsenetConnectionPool(ctrl)
+
+		openedFile := &file{
+			ctx:              context.Background(),
+			maxUploadRetries: maxUploadRetries,
+			dryRun:           dryRun,
+			cp:               cp,
+			nzbLoader:        mockNzbLoader,
+			fs:               fs,
+			log:              log,
+			flag:             os.O_WRONLY,
+			perm:             os.FileMode(0644),
+			nzbMetadata: &nzbMetadata{
+				fileNameHash:     fileNameHash,
+				filePath:         filePath,
+				parts:            parts,
+				group:            randomGroup,
+				poster:           poster,
+				expectedFileSize: fileSize,
+			},
+			metadata: &usenet.Metadata{
+				FileName:      fileName,
+				ModTime:       time.Now(),
+				FileSize:      0,
+				FileExtension: filepath.Ext(fileName),
+				ChunkSize:     segmentSize,
+			},
+		}
+
+		// 100 bytes
+		src := strings.NewReader("Et dignissimos incidunt ipsam molestiae occaecati. Fugit quo autem corporis occaecati sint. lorem it")
+
+		mockConn := connectionpool.NewMockNntpConnection(ctrl)
+		mockConn.EXPECT().Post(gomock.Any()).Return(nil).Times(10)
+		cp.EXPECT().Get().Return(mockConn, nil).Times(10)
+		cp.EXPECT().Free(mockConn).Return(nil).Times(10)
+
+		fs.EXPECT().WriteFile("test.nzb", gomock.Any(), os.FileMode(0644)).Return(errors.New("error")).Times(1)
+
+		_, err := openedFile.ReadFrom(src)
+		assert.ErrorIs(t, err, io.ErrUnexpectedEOF)
+	})
+
+	t.Run("Do not fail if refresh nzb cache failed", func(t *testing.T) {
+		mockNzbLoader := nzbloader.NewMockNzbLoader(ctrl)
+		fs := osfs.NewMockFileSystem(ctrl)
+		cp := connectionpool.NewMockUsenetConnectionPool(ctrl)
+
+		openedFile := &file{
+			ctx:              context.Background(),
+			maxUploadRetries: maxUploadRetries,
+			dryRun:           dryRun,
+			cp:               cp,
+			nzbLoader:        mockNzbLoader,
+			fs:               fs,
+			log:              log,
+			flag:             os.O_WRONLY,
+			perm:             os.FileMode(0644),
+			nzbMetadata: &nzbMetadata{
+				fileNameHash:     fileNameHash,
+				filePath:         filePath,
+				parts:            parts,
+				group:            randomGroup,
+				poster:           poster,
+				expectedFileSize: fileSize,
+			},
+			metadata: &usenet.Metadata{
+				FileName:      fileName,
+				ModTime:       time.Now(),
+				FileSize:      0,
+				FileExtension: filepath.Ext(fileName),
+				ChunkSize:     segmentSize,
+			},
+		}
+
+		// 100 bytes
+		src := strings.NewReader("Et dignissimos incidunt ipsam molestiae occaecati. Fugit quo autem corporis occaecati sint. lorem it")
+
+		mockConn := connectionpool.NewMockNntpConnection(ctrl)
+		mockConn.EXPECT().Post(gomock.Any()).Return(nil).Times(10)
+		cp.EXPECT().Get().Return(mockConn, nil).Times(10)
+		cp.EXPECT().Free(mockConn).Return(nil).Times(10)
+		fs.EXPECT().WriteFile("test.nzb", gomock.Any(), os.FileMode(0644)).Return(nil)
+		mockNzbLoader.EXPECT().RefreshCachedNzb("test.nzb", gomock.Any()).Return(true, errors.New("error"))
+
+		n, e := openedFile.ReadFrom(src)
+		assert.NoError(t, e)
+		assert.Equal(t, int64(100), n)
+	})
+
+	t.Run("Cancel the upload if file is context is canceled", func(t *testing.T) {
+		mockNzbLoader := nzbloader.NewMockNzbLoader(ctrl)
+		fs := osfs.NewMockFileSystem(ctrl)
+		cp := connectionpool.NewMockUsenetConnectionPool(ctrl)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		openedFile := &file{
+			ctx:              ctx,
+			maxUploadRetries: maxUploadRetries,
+			dryRun:           dryRun,
+			cp:               cp,
+			nzbLoader:        mockNzbLoader,
+			fs:               fs,
+			log:              log,
+			flag:             os.O_WRONLY,
+			perm:             os.FileMode(0644),
+			nzbMetadata: &nzbMetadata{
+				fileNameHash:     fileNameHash,
+				filePath:         filePath,
+				parts:            parts,
+				group:            randomGroup,
+				poster:           poster,
+				expectedFileSize: fileSize,
+			},
+			metadata: &usenet.Metadata{
+				FileName:      fileName,
+				ModTime:       time.Now(),
+				FileSize:      0,
+				FileExtension: filepath.Ext(fileName),
+				ChunkSize:     segmentSize,
+			},
+		}
+
+		// 100 bytes
+		src := strings.NewReader("Et dignissimos incidunt ipsam molestiae occaecati. Fugit quo autem corporis occaecati sint. lorem it")
+
+		mockConn := connectionpool.NewMockNntpConnection(ctrl)
+		mockConn.EXPECT().Post(gomock.Any()).Return(nil).AnyTimes()
+		cp.EXPECT().Get().Return(mockConn, nil).AnyTimes()
+		cp.EXPECT().Free(mockConn).Return(nil).AnyTimes()
+		wg := &sync.WaitGroup{}
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, err := openedFile.ReadFrom(src)
+			assert.ErrorIs(t, err, context.Canceled)
+		}()
+
+		cancel()
+
+		wg.Wait()
+	})
 }

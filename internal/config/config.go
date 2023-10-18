@@ -33,6 +33,7 @@ type Upload struct {
 	DryRun        bool           `yaml:"dry_run" default:"false"`
 	Provider      UsenetProvider `yaml:"provider"`
 	FileAllowlist []string       `yaml:"file_allow_list"`
+	MaxRetries    int            `yaml:"max_retries" default:"5"`
 }
 
 type UsenetProvider struct {

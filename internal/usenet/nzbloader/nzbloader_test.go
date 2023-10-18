@@ -47,6 +47,7 @@ func TestNzbLoader_LoadFromFile(t *testing.T) {
 	t.Run("corrupted nzb xml", func(t *testing.T) {
 		mockFile := osfs.NewMockFile(ctrl)
 		nzbParserMock.EXPECT().Parse(mockFile).Return(nil, errors.New("corrupted nzb xml"))
+		mockFile.EXPECT().Name().Return("file2.nzb").Times(1)
 
 		fs.EXPECT().Open("file2.nzb").Return(mockFile, nil)
 		cNzb.EXPECT().Add(gomock.Any(), "file2.nzb", "corrupted nzb xml").Return(nil)
@@ -64,6 +65,7 @@ func TestNzbLoader_LoadFromFile(t *testing.T) {
 		delete(nzbCopy.Meta, "file_extension")
 
 		mockFile := osfs.NewMockFile(ctrl)
+		mockFile.EXPECT().Name().Return("file2.nzb").Times(1)
 		nzbParserMock.EXPECT().Parse(mockFile).Return(nzbCopy, nil)
 
 		fs.EXPECT().Open("file2.nzb").Return(mockFile, nil)
@@ -82,6 +84,7 @@ func TestNzbLoader_LoadFromFile(t *testing.T) {
 		delete(nzbCopy.Meta, "file_extension")
 
 		mockFile := osfs.NewMockFile(ctrl)
+		mockFile.EXPECT().Name().Return("file2.nzb").Times(1)
 		nzbParserMock.EXPECT().Parse(mockFile).Return(nzbCopy, nil)
 
 		fs.EXPECT().Open("file2.nzb").Return(mockFile, nil)
@@ -103,6 +106,7 @@ func TestNzbLoader_LoadFromFile(t *testing.T) {
 		assert.NoError(t, err)
 
 		mockFile := osfs.NewMockFile(ctrl)
+		mockFile.EXPECT().Name().Return("file3.nzb").Times(1)
 		nzbParserMock.EXPECT().Parse(mockFile).Return(nzb, nil)
 
 		fs.EXPECT().Open("file3.nzb").Return(mockFile, nil)
