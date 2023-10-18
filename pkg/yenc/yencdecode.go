@@ -91,7 +91,7 @@ func (d *decoder) readHeader() (err error) {
 	}
 	// split on sapce for other headers
 	parts = strings.Split(parts[0], " ")
-	for i, _ := range parts {
+	for i := range parts {
 		kv := strings.Split(strings.TrimSpace(parts[i]), "=")
 		if len(kv) < 2 {
 			continue

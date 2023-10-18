@@ -5,7 +5,6 @@ import (
 	"io/fs"
 	"log/slog"
 	"math/rand"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -14,6 +13,7 @@ import (
 	"github.com/javi11/usenet-drive/internal/usenet/corruptednzbsmanager"
 	"github.com/javi11/usenet-drive/internal/usenet/nzbloader"
 	"github.com/javi11/usenet-drive/pkg/nzb"
+	"github.com/javi11/usenet-drive/pkg/osfs"
 	"golang.org/x/net/webdav"
 )
 
@@ -26,6 +26,7 @@ type fileWriter struct {
 	nzbLoader     nzbloader.NzbLoader
 	cNzb          corruptednzbsmanager.CorruptedNzbsManager
 	dryRun        bool
+	fs            osfs.FileSystem
 }
 
 func NewFileWriter(options ...Option) *fileWriter {
@@ -43,6 +44,7 @@ func NewFileWriter(options ...Option) *fileWriter {
 		nzbLoader:     config.nzbLoader,
 		cNzb:          config.cNzb,
 		dryRun:        config.dryRun,
+		fs:            config.fs,
 	}
 }
 
@@ -58,17 +60,18 @@ func (u *fileWriter) OpenFile(
 
 	return openFile(
 		ctx,
-		fileSize,
-		u.segmentSize,
 		fileName,
-		u.cp,
-		randomGroup,
 		flag,
 		perm,
+		fileSize,
+		u.segmentSize,
+		u.cp,
+		randomGroup,
 		u.log,
 		u.nzbLoader,
 		u.dryRun,
 		onClose,
+		u.fs,
 	)
 }
 
@@ -88,7 +91,7 @@ func (u *fileWriter) HasAllowedFileExtension(fileName string) bool {
 
 func (u *fileWriter) RemoveFile(ctx context.Context, fileName string) (bool, error) {
 	if maskFile := u.getOriginalNzb(fileName); maskFile != "" {
-		err := os.RemoveAll(maskFile)
+		err := u.fs.RemoveAll(maskFile)
 		if err != nil {
 			return false, err
 		}
@@ -123,7 +126,7 @@ func (u *fileWriter) RenameFile(ctx context.Context, fileName string, newFileNam
 				return false, err
 			}
 
-			err = os.WriteFile(originalName, b, 0766)
+			err = u.fs.WriteFile(originalName, b, 0766)
 			if err != nil {
 				return false, err
 			}
@@ -147,7 +150,7 @@ func (u *fileWriter) RenameFile(ctx context.Context, fileName string, newFileNam
 		return false, nil
 	}
 
-	err := os.Rename(fileName, newFileName)
+	err := u.fs.Rename(fileName, newFileName)
 	if err != nil {
 		return false, err
 	}
@@ -163,8 +166,8 @@ func (u *fileWriter) RenameFile(ctx context.Context, fileName string, newFileNam
 
 func (u *fileWriter) getOriginalNzb(name string) string {
 	originalName := usenet.ReplaceFileExtension(name, ".nzb")
-	_, err := os.Stat(originalName)
-	if os.IsNotExist(err) {
+	_, err := u.fs.Stat(originalName)
+	if u.fs.IsNotExist(err) {
 		return ""
 	}
 

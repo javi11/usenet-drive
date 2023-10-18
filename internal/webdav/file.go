@@ -77,14 +77,10 @@ func (f *file) Name() string {
 }
 
 func (f *file) Read(b []byte) (int, error) {
-	f.fsMutex.RLock()
-	defer f.fsMutex.RUnlock()
 	return f.innerFile.Read(b)
 }
 
 func (f *file) ReadAt(b []byte, off int64) (int, error) {
-	f.fsMutex.RLock()
-	defer f.fsMutex.RUnlock()
 	return f.innerFile.ReadAt(b, off)
 }
 
@@ -136,14 +132,10 @@ func (f *file) Readdir(n int) ([]os.FileInfo, error) {
 }
 
 func (f *file) Readdirnames(n int) ([]string, error) {
-	f.fsMutex.RLock()
-	defer f.fsMutex.RUnlock()
 	return f.innerFile.Readdirnames(n)
 }
 
 func (f *file) Seek(offset int64, whence int) (int64, error) {
-	f.fsMutex.RLock()
-	defer f.fsMutex.RUnlock()
 	return f.innerFile.Seek(offset, whence)
 }
 
@@ -160,8 +152,6 @@ func (f *file) SetWriteDeadline(t time.Time) error {
 }
 
 func (f *file) Stat() (os.FileInfo, error) {
-	f.fsMutex.RLock()
-	defer f.fsMutex.RUnlock()
 	return f.innerFile.Stat()
 }
 
@@ -174,19 +164,13 @@ func (f *file) Truncate(size int64) error {
 }
 
 func (f *file) Write(b []byte) (int, error) {
-	f.fsMutex.Lock()
-	defer f.fsMutex.Unlock()
 	return f.innerFile.Write(b)
 }
 
 func (f *file) WriteAt(b []byte, off int64) (int, error) {
-	f.fsMutex.Lock()
-	defer f.fsMutex.Unlock()
 	return f.innerFile.WriteAt(b, off)
 }
 
 func (f *file) WriteString(s string) (int, error) {
-	f.fsMutex.Lock()
-	defer f.fsMutex.Unlock()
 	return f.innerFile.WriteString(s)
 }

@@ -6,6 +6,7 @@ import (
 	"github.com/javi11/usenet-drive/internal/usenet/connectionpool"
 	"github.com/javi11/usenet-drive/internal/usenet/corruptednzbsmanager"
 	"github.com/javi11/usenet-drive/internal/usenet/nzbloader"
+	"github.com/javi11/usenet-drive/pkg/osfs"
 )
 
 type Config struct {
@@ -17,6 +18,7 @@ type Config struct {
 	nzbLoader     nzbloader.NzbLoader
 	cNzb          corruptednzbsmanager.CorruptedNzbsManager
 	dryRun        bool
+	fs            osfs.FileSystem
 }
 
 type Option func(*Config)
@@ -70,5 +72,11 @@ func WithNzbLoader(nzbLoader nzbloader.NzbLoader) Option {
 func WithCorruptedNzbsManager(cNzb corruptednzbsmanager.CorruptedNzbsManager) Option {
 	return func(c *Config) {
 		c.cNzb = cNzb
+	}
+}
+
+func WithFileSystem(fs osfs.FileSystem) Option {
+	return func(c *Config) {
+		c.fs = fs
 	}
 }

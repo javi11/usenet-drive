@@ -41,11 +41,13 @@ type FileSystem interface {
 	ReadDir(name string) ([]os.DirEntry, error)
 	Readlink(name string) (string, error)
 	Remove(name string) error
+	RemoveAll(path string) error
 	Mkdir(name string, perm os.FileMode) error
 	Rename(oldName, newName string) error
 	Stat(name string) (fs.FileInfo, error)
 	Open(name string) (File, error)
 	IsNotExist(err error) bool
+	WriteFile(filename string, data []byte, perm os.FileMode) error
 }
 
 type osFS struct{}
@@ -67,3 +69,6 @@ func (*osFS) Rename(oldName, newName string) error      { return os.Rename(oldNa
 func (*osFS) Stat(name string) (fs.FileInfo, error)     { return os.Stat(name) }
 func (*osFS) Open(name string) (File, error)            { return os.Open(name) }
 func (*osFS) IsNotExist(err error) bool                 { return os.IsNotExist(err) }
+func (*osFS) WriteFile(filename string, data []byte, perm os.FileMode) error {
+	return os.WriteFile(filename, data, perm)
+}

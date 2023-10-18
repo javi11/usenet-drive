@@ -545,6 +545,20 @@ func (mr *MockFileSystemMockRecorder) Remove(name interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Remove", reflect.TypeOf((*MockFileSystem)(nil).Remove), name)
 }
 
+// RemoveAll mocks base method.
+func (m *MockFileSystem) RemoveAll(path string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RemoveAll", path)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RemoveAll indicates an expected call of RemoveAll.
+func (mr *MockFileSystemMockRecorder) RemoveAll(path interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveAll", reflect.TypeOf((*MockFileSystem)(nil).RemoveAll), path)
+}
+
 // Rename mocks base method.
 func (m *MockFileSystem) Rename(oldName, newName string) error {
 	m.ctrl.T.Helper()
@@ -572,4 +586,18 @@ func (m *MockFileSystem) Stat(name string) (fs.FileInfo, error) {
 func (mr *MockFileSystemMockRecorder) Stat(name interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stat", reflect.TypeOf((*MockFileSystem)(nil).Stat), name)
+}
+
+// WriteFile mocks base method.
+func (m *MockFileSystem) WriteFile(filename string, data []byte, perm os.FileMode) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WriteFile", filename, data, perm)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// WriteFile indicates an expected call of WriteFile.
+func (mr *MockFileSystemMockRecorder) WriteFile(filename, data, perm interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteFile", reflect.TypeOf((*MockFileSystem)(nil).WriteFile), filename, data, perm)
 }

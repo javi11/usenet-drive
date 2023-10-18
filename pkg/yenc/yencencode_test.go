@@ -20,9 +20,14 @@ func TestYencodeText(t *testing.T) {
 	// generate a dodgy message
 	out := new(bytes.Buffer)
 
-	io.WriteString(out, "=ybegin line=128 size=857 name=test1.in\r\n")
-	Encode(inbuf, out)
-	io.WriteString(out, "=yend size=857 crc32=a3f56400\r\n")
+	_, err = io.WriteString(out, "=ybegin line=128 size=857 name=test1.in\r\n")
+	assert.NoError(t, err)
+
+	err = Encode(inbuf, out)
+	assert.NoError(t, err)
+
+	_, err = io.WriteString(out, "=yend size=857 crc32=a3f56400\r\n")
+	assert.NoError(t, err)
 
 	// fixture
 	expected, err := os.ReadFile("fixtures/test1.yenc")
@@ -43,9 +48,14 @@ func TestYencodeBinary(t *testing.T) {
 	// generate a dodgy message
 	out := new(bytes.Buffer)
 
-	io.WriteString(out, "=ybegin line=128 size=153600 name=test.in\r\n")
-	Encode(inbuf, out)
-	io.WriteString(out, "=yend size=153600 crc32=5a9368b3\r\n")
+	_, err = io.WriteString(out, "=ybegin line=128 size=153600 name=test.in\r\n")
+	assert.NoError(t, err)
+
+	err = Encode(inbuf, out)
+	assert.NoError(t, err)
+
+	_, err = io.WriteString(out, "=yend size=153600 crc32=5a9368b3\r\n")
+	assert.NoError(t, err)
 
 	// fixture
 	expected, err := os.ReadFile("fixtures/test.yenc")
@@ -64,7 +74,10 @@ func bench(b *testing.B, n int) {
 		if i > 0 {
 			out.Reset()
 		}
-		Encode(inbuf, out)
+		err := Encode(inbuf, out)
+		if err != nil {
+			b.Fatal(err)
+		}
 	}
 
 	b.SetBytes(int64(len(inbuf)))
