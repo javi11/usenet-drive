@@ -114,8 +114,8 @@ func openFile(
 }
 
 func (f *file) ReadFrom(src io.Reader) (int64, error) {
-	var written int64
-	merr := &multierror.Group{}
+	var bytesWritten int64
+	wg := &multierror.Group{}
 	segments := make([]nzb.NzbSegment, f.nzbMetadata.parts)
 
 	ctx, cancel := context.WithCancelCause(f.ctx)
@@ -125,24 +125,25 @@ func (f *file) ReadFrom(src io.Reader) (int64, error) {
 			if err := context.Cause(ctx); err != nil {
 				f.log.Error("Error uploading the file", "error", err)
 
-				return written, err
+				return bytesWritten, err
 			}
 
-			return written, nil
+			return bytesWritten, nil
 		default:
 			buf := make([]byte, f.metadata.ChunkSize)
-			nr, er := src.Read(buf)
-			if nr > 0 {
-				if i+1 > int(f.nzbMetadata.parts) {
+			bytesRead, err := f.readUntilBufferIsFull(src, buf)
+
+			if bytesRead > 0 {
+				if part := i + 1; part > int(f.nzbMetadata.parts) {
 					f.log.Error(
 						"Unexpected file size", "expected",
 						f.nzbMetadata.expectedFileSize,
 						"actual",
-						written,
+						bytesWritten,
 						"expectedParts",
 						f.nzbMetadata.parts,
 						"actualParts",
-						i+1,
+						part,
 					)
 					cancel(ErrUnexpectedFileSize)
 
@@ -162,8 +163,8 @@ func (f *file) ReadFrom(src io.Reader) (int64, error) {
 						return err
 					}
 
-					merr.Go(func() error {
-						return f.addSegment(ctx, conn, segments, buf[0:nr], i)
+					wg.Go(func() error {
+						return f.addSegment(ctx, conn, segments, buf[0:bytesRead], i)
 					})
 
 					return nil
@@ -189,24 +190,24 @@ func (f *file) ReadFrom(src io.Reader) (int64, error) {
 					cancel(err)
 					continue
 				}
-				written += int64(nr)
-				f.metadata.FileSize = written
+				bytesWritten += int64(bytesRead)
+				f.metadata.FileSize = bytesWritten
 				f.metadata.ModTime = time.Now()
 			}
-			if er != nil {
-				if er != io.EOF {
-					f.log.Error("Error reading the file", "error", er)
-					cancel(er)
+			if err != nil {
+				if err != io.EOF {
+					f.log.Error("Error reading the file", "error", err)
+					cancel(err)
 
 					continue
 				}
 
-				if written < f.nzbMetadata.expectedFileSize {
+				if bytesWritten < f.nzbMetadata.expectedFileSize {
 					f.log.Error(
-						"Unexpected file size", "expected",
+						"Write end to early", "expected",
 						f.nzbMetadata.expectedFileSize,
 						"actual",
-						written,
+						bytesWritten,
 						"expectedParts",
 						f.nzbMetadata.parts,
 						"actualParts",
@@ -217,7 +218,7 @@ func (f *file) ReadFrom(src io.Reader) (int64, error) {
 					continue
 				}
 
-				if err := merr.Wait().ErrorOrNil(); err != nil {
+				if err := wg.Wait().ErrorOrNil(); err != nil {
 					f.log.Error("Error uploading the file. The file will not be written.", "error", err)
 
 					cancel(io.ErrUnexpectedEOF)
@@ -234,7 +235,7 @@ func (f *file) ReadFrom(src io.Reader) (int64, error) {
 				f.log.Info("Upload finished successfully.")
 				cancel(nil)
 
-				return written, nil
+				return bytesWritten, nil
 			}
 		}
 	}
@@ -485,4 +486,18 @@ func (f *file) writeFinalNzb(segments []nzb.NzbSegment) error {
 	}
 
 	return nil
+}
+
+func (f *file) readUntilBufferIsFull(src io.Reader, buf []byte) (n int, err error) {
+	for {
+		if n >= len(buf) {
+			return
+		}
+		nr, er := src.Read(buf[n:])
+		err = er
+		n += nr
+		if err != nil {
+			return
+		}
+	}
 }

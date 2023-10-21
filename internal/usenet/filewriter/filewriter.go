@@ -52,7 +52,7 @@ func NewFileWriter(options ...Option) *fileWriter {
 
 func (u *fileWriter) OpenFile(
 	ctx context.Context,
-	fileName string,
+	filePath string,
 	fileSize int64,
 	flag int,
 	perm fs.FileMode,
@@ -62,7 +62,7 @@ func (u *fileWriter) OpenFile(
 
 	return openFile(
 		ctx,
-		fileName,
+		filePath,
 		flag,
 		perm,
 		fileSize,

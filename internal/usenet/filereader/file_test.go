@@ -80,7 +80,7 @@ func TestOpenFile(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.True(t, ok)
-		assert.Equal(t, "test.mkv", file.name)
+		assert.Equal(t, "test.mkv", file.Name())
 	})
 
 	t.Run("Is a Nzb file masked", func(t *testing.T) {
@@ -117,7 +117,7 @@ func TestOpenFile(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.True(t, ok)
-		assert.Equal(t, "test.mkv", file.name)
+		assert.Equal(t, "test.mkv", file.Name())
 	})
 
 	t.Run("Nzb file with corrupted metadata", func(t *testing.T) {
@@ -162,7 +162,7 @@ func TestCloseFile(t *testing.T) {
 	mockBuffer := NewMockBuffer(ctrl)
 	onClosedCalled := false
 	f := &file{
-		name:      "test.nzb",
+		path:      "test.nzb",
 		buffer:    mockBuffer,
 		innerFile: mockFile,
 		fsMutex:   sync.RWMutex{},
@@ -218,7 +218,7 @@ func TestRead(t *testing.T) {
 
 	t.Run("Read success", func(t *testing.T) {
 		f := &file{
-			name:      "test.nzb",
+			path:      "test.nzb",
 			buffer:    mockBuffer,
 			innerFile: mockFile,
 			fsMutex:   sync.RWMutex{},
@@ -242,7 +242,7 @@ func TestRead(t *testing.T) {
 
 	t.Run("Mark file as corrupted on read error", func(t *testing.T) {
 		f := &file{
-			name:      "test.nzb",
+			path:      "test.nzb",
 			buffer:    mockBuffer,
 			innerFile: mockFile,
 			fsMutex:   sync.RWMutex{},
@@ -277,7 +277,7 @@ func TestReadAt(t *testing.T) {
 
 	t.Run("ReadAt success", func(t *testing.T) {
 		f := &file{
-			name:      "test.nzb",
+			path:      "test.nzb",
 			buffer:    mockBuffer,
 			innerFile: mockFile,
 			fsMutex:   sync.RWMutex{},
@@ -302,7 +302,7 @@ func TestReadAt(t *testing.T) {
 
 	t.Run("Mark file as corrupted on read at error", func(t *testing.T) {
 		f := &file{
-			name:      "test.nzb",
+			path:      "test.nzb",
 			buffer:    mockBuffer,
 			innerFile: mockFile,
 			fsMutex:   sync.RWMutex{},
@@ -327,182 +327,6 @@ func TestReadAt(t *testing.T) {
 	})
 }
 
-func TestReadDir(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	log := slog.Default()
-	mockNzbLoader := nzbloader.NewMockNzbLoader(ctrl)
-	mockCNzb := corruptednzbsmanager.NewMockCorruptedNzbsManager(ctrl)
-	fs := osfs.NewMockFileSystem(ctrl)
-	mockFile := osfs.NewMockFile(ctrl)
-	mockBuffer := NewMockBuffer(ctrl)
-
-	t.Run("Readdir returns one txt one nzb", func(t *testing.T) {
-		fileInfo1 := osfs.NewMockFileInfo(ctrl)
-		fileInfo2 := osfs.NewMockFileInfo(ctrl)
-
-		infos := []os.FileInfo{
-			fileInfo1,
-			fileInfo2,
-		}
-
-		f := &file{
-			name:      "test.nzb",
-			buffer:    mockBuffer,
-			innerFile: mockFile,
-			fsMutex:   sync.RWMutex{},
-			log:       log,
-			metadata:  usenet.Metadata{},
-			nzbLoader: mockNzbLoader,
-			onClose:   func() error { return nil },
-			cNzb:      mockCNzb,
-			fs:        fs,
-		}
-
-		mockFile.EXPECT().Readdir(0).Return(infos, nil).Times(1)
-		mockFile.EXPECT().Name().Return("folder").Times(1)
-
-		// Every directory file needs to be stat'ed this means stat for every infos
-		fileInfo1.EXPECT().Name().Return("file1.txt").Times(1)
-		fileInfo2.EXPECT().Name().Return("file2.nzb").Times(2)
-
-		// Txt file is not a masked nzb file
-		fs.EXPECT().Stat("file1.nzb").Return(nil, os.ErrNotExist).Times(1)
-		fs.EXPECT().IsNotExist(os.ErrNotExist).Return(true).Times(1)
-
-		nzb, err := test.NewNzbMock()
-		assert.NoError(t, err)
-
-		today := time.Now()
-		mockNzbLoader.EXPECT().LoadFromFile("folder/file2.nzb").Return(&nzbloader.NzbCache{
-			Metadata: usenet.Metadata{
-				FileExtension: ".mkv",
-				FileSize:      123,
-				ChunkSize:     456,
-				FileName:      "file2.mkv",
-				ModTime:       today,
-			},
-			Nzb: nzb,
-		}, nil)
-
-		result, err := f.Readdir(0)
-		assert.NoError(t, err)
-		// We should receive txt file as is
-		assert.Equal(t, fileInfo1, result[0])
-		// We should receive the nzb file with the real uploaded file extensions size and modtime
-		assert.Equal(t, "file2.mkv", result[1].Name())
-		assert.Equal(t, 123, int(result[1].Size()))
-		assert.Equal(t, today, result[1].ModTime())
-	})
-
-	t.Run("There are one masked nzb file", func(t *testing.T) {
-		fileInfo1 := osfs.NewMockFileInfo(ctrl)
-		fileInfo2 := osfs.NewMockFileInfo(ctrl)
-
-		infos := []os.FileInfo{
-			fileInfo1,
-			fileInfo2,
-		}
-
-		f := &file{
-			name:      "test.nzb",
-			buffer:    mockBuffer,
-			innerFile: mockFile,
-			fsMutex:   sync.RWMutex{},
-			log:       log,
-			metadata:  usenet.Metadata{},
-			nzbLoader: mockNzbLoader,
-			onClose:   func() error { return nil },
-			cNzb:      mockCNzb,
-			fs:        fs,
-		}
-
-		mockFile.EXPECT().Readdir(0).Return(infos, nil).Times(1)
-		mockFile.EXPECT().Name().Return("folder").Times(1)
-
-		// Every directory file needs to be stat'ed this means stat for every infos
-		fileInfo1.EXPECT().Name().Return("file1.txt").Times(1)
-		fileInfo2.EXPECT().Name().Return("file2-masked.mkv").Times(1)
-
-		// Txt file is not a masked nzb file
-		fs.EXPECT().Stat("file1.nzb").Return(nil, os.ErrNotExist).Times(1)
-		fs.EXPECT().IsNotExist(os.ErrNotExist).Return(true).Times(1)
-
-		// mkv file is a masked nzb file
-		fileInfoMaskedFile := osfs.NewMockFileInfo(ctrl)
-		fileInfoMaskedFile.EXPECT().Name().Return("file2-masked.nzb").Times(2)
-		fs.EXPECT().Stat("file2-masked.nzb").Return(fileInfoMaskedFile, nil).Times(1)
-		fs.EXPECT().IsNotExist(nil).Return(false).Times(1)
-
-		nzb, err := test.NewNzbMock()
-		assert.NoError(t, err)
-		today := time.Now()
-		mockNzbLoader.EXPECT().LoadFromFile("folder/file2-masked.nzb").Return(&nzbloader.NzbCache{
-			Metadata: usenet.Metadata{
-				FileExtension: ".mkv",
-				FileSize:      123,
-				ChunkSize:     456,
-				FileName:      "file2.mkv",
-				ModTime:       today,
-			},
-			Nzb: nzb,
-		}, nil)
-
-		// Call
-		result, err := f.Readdir(0)
-		assert.NoError(t, err)
-
-		// We should receive txt file as is
-		assert.Equal(t, fileInfo1, result[0])
-		// We should receive the nzb file with the real uploaded file extensions size and modtime
-		assert.Equal(t, "file2-masked.mkv", result[1].Name())
-		assert.Equal(t, 123, int(result[1].Size()))
-		assert.Equal(t, today, result[1].ModTime())
-	})
-
-	t.Run("Readdir ignores corrupted metadata files", func(t *testing.T) {
-		fileInfo1 := osfs.NewMockFileInfo(ctrl)
-		fileInfo2 := osfs.NewMockFileInfo(ctrl)
-
-		infos := []os.FileInfo{
-			fileInfo1,
-			fileInfo2,
-		}
-
-		f := &file{
-			name:      "test.nzb",
-			buffer:    mockBuffer,
-			innerFile: mockFile,
-			fsMutex:   sync.RWMutex{},
-			log:       log,
-			metadata:  usenet.Metadata{},
-			nzbLoader: mockNzbLoader,
-			onClose:   func() error { return nil },
-			cNzb:      mockCNzb,
-			fs:        fs,
-		}
-
-		mockFile.EXPECT().Readdir(0).Return(infos, nil).Times(1)
-		mockFile.EXPECT().Name().Return("folder").Times(1)
-
-		// Every directory file needs to be stat'ed this means stat for every infos
-		fileInfo1.EXPECT().Name().Return("file1.txt").Times(1)
-		fileInfo2.EXPECT().Name().Return("file2.nzb").Times(1)
-
-		// Txt file is not a masked nzb file
-		fs.EXPECT().Stat("file1.nzb").Return(nil, os.ErrNotExist).Times(1)
-		fs.EXPECT().IsNotExist(os.ErrNotExist).Return(true).Times(1)
-
-		mockNzbLoader.EXPECT().LoadFromFile("folder/file2.nzb").Return(nil, ErrCorruptedNzb)
-
-		result, err := f.Readdir(0)
-		assert.NoError(t, err)
-
-		assert.Len(t, result, 1)
-		// We should receive txt file as is
-		assert.Equal(t, fileInfo1, result[0])
-	})
-}
-
 func TestSystemFileMethods(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	log := slog.Default()
@@ -514,7 +338,7 @@ func TestSystemFileMethods(t *testing.T) {
 
 	t.Run("Chown", func(t *testing.T) {
 		f := &file{
-			name:      "test.nzb",
+			path:      "test.nzb",
 			buffer:    mockBuffer,
 			innerFile: mockFile,
 			fsMutex:   sync.RWMutex{},
@@ -534,7 +358,7 @@ func TestSystemFileMethods(t *testing.T) {
 
 	t.Run("Chdir", func(t *testing.T) {
 		f := &file{
-			name:      "test.nzb",
+			path:      "test.nzb",
 			buffer:    mockBuffer,
 			innerFile: mockFile,
 			fsMutex:   sync.RWMutex{},
@@ -553,7 +377,7 @@ func TestSystemFileMethods(t *testing.T) {
 
 	t.Run("Chmod", func(t *testing.T) {
 		f := &file{
-			name:      "test.nzb",
+			path:      "test.nzb",
 			buffer:    mockBuffer,
 			innerFile: mockFile,
 			fsMutex:   sync.RWMutex{},
@@ -574,7 +398,7 @@ func TestSystemFileMethods(t *testing.T) {
 	t.Run("Fd", func(t *testing.T) {
 		fd := uintptr(123)
 		f := &file{
-			name:      "test.nzb",
+			path:      "test.nzb",
 			buffer:    mockBuffer,
 			innerFile: mockFile,
 			fsMutex:   sync.RWMutex{},
@@ -594,7 +418,7 @@ func TestSystemFileMethods(t *testing.T) {
 	t.Run("Name", func(t *testing.T) {
 		name := "test.nzb"
 		f := &file{
-			name:      name,
+			path:      name,
 			buffer:    mockBuffer,
 			innerFile: mockFile,
 			fsMutex:   sync.RWMutex{},
@@ -612,7 +436,7 @@ func TestSystemFileMethods(t *testing.T) {
 	t.Run("Readdirnames", func(t *testing.T) {
 		names := []string{"file1", "file2"}
 		f := &file{
-			name:      "test.nzb",
+			path:      "test.nzb",
 			buffer:    mockBuffer,
 			innerFile: mockFile,
 			fsMutex:   sync.RWMutex{},
@@ -634,7 +458,7 @@ func TestSystemFileMethods(t *testing.T) {
 	t.Run("SetDeadline", func(t *testing.T) {
 		tm := time.Now()
 		f := &file{
-			name:      "test.nzb",
+			path:      "test.nzb",
 			buffer:    mockBuffer,
 			innerFile: mockFile,
 			fsMutex:   sync.RWMutex{},
@@ -655,7 +479,7 @@ func TestSystemFileMethods(t *testing.T) {
 	t.Run("SetReadDeadline", func(t *testing.T) {
 		tm := time.Now()
 		f := &file{
-			name:      "test.nzb",
+			path:      "test.nzb",
 			buffer:    mockBuffer,
 			innerFile: mockFile,
 			fsMutex:   sync.RWMutex{},
@@ -675,7 +499,7 @@ func TestSystemFileMethods(t *testing.T) {
 
 	t.Run("SetWriteDeadline", func(t *testing.T) {
 		f := &file{
-			name:      "test.nzb",
+			path:      "test.nzb",
 			buffer:    mockBuffer,
 			innerFile: mockFile,
 			fsMutex:   sync.RWMutex{},
@@ -693,7 +517,7 @@ func TestSystemFileMethods(t *testing.T) {
 
 	t.Run("Sync", func(t *testing.T) {
 		f := &file{
-			name:      "test.nzb",
+			path:      "test.nzb",
 			buffer:    mockBuffer,
 			innerFile: mockFile,
 			fsMutex:   sync.RWMutex{},
@@ -713,7 +537,7 @@ func TestSystemFileMethods(t *testing.T) {
 
 	t.Run("Truncate", func(t *testing.T) {
 		f := &file{
-			name:      "test.nzb",
+			path:      "test.nzb",
 			buffer:    mockBuffer,
 			innerFile: mockFile,
 			fsMutex:   sync.RWMutex{},
@@ -731,7 +555,7 @@ func TestSystemFileMethods(t *testing.T) {
 
 	t.Run("Write", func(t *testing.T) {
 		f := &file{
-			name:      "test.nzb",
+			path:      "test.nzb",
 			buffer:    mockBuffer,
 			innerFile: mockFile,
 			fsMutex:   sync.RWMutex{},
@@ -750,7 +574,7 @@ func TestSystemFileMethods(t *testing.T) {
 
 	t.Run("WriteAt", func(t *testing.T) {
 		f := &file{
-			name:      "test.nzb",
+			path:      "test.nzb",
 			buffer:    mockBuffer,
 			innerFile: mockFile,
 			fsMutex:   sync.RWMutex{},
@@ -769,7 +593,7 @@ func TestSystemFileMethods(t *testing.T) {
 
 	t.Run("WriteString", func(t *testing.T) {
 		f := &file{
-			name:      "test.nzb",
+			path:      "test.nzb",
 			buffer:    mockBuffer,
 			innerFile: mockFile,
 			fsMutex:   sync.RWMutex{},
@@ -791,7 +615,7 @@ func TestSystemFileMethods(t *testing.T) {
 		whence := io.SeekStart
 		n := int64(123)
 		f := &file{
-			name:      "test.nzb",
+			path:      "test.nzb",
 			buffer:    mockBuffer,
 			innerFile: mockFile,
 			fsMutex:   sync.RWMutex{},
@@ -813,7 +637,7 @@ func TestSystemFileMethods(t *testing.T) {
 	t.Run("Stat", func(t *testing.T) {
 		today := time.Now()
 		f := &file{
-			name:      "test.nzb",
+			path:      "test.nzb",
 			buffer:    mockBuffer,
 			innerFile: mockFile,
 			fsMutex:   sync.RWMutex{},

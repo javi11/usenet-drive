@@ -174,6 +174,17 @@ func (fs *remoteFilesystem) Stat(ctx context.Context, name string) (os.FileInfo,
 		return nil, os.ErrNotExist
 	}
 
+	stat, e := os.Stat(name)
+	if e != nil {
+		if !os.IsNotExist(e) {
+			return nil, e
+		}
+	}
+
+	if stat != nil && stat.IsDir() {
+		return stat, nil
+	}
+
 	ok, s, err := fs.fileReader.Stat(name)
 	if err != nil {
 		return nil, err
@@ -184,7 +195,7 @@ func (fs *remoteFilesystem) Stat(ctx context.Context, name string) (os.FileInfo,
 		return s, nil
 	}
 
-	return os.Stat(name)
+	return stat, e
 }
 
 func (fs *remoteFilesystem) resolve(name string) string {

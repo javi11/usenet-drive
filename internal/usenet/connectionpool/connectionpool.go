@@ -62,7 +62,7 @@ func NewConnectionPool(options ...Option) (*connectionPool, error) {
 	factory := func() (interface{}, error) { return dialNNTP(config) }
 
 	// close Specify the method to close the connection
-	close := func(v interface{}) error { return v.(*nntp.Conn).Quit() }
+	close := func(v interface{}) error { return v.(NntpConnection).Quit() }
 
 	twentyPercent := int(float64(config.maxConnections) * 0.2)
 
@@ -93,7 +93,7 @@ func (p *connectionPool) Get() (NntpConnection, error) {
 	if err != nil {
 		return nil, err
 	}
-	return conn.(*nntp.Conn), nil
+	return conn.(NntpConnection), nil
 }
 
 func (p *connectionPool) Close(c NntpConnection) error {
@@ -118,12 +118,12 @@ func (p *connectionPool) GetFreeConnections() int {
 
 func dialNNTP(config *Config) (NntpConnection, error) {
 	if config.dryRun {
-		return &nntp.Conn{}, nil
+		return &MockNntpConnection{}, nil
 	}
 
 	dialStr := config.getConnectionString()
 	var err error
-	var c *nntp.Conn
+	var c NntpConnection
 
 	for {
 		if config.tls {

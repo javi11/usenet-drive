@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"os"
+	"path/filepath"
 
 	"github.com/javi11/usenet-drive/internal/usenet/connectionpool"
 	"github.com/javi11/usenet-drive/internal/usenet/corruptednzbsmanager"
@@ -36,10 +37,10 @@ func NewFileReader(options ...Option) *fileReader {
 	}
 }
 
-func (fr *fileReader) OpenFile(ctx context.Context, name string, flag int, perm fs.FileMode, onClose func() error) (bool, webdav.File, error) {
+func (fr *fileReader) OpenFile(ctx context.Context, path string, flag int, perm fs.FileMode, onClose func() error) (bool, webdav.File, error) {
 	return openFile(
 		ctx,
-		name,
+		path,
 		flag,
 		perm,
 		fr.cp,
@@ -51,30 +52,29 @@ func (fr *fileReader) OpenFile(ctx context.Context, name string, flag int, perm 
 	)
 }
 
-func (fr *fileReader) Stat(name string) (bool, fs.FileInfo, error) {
+func (fr *fileReader) Stat(path string) (bool, fs.FileInfo, error) {
 	var stat fs.FileInfo
-	if !isNzbFile(name) {
-		originalFile := getOriginalNzb(fr.fs, name)
+	if !isNzbFile(path) {
+		originalFile := getOriginalNzb(fr.fs, path)
 		if originalFile != nil {
 			// If the file is a masked call the original nzb file
-			name = originalFile.Name()
+			path = filepath.Join(filepath.Dir(path), originalFile.Name())
 			stat = originalFile
 		} else {
 			return false, nil, nil
 		}
 	} else {
-		s, err := fr.fs.Stat(name)
+		s, err := fr.fs.Stat(path)
 		if err != nil {
 			return true, nil, err
 		}
 
 		stat = s
-		name = stat.Name()
 	}
 
 	// If file is a nzb file return a custom file that will mask the nzb
 	fi, err := NewFileInfoWithStat(
-		name,
+		path,
 		fr.log,
 		fr.nzbLoader,
 		stat,

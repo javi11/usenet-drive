@@ -40,7 +40,7 @@ func TestFileReader_Stat(t *testing.T) {
 		}
 
 		mockFsStat := osfs.NewMockFileInfo(ctrl)
-		mockFsStat.EXPECT().Name().Return("test.nzb").Times(2)
+		mockFsStat.EXPECT().Name().Return("test.nzb").Times(1)
 
 		fs.EXPECT().Stat("test.nzb").Return(mockFsStat, nil).Times(1)
 		mockNzbLoader.EXPECT().LoadFromFile("test.nzb").Return(&nzbloader.NzbCache{
@@ -136,7 +136,6 @@ func TestFileReader_Stat(t *testing.T) {
 		}
 
 		mockFsStat := osfs.NewMockFileInfo(ctrl)
-		mockFsStat.EXPECT().Name().Return("test.nzb").Times(1)
 
 		fs.EXPECT().Stat("test.nzb").Return(mockFsStat, nil).Times(1)
 		mockNzbLoader.EXPECT().LoadFromFile("test.nzb").Return(nil, ErrCorruptedNzb)

@@ -95,13 +95,18 @@ func (f *file) Readdir(n int) ([]os.FileInfo, error) {
 	var merr multierror.Group
 
 	for i, info := range infos {
+		if info.IsDir() {
+			continue
+		}
+
 		name := info.Name()
 		i := i
 		merr.Go(func() error {
 			if info == nil {
 				return nil
 			}
-			ok, s, err := f.fileReader.Stat(filepath.Join(f.innerFile.Name(), name))
+			pathJoin := filepath.Join(f.innerFile.Name(), name)
+			ok, s, err := f.fileReader.Stat(pathJoin)
 			if err != nil {
 				return err
 			}

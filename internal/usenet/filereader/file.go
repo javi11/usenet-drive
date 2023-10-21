@@ -11,7 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hashicorp/go-multierror"
 	"github.com/javi11/usenet-drive/internal/usenet"
 	"github.com/javi11/usenet-drive/internal/usenet/connectionpool"
 	"github.com/javi11/usenet-drive/internal/usenet/corruptednzbsmanager"
@@ -20,7 +19,7 @@ import (
 )
 
 type file struct {
-	name      string
+	path      string
 	buffer    Buffer
 	innerFile osfs.File
 	fsMutex   sync.RWMutex
@@ -34,7 +33,7 @@ type file struct {
 
 func openFile(
 	ctx context.Context,
-	name string,
+	path string,
 	flag int,
 	perm os.FileMode,
 	cp connectionpool.UsenetConnectionPool,
@@ -44,24 +43,24 @@ func openFile(
 	cNzb corruptednzbsmanager.CorruptedNzbsManager,
 	fs osfs.FileSystem,
 ) (bool, *file, error) {
-	if !isNzbFile(name) {
-		originalFile := getOriginalNzb(fs, name)
+	if !isNzbFile(path) {
+		originalFile := getOriginalNzb(fs, path)
 		if originalFile != nil {
 			// If the file is a masked call the original nzb file
-			name = originalFile.Name()
+			path = filepath.Join(filepath.Dir(path), originalFile.Name())
 		} else {
 			return false, nil, nil
 		}
 	}
 
-	f, err := fs.OpenFile(name, flag, perm)
+	f, err := fs.OpenFile(path, flag, perm)
 	if err != nil {
 		return true, nil, err
 	}
 
 	n, err := nzbLoader.LoadFromFileReader(f)
 	if err != nil {
-		log.ErrorContext(ctx, fmt.Sprintf("Error getting loading nzb %s", name), "err", err)
+		log.ErrorContext(ctx, fmt.Sprintf("Error getting loading nzb %s", path), "err", err)
 		return true, nil, os.ErrNotExist
 	}
 
@@ -74,7 +73,7 @@ func openFile(
 		innerFile: f,
 		buffer:    buffer,
 		metadata:  n.Metadata,
-		name:      usenet.ReplaceFileExtension(name, n.Metadata.FileExtension),
+		path:      usenet.ReplaceFileExtension(path, n.Metadata.FileExtension),
 		log:       log,
 		nzbLoader: nzbLoader,
 		onClose:   onClose,
@@ -114,7 +113,7 @@ func (f *file) Fd() uintptr {
 }
 
 func (f *file) Name() string {
-	return f.name
+	return f.path
 }
 
 func (f *file) Read(b []byte) (int, error) {
@@ -124,8 +123,8 @@ func (f *file) Read(b []byte) (int, error) {
 	n, err := f.buffer.Read(b)
 	if err != nil {
 		if errors.Is(err, ErrCorruptedNzb) {
-			f.log.Error("Marking file as corrupted:", "error", err, "fileName", f.name)
-			err := f.cNzb.Add(context.Background(), f.name, err.Error())
+			f.log.Error("Marking file as corrupted:", "error", err, "fileName", f.path)
+			err := f.cNzb.Add(context.Background(), f.path, err.Error())
 			if err != nil {
 				f.log.Error("Error adding corrupted nzb to the database:", "error", err)
 			}
@@ -146,8 +145,8 @@ func (f *file) ReadAt(b []byte, off int64) (int, error) {
 	n, err := f.buffer.ReadAt(b, off)
 	if err != nil {
 		if errors.Is(err, ErrCorruptedNzb) {
-			f.log.Error("Marking file as corrupted:", "error", err, "fileName", f.name)
-			err := f.cNzb.Add(context.Background(), f.name, err.Error())
+			f.log.Error("Marking file as corrupted:", "error", err, "fileName", f.path)
+			err := f.cNzb.Add(context.Background(), f.path, err.Error())
 			if err != nil {
 				f.log.Error("Error adding corrupted nzb to the database:", "error", err)
 			}
@@ -162,67 +161,8 @@ func (f *file) ReadAt(b []byte, off int64) (int, error) {
 }
 
 func (f *file) Readdir(n int) ([]os.FileInfo, error) {
-	f.fsMutex.RLock()
-	defer f.fsMutex.RUnlock()
-	infos, err := f.innerFile.Readdir(n)
-	if err != nil {
-		return nil, err
-	}
-
-	var merr multierror.Group
-
-	for i, info := range infos {
-		i := i
-		stat := info
-		name := stat.Name()
-
-		if !isNzbFile(name) {
-			originalFile := getOriginalNzb(f.fs, name)
-			if originalFile != nil {
-				// If the file is a masked call the original nzb file
-				stat = originalFile
-				name = stat.Name()
-			} else {
-				infos[i] = info
-				continue
-			}
-		}
-
-		merr.Go(func() error {
-			path := filepath.Join(f.innerFile.Name(), name)
-			inf, err := NewFileInfoWithStat(
-				path,
-				f.log,
-				f.nzbLoader,
-				stat,
-			)
-			if err != nil {
-				infos[i] = nil
-				return err
-			}
-
-			infos[i] = inf
-
-			return nil
-		})
-
-	}
-
-	if err := merr.Wait(); err != nil {
-		f.log.Error("error reading remote directory", "error", err)
-
-		// Remove nulls from infos
-		var filteredInfos []os.FileInfo
-		for _, info := range infos {
-			if info != nil {
-				filteredInfos = append(filteredInfos, info)
-			}
-		}
-
-		return filteredInfos, nil
-	}
-
-	return infos, nil
+	// remote files will never be a dir
+	return []os.FileInfo{}, os.ErrPermission
 }
 
 func (f *file) Readdirnames(n int) ([]string, error) {
@@ -253,8 +193,8 @@ func (f *file) Stat() (os.FileInfo, error) {
 	defer f.fsMutex.RUnlock()
 
 	return NeFileInfoWithMetadata(
-		f.metadata,
 		f.innerFile.Name(),
+		f.metadata,
 		f.fs,
 	)
 }
