@@ -65,12 +65,12 @@ var rootCmd = &cobra.Command{
 
 		// download connection pool
 		downloadConnPool, err := connectionpool.NewConnectionPool(
-			connectionpool.WithHost(config.Usenet.Download.Host),
-			connectionpool.WithPort(config.Usenet.Download.Port),
-			connectionpool.WithUsername(config.Usenet.Download.Username),
-			connectionpool.WithPassword(config.Usenet.Download.Password),
-			connectionpool.WithTLS(config.Usenet.Download.SSL),
-			connectionpool.WithMaxConnections(config.Usenet.Download.MaxConnections),
+			connectionpool.WithHost(config.Usenet.Download.Provider.Host),
+			connectionpool.WithPort(config.Usenet.Download.Provider.Port),
+			connectionpool.WithUsername(config.Usenet.Download.Provider.Username),
+			connectionpool.WithPassword(config.Usenet.Download.Provider.Password),
+			connectionpool.WithTLS(config.Usenet.Download.Provider.SSL),
+			connectionpool.WithMaxConnections(config.Usenet.Download.Provider.MaxConnections),
 		)
 		if err != nil {
 			log.ErrorContext(ctx, "Failed to init usenet download pool: %v", err)
@@ -133,6 +133,9 @@ var rootCmd = &cobra.Command{
 			filereader.WithLogger(log),
 			filereader.WithNzbLoader(nzbLoader),
 			filereader.WithCorruptedNzbsManager(cNzbs),
+			filereader.WithFileSystem(osFs),
+			filereader.WithMaxDownloadRetries(config.Usenet.Download.MaxRetries),
+			filereader.WithMaxAheadDownloadSegments(config.Usenet.Download.MaxAheadDownloadSegments),
 		)
 
 		// Build webdav server

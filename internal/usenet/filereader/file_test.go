@@ -36,7 +36,22 @@ func TestOpenFile(t *testing.T) {
 		fs.EXPECT().Stat("test.nzb").Return(nil, os.ErrNotExist).Times(1)
 		fs.EXPECT().IsNotExist(os.ErrNotExist).Return(true).Times(1)
 
-		_, _, err := openFile(context.Background(), name, flag, perm, cp, log, onClose, mockNzbLoader, mockCNzb, fs)
+		_, _, err := openFile(
+			context.Background(),
+			name,
+			flag,
+			perm,
+			cp,
+			log,
+			onClose,
+			mockNzbLoader,
+			mockCNzb,
+			fs,
+			downloadConfig{
+				maxDownloadRetries:       5,
+				maxAheadDownloadSegments: 0,
+			},
+		)
 		assert.NoError(t, err)
 	})
 
@@ -48,7 +63,21 @@ func TestOpenFile(t *testing.T) {
 
 		fs.EXPECT().OpenFile(name, flag, perm).Return(nil, os.ErrNotExist).Times(1)
 
-		_, _, err := openFile(context.Background(), name, flag, perm, cp, log, onClose, mockNzbLoader, mockCNzb, fs)
+		_, _, err := openFile(
+			context.Background(),
+			name,
+			flag,
+			perm,
+			cp,
+			log,
+			onClose,
+			mockNzbLoader,
+			mockCNzb,
+			fs,
+			downloadConfig{
+				maxDownloadRetries:       5,
+				maxAheadDownloadSegments: 0,
+			})
 		assert.ErrorIs(t, err, os.ErrNotExist)
 	})
 
@@ -76,7 +105,21 @@ func TestOpenFile(t *testing.T) {
 		}, nil).Times(1)
 
 		// Call
-		ok, file, err := openFile(context.Background(), name, flag, perm, cp, log, onClose, mockNzbLoader, mockCNzb, fs)
+		ok, file, err := openFile(
+			context.Background(),
+			name,
+			flag,
+			perm,
+			cp,
+			log,
+			onClose,
+			mockNzbLoader,
+			mockCNzb,
+			fs,
+			downloadConfig{
+				maxDownloadRetries:       5,
+				maxAheadDownloadSegments: 0,
+			})
 
 		assert.NoError(t, err)
 		assert.True(t, ok)
@@ -113,7 +156,22 @@ func TestOpenFile(t *testing.T) {
 		}, nil).Times(1)
 
 		// Call
-		ok, file, err := openFile(context.Background(), name, flag, perm, cp, log, onClose, mockNzbLoader, mockCNzb, fs)
+		ok, file, err := openFile(
+			context.Background(),
+			name,
+			flag,
+			perm,
+			cp,
+			log,
+			onClose,
+			mockNzbLoader,
+			mockCNzb,
+			fs,
+			downloadConfig{
+				maxDownloadRetries:       5,
+				maxAheadDownloadSegments: 0,
+			},
+		)
 
 		assert.NoError(t, err)
 		assert.True(t, ok)
@@ -130,7 +188,21 @@ func TestOpenFile(t *testing.T) {
 		fs.EXPECT().OpenFile("test.nzb", flag, perm).Return(mockFile, nil).Times(1)
 		mockNzbLoader.EXPECT().LoadFromFileReader(mockFile).Return(nil, ErrCorruptedNzb).Times(1)
 
-		ok, _, err := openFile(context.Background(), name, flag, perm, cp, log, onClose, mockNzbLoader, mockCNzb, fs)
+		ok, _, err := openFile(
+			context.Background(),
+			name,
+			flag,
+			perm,
+			cp,
+			log,
+			onClose,
+			mockNzbLoader,
+			mockCNzb,
+			fs,
+			downloadConfig{
+				maxDownloadRetries:       5,
+				maxAheadDownloadSegments: 0,
+			})
 		assert.ErrorIs(t, err, os.ErrNotExist)
 		// File exists but is corrupted
 		assert.True(t, ok)
@@ -144,7 +216,21 @@ func TestOpenFile(t *testing.T) {
 
 		fs.EXPECT().OpenFile("test.nzb", flag, perm).Return(nil, os.ErrPermission).Times(1)
 
-		ok, _, err := openFile(context.Background(), name, flag, perm, cp, log, onClose, mockNzbLoader, mockCNzb, fs)
+		ok, _, err := openFile(
+			context.Background(),
+			name,
+			flag,
+			perm,
+			cp,
+			log,
+			onClose,
+			mockNzbLoader,
+			mockCNzb,
+			fs,
+			downloadConfig{
+				maxDownloadRetries:       5,
+				maxAheadDownloadSegments: 0,
+			})
 		assert.ErrorIs(t, err, os.ErrPermission)
 		// File should be an nzb at this point but we cannot open it
 		assert.True(t, ok)

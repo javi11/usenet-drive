@@ -26,7 +26,7 @@ type Option func(*Config)
 
 func defaultConfig() *Config {
 	return &Config{
-		maxUploadRetries: 5,
+		maxUploadRetries: 8,
 	}
 }
 

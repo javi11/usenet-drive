@@ -4,12 +4,14 @@ api_port: 8081
 db_path: /config/usenet-drive.db
 usenet:
   download:
-    host: my.usenet.server
-    port: 80
-    username: pepe
-    password: 1234
-    ssl: true
-    max_connections: 49
+    max_ahead_download_segments: 1
+    provider:
+      host: my.usenet.server
+      port: 80
+      username: pepe
+      password: 1234
+      ssl: true
+      max_connections: 49
   upload:
     provider:
       host: post.otherusenet.server

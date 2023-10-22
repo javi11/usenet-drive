@@ -169,8 +169,18 @@ The `usenet` struct defines the Usenet configuration.
 
 ### Fields
 
-- `download` (UsenetProvider): The Usenet provider for downloading.
+- `download` (Download): The Usenet provider for downloading.
 - `upload` (Upload): The Usenet options for uploading.
+
+## Download Struct
+
+The `Download` struct defines the Usenet provider for downloading.
+
+### Fields
+
+- `provider` (UsenetProvider): Usenet provider to download files
+- `max_ahead_download_segments` (string): The maximum number of segments to download ahead. Default value is `1`. Be aware that increasing this value will increase the memory usage and connections usage.
+- `max_retries` (int): The maximum number of retries to download a segment. Default value is `8`.
 
 ## Upload Struct
 
@@ -181,6 +191,7 @@ The `Upload` struct defines the Usenet provider for uploading.
 - `provider` (UsenetProvider): Usenet provider to upload files
   Alternatively, you can use the same provider and split the available connections to allow more parallel uploads.
 - `file_allow_list` ([]string): The list of allowed file extensions. For example, `[".mkv", ".mp4"]`, in this case only files with the extensions `.mkv` and `.mp4` will be uploaded to usenet. Take care not upload files that change frequently, like subtitules or text files, since they will be uploaded every time they change. In usenet you can not edit files. **_If using rclone crypt all file extensions will ends with .bin so in order to specify the real extension, you must add .bin at the end. Ex: .mkv.bin ._**
+- `max_retries` (int): The maximum number of retries to upload a segment. Default value is `8`.
 
 ## UsenetProvider Struct
 

@@ -30,18 +30,25 @@ type Buffer interface {
 
 // Buf is a Buffer working on a slice of bytes.
 type buffer struct {
-	size               int
-	nzbFile            *nzb.NzbFile
-	ptr                int64
-	cache              *lru.Cache[string, *yenc.Part]
-	cp                 connectionpool.UsenetConnectionPool
-	chunkSize          int
-	maxDownloadRetries int
-	log                *slog.Logger
+	size      int
+	nzbFile   *nzb.NzbFile
+	ptr       int64
+	cache     *lru.Cache[string, *yenc.Part]
+	cp        connectionpool.UsenetConnectionPool
+	chunkSize int
+	dc        downloadConfig
+	log       *slog.Logger
 }
 
 // NewBuffer creates a new data volume based on a buffer
-func NewBuffer(nzbFile *nzb.NzbFile, size int, chunkSize int, cp connectionpool.UsenetConnectionPool, log *slog.Logger) (Buffer, error) {
+func NewBuffer(
+	nzbFile *nzb.NzbFile,
+	size int,
+	chunkSize int,
+	dc downloadConfig,
+	cp connectionpool.UsenetConnectionPool,
+	log *slog.Logger,
+) (Buffer, error) {
 	// Article cache can not be too big since it is stored in memory
 	// With 100 the max memory used is 100 * 740kb = 74mb peer stream
 	// This is mainly used to not download twice the same article multiple times if was not already
@@ -52,13 +59,13 @@ func NewBuffer(nzbFile *nzb.NzbFile, size int, chunkSize int, cp connectionpool.
 	}
 
 	return &buffer{
-		chunkSize:          chunkSize,
-		size:               size,
-		nzbFile:            nzbFile,
-		cache:              cache,
-		cp:                 cp,
-		maxDownloadRetries: 5,
-		log:                log,
+		chunkSize: chunkSize,
+		size:      size,
+		nzbFile:   nzbFile,
+		cache:     cache,
+		cp:        cp,
+		dc:        dc,
+		log:       log,
 	}, nil
 }
 
@@ -114,9 +121,27 @@ func (v *buffer) Read(p []byte) (int, error) {
 	currentSegment := int(float64(v.ptr) / float64(v.chunkSize))
 	beginReadAt := max((int(v.ptr) - (currentSegment * v.chunkSize)), 0)
 
-	for _, segment := range v.nzbFile.Segments[currentSegment:] {
+	for i, segment := range v.nzbFile.Segments[currentSegment:] {
 		if n >= len(p) {
 			break
+		}
+
+		nextSegmentIndex := currentSegment + i + 1
+		if nextSegmentIndex < len(v.nzbFile.Segments) {
+			// Preload next segments
+			for j := 0; j < v.dc.maxAheadDownloadSegments; j++ {
+				if nextSegmentIndex+j >= len(v.nzbFile.Segments) {
+					break
+				}
+
+				nextSegmentIndex := nextSegmentIndex + j
+				go func() {
+					_, err := v.downloadSegment(v.nzbFile.Segments[nextSegmentIndex], v.nzbFile.Groups)
+					if err != nil {
+						v.log.Error("Error downloading segment.", "error", err, "segment", segment.Number)
+					}
+				}()
+			}
 		}
 
 		chunk, err := v.downloadSegment(segment, v.nzbFile.Groups)
@@ -152,10 +177,28 @@ func (v *buffer) ReadAt(p []byte, off int64) (int, error) {
 	currentSegment := int(float64(off) / float64(v.chunkSize))
 	beginReadAt := max((int(off) - (currentSegment * v.chunkSize)), 0)
 
-	for _, segment := range v.nzbFile.Segments[currentSegment:] {
+	for i, segment := range v.nzbFile.Segments[currentSegment:] {
 		if n >= len(p) {
 			break
 		}
+		nextSegmentIndex := currentSegment + i + 1
+		if nextSegmentIndex < len(v.nzbFile.Segments) {
+			// Preload next segments
+			for j := 0; j < v.dc.maxAheadDownloadSegments; j++ {
+				if nextSegmentIndex+j >= len(v.nzbFile.Segments) {
+					break
+				}
+
+				nextSegmentIndex := nextSegmentIndex + j
+				go func() {
+					_, err := v.downloadSegment(v.nzbFile.Segments[nextSegmentIndex], v.nzbFile.Groups)
+					if err != nil {
+						v.log.Error("Error downloading segment.", "error", err, "segment", segment.Number)
+					}
+				}()
+			}
+		}
+
 		chunk, err := v.downloadSegment(segment, v.nzbFile.Groups)
 		if err != nil {
 			break
@@ -214,11 +257,10 @@ func (v *buffer) downloadSegment(segment nzb.NzbSegment, groups []string) (*yenc
 			}
 
 			chunk = yread
-			v.cache.Add(segment.Id, chunk)
 
 			return nil
 		},
-			retry.Attempts(uint(v.maxDownloadRetries)),
+			retry.Attempts(uint(v.dc.maxDownloadRetries)),
 			retry.DelayType(retry.FixedDelay),
 			retry.RetryIf(func(err error) bool {
 				return connectionpool.IsRetryable(err)
@@ -247,6 +289,8 @@ func (v *buffer) downloadSegment(segment nzb.NzbSegment, groups []string) (*yenc
 			}
 			return nil, errors.Join(ErrCorruptedNzb, err)
 		}
+
+		v.cache.Add(segment.Id, chunk)
 	}
 
 	return chunk, nil

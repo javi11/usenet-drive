@@ -20,6 +20,7 @@ type fileReader struct {
 	nzbLoader nzbloader.NzbLoader
 	cNzb      corruptednzbsmanager.CorruptedNzbsManager
 	fs        osfs.FileSystem
+	dc        downloadConfig
 }
 
 func NewFileReader(options ...Option) *fileReader {
@@ -34,6 +35,7 @@ func NewFileReader(options ...Option) *fileReader {
 		nzbLoader: config.nzbLoader,
 		cNzb:      config.cNzb,
 		fs:        config.fs,
+		dc:        config.dc,
 	}
 }
 
@@ -49,6 +51,7 @@ func (fr *fileReader) OpenFile(ctx context.Context, path string, flag int, perm 
 		fr.nzbLoader,
 		fr.cNzb,
 		fr.fs,
+		fr.dc,
 	)
 }
 

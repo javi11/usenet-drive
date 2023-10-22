@@ -24,16 +24,22 @@ type Rclone struct {
 }
 
 type Usenet struct {
-	Download           UsenetProvider `yaml:"download"`
-	Upload             Upload         `yaml:"upload"`
-	ArticleSizeInBytes int64          `yaml:"article_size_in_bytes" default:"750000"`
+	Download           Download `yaml:"download"`
+	Upload             Upload   `yaml:"upload"`
+	ArticleSizeInBytes int64    `yaml:"article_size_in_bytes" default:"750000"`
+}
+
+type Download struct {
+	Provider                 UsenetProvider `yaml:"provider"`
+	MaxAheadDownloadSegments int            `yaml:"max_ahead_download_segments" default:"10"`
+	MaxRetries               int            `yaml:"max_retries" default:"8"`
 }
 
 type Upload struct {
 	DryRun        bool           `yaml:"dry_run" default:"false"`
 	Provider      UsenetProvider `yaml:"provider"`
 	FileAllowlist []string       `yaml:"file_allow_list"`
-	MaxRetries    int            `yaml:"max_retries" default:"5"`
+	MaxRetries    int            `yaml:"max_retries" default:"8"`
 }
 
 type UsenetProvider struct {

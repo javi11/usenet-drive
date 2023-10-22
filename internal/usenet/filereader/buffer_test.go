@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"testing"
+	"time"
 
 	"github.com/chrisfarms/nntp"
 	"github.com/golang/mock/gomock"
@@ -43,14 +44,17 @@ func TestBuffer_Read(t *testing.T) {
 		})
 
 		buf := &buffer{
-			size:               3 * 100,
-			nzbFile:            nzbFile,
-			ptr:                0,
-			cache:              cache,
-			cp:                 mockPool,
-			chunkSize:          5,
-			maxDownloadRetries: 5,
-			log:                nil,
+			size:      3 * 100,
+			nzbFile:   nzbFile,
+			ptr:       0,
+			cache:     cache,
+			cp:        mockPool,
+			chunkSize: 5,
+			dc: downloadConfig{
+				maxDownloadRetries:       5,
+				maxAheadDownloadSegments: 0,
+			},
+			log: nil,
 		}
 
 		// Test empty read
@@ -66,14 +70,17 @@ func TestBuffer_Read(t *testing.T) {
 		})
 
 		buf := &buffer{
-			size:               3 * 100,
-			nzbFile:            nzbFile,
-			ptr:                0,
-			cache:              cache,
-			cp:                 mockPool,
-			chunkSize:          5,
-			maxDownloadRetries: 5,
-			log:                nil,
+			size:      3 * 100,
+			nzbFile:   nzbFile,
+			ptr:       0,
+			cache:     cache,
+			cp:        mockPool,
+			chunkSize: 5,
+			dc: downloadConfig{
+				maxDownloadRetries:       5,
+				maxAheadDownloadSegments: 0,
+			},
+			log: nil,
 		}
 
 		// Test read past end of buffer
@@ -90,14 +97,17 @@ func TestBuffer_Read(t *testing.T) {
 		})
 
 		buf := &buffer{
-			size:               3 * 100,
-			nzbFile:            nzbFile,
-			ptr:                0,
-			cache:              cache,
-			cp:                 mockPool,
-			chunkSize:          5,
-			maxDownloadRetries: 5,
-			log:                nil,
+			size:      3 * 100,
+			nzbFile:   nzbFile,
+			ptr:       0,
+			cache:     cache,
+			cp:        mockPool,
+			chunkSize: 5,
+			dc: downloadConfig{
+				maxDownloadRetries:       5,
+				maxAheadDownloadSegments: 0,
+			},
+			log: nil,
 		}
 
 		// Test read one segment
@@ -120,20 +130,72 @@ func TestBuffer_Read(t *testing.T) {
 		assert.Equal(t, int64(5), buf.ptr)
 	})
 
+	t.Run("TestBuffer_Read_PreloadOneSegment", func(t *testing.T) {
+		t.Cleanup(func() {
+			cache.Purge()
+		})
+
+		buf := &buffer{
+			size:      3 * 100,
+			nzbFile:   nzbFile,
+			ptr:       0,
+			cache:     cache,
+			cp:        mockPool,
+			chunkSize: 5,
+			dc: downloadConfig{
+				maxDownloadRetries:       5,
+				maxAheadDownloadSegments: 1,
+			},
+			log: nil,
+		}
+
+		// Test read one segment
+		mockConn := connectionpool.NewMockNntpConnection(ctrl)
+		mockPool.EXPECT().Get().Return(mockConn, nil).Times(2)
+		mockPool.EXPECT().Free(mockConn).Return(nil).Times(2)
+
+		expectedBody := "body1"
+		buff, err := generateYencBuff(expectedBody)
+		require.NoError(t, err)
+
+		expectedBody2 := "body2"
+		buff2, err := generateYencBuff(expectedBody2)
+		require.NoError(t, err)
+
+		mockConn.EXPECT().Body("<1>").Return(buff, nil).Times(1)
+		mockConn.EXPECT().Body("<2>").Return(buff2, nil).Times(1)
+		mockConn.EXPECT().Group("group1").Return(0, 0, 0, nil).Times(2)
+
+		p := make([]byte, 5)
+		n, err := buf.Read(p)
+
+		// wait preload to finish
+		time.Sleep(1000 * time.Millisecond)
+
+		assert.NoError(t, err)
+		assert.Equal(t, 5, n)
+		assert.Equal(t, []byte(expectedBody), p[:n])
+		assert.Equal(t, int64(5), buf.ptr)
+		assert.Equal(t, 2, buf.cache.Len())
+	})
+
 	t.Run("TestBuffer_Read_TwoSegments", func(t *testing.T) {
 		t.Cleanup(func() {
 			cache.Purge()
 		})
 
 		buf := &buffer{
-			size:               3 * 100,
-			nzbFile:            nzbFile,
-			ptr:                0,
-			cache:              cache,
-			cp:                 mockPool,
-			chunkSize:          5,
-			maxDownloadRetries: 5,
-			log:                nil,
+			size:      3 * 100,
+			nzbFile:   nzbFile,
+			ptr:       0,
+			cache:     cache,
+			cp:        mockPool,
+			chunkSize: 5,
+			dc: downloadConfig{
+				maxDownloadRetries:       5,
+				maxAheadDownloadSegments: 0,
+			},
+			log: nil,
 		}
 
 		mockConn := connectionpool.NewMockNntpConnection(ctrl)
@@ -186,14 +248,17 @@ func TestBuffer_ReadAt(t *testing.T) {
 		})
 
 		buf := &buffer{
-			size:               3 * 100,
-			nzbFile:            nzbFile,
-			ptr:                0,
-			cache:              cache,
-			cp:                 mockPool,
-			chunkSize:          5,
-			maxDownloadRetries: 5,
-			log:                nil,
+			size:      3 * 100,
+			nzbFile:   nzbFile,
+			ptr:       0,
+			cache:     cache,
+			cp:        mockPool,
+			chunkSize: 5,
+			dc: downloadConfig{
+				maxDownloadRetries:       5,
+				maxAheadDownloadSegments: 0,
+			},
+			log: nil,
 		}
 
 		// Test empty read
@@ -209,14 +274,17 @@ func TestBuffer_ReadAt(t *testing.T) {
 		})
 
 		buf := &buffer{
-			size:               3 * 100,
-			nzbFile:            nzbFile,
-			ptr:                0,
-			cache:              cache,
-			cp:                 mockPool,
-			chunkSize:          100,
-			maxDownloadRetries: 5,
-			log:                nil,
+			size:      3 * 100,
+			nzbFile:   nzbFile,
+			ptr:       0,
+			cache:     cache,
+			cp:        mockPool,
+			chunkSize: 100,
+			dc: downloadConfig{
+				maxDownloadRetries:       5,
+				maxAheadDownloadSegments: 0,
+			},
+			log: nil,
 		}
 
 		// Test read past end of buffer
@@ -232,14 +300,17 @@ func TestBuffer_ReadAt(t *testing.T) {
 		})
 
 		buf := &buffer{
-			size:               3 * 100,
-			nzbFile:            nzbFile,
-			ptr:                0,
-			cache:              cache,
-			cp:                 mockPool,
-			chunkSize:          5,
-			maxDownloadRetries: 5,
-			log:                nil,
+			size:      3 * 100,
+			nzbFile:   nzbFile,
+			ptr:       0,
+			cache:     cache,
+			cp:        mockPool,
+			chunkSize: 5,
+			dc: downloadConfig{
+				maxDownloadRetries:       5,
+				maxAheadDownloadSegments: 0,
+			},
+			log: nil,
 		}
 
 		mockConn := connectionpool.NewMockNntpConnection(ctrl)
@@ -266,14 +337,17 @@ func TestBuffer_ReadAt(t *testing.T) {
 		})
 
 		buf := &buffer{
-			size:               3 * 100,
-			nzbFile:            nzbFile,
-			ptr:                0,
-			cache:              cache,
-			cp:                 mockPool,
-			chunkSize:          5,
-			maxDownloadRetries: 5,
-			log:                nil,
+			size:      3 * 100,
+			nzbFile:   nzbFile,
+			ptr:       0,
+			cache:     cache,
+			cp:        mockPool,
+			chunkSize: 5,
+			dc: downloadConfig{
+				maxDownloadRetries:       5,
+				maxAheadDownloadSegments: 0,
+			},
+			log: nil,
 		}
 
 		// Test read two segments
@@ -326,14 +400,17 @@ func TestBuffer_Seek(t *testing.T) {
 		})
 
 		buf := &buffer{
-			size:               3 * 100,
-			nzbFile:            nzbFile,
-			ptr:                0,
-			cache:              cache,
-			cp:                 mockPool,
-			chunkSize:          5,
-			maxDownloadRetries: 5,
-			log:                nil,
+			size:      3 * 100,
+			nzbFile:   nzbFile,
+			ptr:       0,
+			cache:     cache,
+			cp:        mockPool,
+			chunkSize: 5,
+			dc: downloadConfig{
+				maxDownloadRetries:       5,
+				maxAheadDownloadSegments: 0,
+			},
+			log: nil,
 		}
 
 		// Test seek start
@@ -348,14 +425,17 @@ func TestBuffer_Seek(t *testing.T) {
 		})
 
 		buf := &buffer{
-			size:               3 * 100,
-			nzbFile:            nzbFile,
-			ptr:                0,
-			cache:              cache,
-			cp:                 mockPool,
-			chunkSize:          5,
-			maxDownloadRetries: 5,
-			log:                nil,
+			size:      3 * 100,
+			nzbFile:   nzbFile,
+			ptr:       0,
+			cache:     cache,
+			cp:        mockPool,
+			chunkSize: 5,
+			dc: downloadConfig{
+				maxDownloadRetries:       5,
+				maxAheadDownloadSegments: 0,
+			},
+			log: nil,
 		}
 
 		// Test seek current
@@ -370,14 +450,17 @@ func TestBuffer_Seek(t *testing.T) {
 		})
 
 		buf := &buffer{
-			size:               3 * 100,
-			nzbFile:            nzbFile,
-			ptr:                0,
-			cache:              cache,
-			cp:                 mockPool,
-			chunkSize:          5,
-			maxDownloadRetries: 5,
-			log:                nil,
+			size:      3 * 100,
+			nzbFile:   nzbFile,
+			ptr:       0,
+			cache:     cache,
+			cp:        mockPool,
+			chunkSize: 5,
+			dc: downloadConfig{
+				maxDownloadRetries:       5,
+				maxAheadDownloadSegments: 0,
+			},
+			log: nil,
 		}
 
 		// Test seek end
@@ -393,14 +476,17 @@ func TestBuffer_Seek(t *testing.T) {
 		})
 
 		buf := &buffer{
-			size:               3 * 100,
-			nzbFile:            nzbFile,
-			ptr:                0,
-			cache:              cache,
-			cp:                 mockPool,
-			chunkSize:          5,
-			maxDownloadRetries: 5,
-			log:                nil,
+			size:      3 * 100,
+			nzbFile:   nzbFile,
+			ptr:       0,
+			cache:     cache,
+			cp:        mockPool,
+			chunkSize: 5,
+			dc: downloadConfig{
+				maxDownloadRetries:       5,
+				maxAheadDownloadSegments: 0,
+			},
+			log: nil,
 		}
 
 		// Test invalid whence
@@ -413,14 +499,17 @@ func TestBuffer_Seek(t *testing.T) {
 			cache.Purge()
 		})
 		buf := &buffer{
-			size:               3 * 100,
-			nzbFile:            nzbFile,
-			ptr:                0,
-			cache:              cache,
-			cp:                 mockPool,
-			chunkSize:          100,
-			maxDownloadRetries: 5,
-			log:                nil,
+			size:      3 * 100,
+			nzbFile:   nzbFile,
+			ptr:       0,
+			cache:     cache,
+			cp:        mockPool,
+			chunkSize: 100,
+			dc: downloadConfig{
+				maxDownloadRetries:       5,
+				maxAheadDownloadSegments: 0,
+			},
+			log: nil,
 		}
 
 		// Test negative position
@@ -434,14 +523,17 @@ func TestBuffer_Seek(t *testing.T) {
 		})
 
 		buf := &buffer{
-			size:               3 * 100,
-			nzbFile:            nzbFile,
-			ptr:                0,
-			cache:              cache,
-			cp:                 mockPool,
-			chunkSize:          100,
-			maxDownloadRetries: 5,
-			log:                nil,
+			size:      3 * 100,
+			nzbFile:   nzbFile,
+			ptr:       0,
+			cache:     cache,
+			cp:        mockPool,
+			chunkSize: 100,
+			dc: downloadConfig{
+				maxDownloadRetries:       5,
+				maxAheadDownloadSegments: 0,
+			},
+			log: nil,
 		}
 
 		// Test too far
@@ -469,14 +561,17 @@ func TestBuffer_Close(t *testing.T) {
 	require.NoError(t, err)
 
 	buf := &buffer{
-		size:               3 * 100,
-		nzbFile:            nzbFile,
-		ptr:                0,
-		cache:              cache,
-		cp:                 mockPool,
-		chunkSize:          100,
-		maxDownloadRetries: 5,
-		log:                nil,
+		size:      3 * 100,
+		nzbFile:   nzbFile,
+		ptr:       0,
+		cache:     cache,
+		cp:        mockPool,
+		chunkSize: 100,
+		dc: downloadConfig{
+			maxDownloadRetries:       5,
+			maxAheadDownloadSegments: 0,
+		},
+		log: nil,
 	}
 
 	err = buf.Close()
@@ -502,14 +597,17 @@ func TestBuffer_downloadSegment(t *testing.T) {
 	require.NoError(t, err)
 
 	buf := &buffer{
-		size:               3 * 100,
-		nzbFile:            nzbFile,
-		ptr:                0,
-		cache:              cache,
-		cp:                 mockPool,
-		chunkSize:          5,
-		maxDownloadRetries: 5,
-		log:                slog.Default(),
+		size:      3 * 100,
+		nzbFile:   nzbFile,
+		ptr:       0,
+		cache:     cache,
+		cp:        mockPool,
+		chunkSize: 5,
+		dc: downloadConfig{
+			maxDownloadRetries:       5,
+			maxAheadDownloadSegments: 0,
+		},
+		log: slog.Default(),
 	}
 
 	t.Run("Test download segment", func(t *testing.T) {

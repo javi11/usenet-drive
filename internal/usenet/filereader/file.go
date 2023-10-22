@@ -42,6 +42,7 @@ func openFile(
 	nzbLoader nzbloader.NzbLoader,
 	cNzb corruptednzbsmanager.CorruptedNzbsManager,
 	fs osfs.FileSystem,
+	dc downloadConfig,
 ) (bool, *file, error) {
 	if !isNzbFile(path) {
 		originalFile := getOriginalNzb(fs, path)
@@ -64,7 +65,14 @@ func openFile(
 		return true, nil, os.ErrNotExist
 	}
 
-	buffer, err := NewBuffer(&n.Nzb.Files[0], int(n.Metadata.FileSize), int(n.Metadata.ChunkSize), cp, log)
+	buffer, err := NewBuffer(
+		&n.Nzb.Files[0],
+		int(n.Metadata.FileSize),
+		int(n.Metadata.ChunkSize),
+		dc,
+		cp,
+		log,
+	)
 	if err != nil {
 		return true, nil, err
 	}
