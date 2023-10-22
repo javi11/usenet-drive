@@ -527,7 +527,7 @@ func TestBuffer_downloadSegment(t *testing.T) {
 		mockConn.EXPECT().Group("group1").Return(0, 0, 0, nil).Times(1)
 		mockConn.EXPECT().Body("<1>").Return(buff, nil).Times(1)
 
-		part, err := buf.downloadSegment(nzbFile.Segments[0], nzbFile.Groups, 5)
+		part, err := buf.downloadSegment(nzbFile.Segments[0], nzbFile.Groups)
 		assert.NoError(t, err)
 		assert.Equal(t, []byte("body1"), part.Body)
 	})
@@ -547,12 +547,12 @@ func TestBuffer_downloadSegment(t *testing.T) {
 		mockConn.EXPECT().Group("group1").Return(0, 0, 0, nil).Times(1)
 		mockConn.EXPECT().Body("<1>").Return(buff, nil).Times(1)
 
-		part, err := buf.downloadSegment(nzbFile.Segments[0], nzbFile.Groups, 5)
+		part, err := buf.downloadSegment(nzbFile.Segments[0], nzbFile.Groups)
 		assert.NoError(t, err)
 		assert.Equal(t, []byte("body1"), part.Body)
 
 		mockPool.EXPECT().Get().Return(mockConn, nil).Times(0)
-		partCached, err := buf.downloadSegment(nzbFile.Segments[0], nzbFile.Groups, 5)
+		partCached, err := buf.downloadSegment(nzbFile.Segments[0], nzbFile.Groups)
 		assert.NoError(t, err)
 		assert.Equal(t, []byte("body1"), partCached.Body)
 		assert.Equal(t, cache.Len(), 1)
@@ -562,7 +562,7 @@ func TestBuffer_downloadSegment(t *testing.T) {
 	t.Run("Test error getting connection", func(t *testing.T) {
 		mockPool.EXPECT().Get().Return(nil, errors.New("error")).Times(1)
 
-		_, err = buf.downloadSegment(nzbFile.Segments[0], nzbFile.Groups, 5)
+		_, err = buf.downloadSegment(nzbFile.Segments[0], nzbFile.Groups)
 		assert.Error(t, err)
 	})
 
@@ -573,7 +573,7 @@ func TestBuffer_downloadSegment(t *testing.T) {
 		mockPool.EXPECT().Free(mockConn).Return(nil).Times(1)
 		mockConn.EXPECT().Group("group1").Return(0, 0, 0, errors.New("error")).Times(1)
 
-		_, err = buf.downloadSegment(nzbFile.Segments[1], nzbFile.Groups, 5)
+		_, err = buf.downloadSegment(nzbFile.Segments[1], nzbFile.Groups)
 		assert.Error(t, err)
 	})
 
@@ -585,27 +585,59 @@ func TestBuffer_downloadSegment(t *testing.T) {
 		mockConn.EXPECT().Group("group1").Return(0, 0, 0, nil).Times(1)
 
 		mockConn.EXPECT().Body("<3>").Return(nil, errors.New("some error")).Times(1)
-		_, err = buf.downloadSegment(nzbFile.Segments[2], nzbFile.Groups, 5)
-		assert.True(t, errors.Is(err, ErrCorruptedNzb))
+		_, err = buf.downloadSegment(nzbFile.Segments[2], nzbFile.Groups)
+		assert.ErrorIs(t, err, ErrCorruptedNzb)
 	})
 
-	t.Run("Test retrying after a retirable error", func(t *testing.T) {
+	t.Run("Test retrying after a body retirable error", func(t *testing.T) {
 		mockConn := connectionpool.NewMockNntpConnection(ctrl)
-		mockPool.EXPECT().Get().Return(mockConn, nil).Times(2)
-		mockPool.EXPECT().Free(mockConn).Return(nil).Times(2)
-		mockConn.EXPECT().Group("group1").Return(0, 0, 0, nil).Times(2)
+		mockConn2 := connectionpool.NewMockNntpConnection(ctrl)
+
+		mockPool.EXPECT().Get().Return(mockConn, nil).Times(1)
+		mockPool.EXPECT().Close(mockConn).Return(nil).Times(1)
+		mockConn.EXPECT().Group("group1").Return(0, 0, 0, nil).Times(1)
+		mockConn.EXPECT().Body("<3>").Return(nil, nntp.Error{Code: 441}).Times(1)
+
+		mockPool.EXPECT().Get().Return(mockConn2, nil).Times(1)
+		mockPool.EXPECT().Free(mockConn2).Return(nil).Times(1)
+		mockConn2.EXPECT().Group("group1").Return(0, 0, 0, nil).Times(1)
 
 		expectedBody1 := "body1"
 		buff, err := generateYencBuff(expectedBody1)
 		require.NoError(t, err)
 
-		mockConn.EXPECT().Body("<3>").Return(nil, nntp.Error{Code: 441}).Times(1)
-		mockConn.EXPECT().Body("<3>").Return(buff, nil).Times(1)
-		part, err := buf.downloadSegment(nzbFile.Segments[2], nzbFile.Groups, 0)
+		mockConn2.EXPECT().Body("<3>").Return(buff, nil).Times(1)
+		part, err := buf.downloadSegment(nzbFile.Segments[2], nzbFile.Groups)
 
-		assert.Equal(t, []byte("body1"), part.Body)
 		assert.NoError(t, err)
+		assert.NotNil(t, part)
+		assert.Equal(t, []byte("body1"), part.Body)
 	})
+
+	t.Run("Test retrying after a group retirable error", func(t *testing.T) {
+		mockConn := connectionpool.NewMockNntpConnection(ctrl)
+		mockConn2 := connectionpool.NewMockNntpConnection(ctrl)
+
+		mockPool.EXPECT().Get().Return(mockConn, nil).Times(1)
+		mockPool.EXPECT().Close(mockConn).Return(nil).Times(1)
+		mockConn.EXPECT().Group("group1").Return(0, 0, 0, nntp.Error{Code: 441}).Times(1)
+
+		mockPool.EXPECT().Get().Return(mockConn2, nil).Times(1)
+		mockPool.EXPECT().Free(mockConn2).Return(nil).Times(1)
+		mockConn2.EXPECT().Group("group1").Return(0, 0, 0, nil).Times(1)
+
+		expectedBody1 := "body1"
+		buff, err := generateYencBuff(expectedBody1)
+		require.NoError(t, err)
+
+		mockConn2.EXPECT().Body("<3>").Return(buff, nil).Times(1)
+		part, err := buf.downloadSegment(nzbFile.Segments[2], nzbFile.Groups)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, part)
+		assert.Equal(t, []byte("body1"), part.Body)
+	})
+
 }
 
 func generateYencBuff(s string) (*bytes.Buffer, error) {

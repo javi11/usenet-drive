@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 
+	"github.com/avast/retry-go"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/javi11/usenet-drive/internal/usenet"
 	"github.com/javi11/usenet-drive/internal/usenet/connectionpool"
@@ -117,7 +118,8 @@ func (v *buffer) Read(p []byte) (int, error) {
 		if n >= len(p) {
 			break
 		}
-		chunk, err := v.downloadSegment(segment, v.nzbFile.Groups, 0)
+
+		chunk, err := v.downloadSegment(segment, v.nzbFile.Groups)
 		if err != nil {
 			if errors.Is(err, ErrCorruptedNzb) {
 				return n, err
@@ -154,7 +156,7 @@ func (v *buffer) ReadAt(p []byte, off int64) (int, error) {
 		if n >= len(p) {
 			break
 		}
-		chunk, err := v.downloadSegment(segment, v.nzbFile.Groups, 0)
+		chunk, err := v.downloadSegment(segment, v.nzbFile.Groups)
 		if err != nil {
 			break
 		}
@@ -166,7 +168,7 @@ func (v *buffer) ReadAt(p []byte, off int64) (int, error) {
 	return n, nil
 }
 
-func (v *buffer) downloadSegment(segment nzb.NzbSegment, groups []string, retries int) (*yenc.Part, error) {
+func (v *buffer) downloadSegment(segment nzb.NzbSegment, groups []string) (*yenc.Part, error) {
 	hit, _ := v.cache.Get(segment.Id)
 
 	var chunk *yenc.Part
@@ -182,10 +184,7 @@ func (v *buffer) downloadSegment(segment nzb.NzbSegment, groups []string, retrie
 					v.log.Error("Error closing connection on downloading a file.", "error", e)
 				}
 			}
-			v.log.Error("Error getting nntp connection:", "error", err, "retries", retries)
-			if retries < v.maxDownloadRetries {
-				return v.downloadSegment(segment, groups, retries+1)
-			}
+			v.log.Error("Error getting nntp connection:", "error", err)
 
 			return nil, err
 		}
@@ -195,32 +194,59 @@ func (v *buffer) downloadSegment(segment nzb.NzbSegment, groups []string, retrie
 			}
 		}()
 
-		err = usenet.FindGroup(conn, groups)
-		if err != nil {
-			if connectionpool.IsRetryable(err) && retries < v.maxDownloadRetries {
-				return v.downloadSegment(segment, groups, retries+1)
-			}
-			v.log.Error("Error finding nntp group:", "error", err)
-			return nil, err
-		}
-
-		body, err := conn.Body(fmt.Sprintf("<%v>", segment.Id))
-		if err != nil {
-			if connectionpool.IsRetryable(err) && retries < v.maxDownloadRetries {
-				return v.downloadSegment(segment, groups, retries+1)
+		retryErr := retry.Do(func() error {
+			err = usenet.FindGroup(conn, groups)
+			if err != nil {
+				v.log.Error("Error finding nntp group:", "error", err)
+				return err
 			}
 
-			v.log.Error("Error getting nntp article body, marking it as corrupted.", "error", err, "segment", segment.Number)
-			return nil, errors.Join(ErrCorruptedNzb, err)
-		}
-		yread, err := yenc.Decode(body)
-		if err != nil {
-			v.log.Error("Error decoding yenc article body:", "error", err, "segment", segment.Number)
-			return nil, errors.Join(ErrCorruptedNzb, err)
-		}
+			body, err := conn.Body(fmt.Sprintf("<%v>", segment.Id))
+			if err != nil {
+				v.log.Error("Error getting nntp article body, marking it as corrupted.", "error", err, "segment", segment.Number)
+				return err
+			}
 
-		chunk = yread
-		v.cache.Add(segment.Id, chunk)
+			yread, err := yenc.Decode(body)
+			if err != nil {
+				v.log.Error("Error decoding yenc article body:", "error", err, "segment", segment.Number)
+				return err
+			}
+
+			chunk = yread
+			v.cache.Add(segment.Id, chunk)
+
+			return nil
+		},
+			retry.Attempts(uint(v.maxDownloadRetries)),
+			retry.DelayType(retry.FixedDelay),
+			retry.RetryIf(func(err error) bool {
+				return connectionpool.IsRetryable(err)
+			}),
+			retry.OnRetry(func(n uint, err error) {
+				v.log.Info("Error downloading segment. Retrying", "error", err, "header", segment.Id, "retry", n)
+
+				err = v.cp.Close(conn)
+				if err != nil {
+					v.log.Error("Error closing connection.", "error", err)
+				}
+
+				c, err := v.cp.Get()
+				if err != nil {
+					v.log.Error("Error getting connection from pool.", "error", err)
+				}
+
+				conn = c
+			}),
+		)
+		if retryErr != nil {
+			err := retryErr
+			var e retry.Error
+			if errors.As(err, &e) {
+				err = errors.Join(e.WrappedErrors()...)
+			}
+			return nil, errors.Join(ErrCorruptedNzb, err)
+		}
 	}
 
 	return chunk, nil
