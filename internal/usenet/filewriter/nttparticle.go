@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"hash/crc32"
 
-	"github.com/chrisfarms/nntp"
 	"github.com/javi11/usenet-drive/pkg/yenc"
 )
 
@@ -24,17 +23,14 @@ type ArticleData struct {
 	msgId     string
 }
 
-func NewNttpArticle(p []byte, data *ArticleData) (*nntp.Article, error) {
-	buf := &bytes.Buffer{}
-	a := &nntp.Article{
-		Header: map[string][]string{},
-	}
+func ArticleToBytes(p []byte, data *ArticleData) ([]byte, error) {
+	buf := new(bytes.Buffer)
+	buf.WriteString(fmt.Sprintf("From: %s\r\n", data.poster))
+	buf.WriteString(fmt.Sprintf("Newsgroups: %s\r\n", data.group))
+	buf.WriteString(fmt.Sprintf("Message-ID: <%s>\r\n", data.msgId))
+	buf.WriteString(fmt.Sprintf("X-Newsposter: UsenetDrive\r\n"))
 
-	a.Header["From"] = []string{data.poster}
-	a.Header["Newsgroups"] = []string{data.group}
-	a.Header["Message-ID"] = []string{"<" + data.msgId + ">"}
-	a.Header["X-Newsposter"] = []string{"UsenetDrive"}
-
+	// Build subject
 	subj := fmt.Sprintf(
 		"[%d/%d] - \"%s\" yEnc (%d/%d)",
 		data.fileNum,
@@ -43,8 +39,9 @@ func NewNttpArticle(p []byte, data *ArticleData) (*nntp.Article, error) {
 		data.partNum,
 		data.partTotal,
 	)
-	a.Header["Subject"] = []string{subj}
+	buf.WriteString(fmt.Sprintf("Subject: %s\r\n\r\n", subj))
 
+	// yEnc begin line
 	// yEnc begin line
 	buf.WriteString(fmt.Sprintf(
 		"=ybegin part=%d total=%d line=128 size=%d name=%s\r\n",
@@ -65,7 +62,6 @@ func NewNttpArticle(p []byte, data *ArticleData) (*nntp.Article, error) {
 	h := crc32.NewIEEE()
 	h.Write(p)
 	buf.WriteString(fmt.Sprintf("=yend size=%d part=%d pcrc32=%08X\r\n", data.partSize, data.partNum, h.Sum32()))
-	a.Body = buf
 
-	return a, nil
+	return buf.Bytes(), nil
 }

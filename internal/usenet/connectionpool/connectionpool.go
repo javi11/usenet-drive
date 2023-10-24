@@ -1,46 +1,21 @@
-//go:generate mockgen -source=./connectionpool.go -destination=./connectionpool_mock.go -package=connectionpool UsenetConnectionPool, NntpConnection
+//go:generate mockgen -source=./connectionpool.go -destination=./connectionpool_mock.go -package=connectionpool UsenetConnectionPool
 
 package connectionpool
 
 import (
 	"fmt"
-	"io"
 	"log/slog"
 	"net"
 	"time"
 
-	"github.com/chrisfarms/nntp"
+	"github.com/javi11/usenet-drive/pkg/nntpcli"
 	"github.com/silenceper/pool"
 )
 
-type NntpConnection interface {
-	Article(id string) (*nntp.Article, error)
-	ArticleText(id string) (io.Reader, error)
-	Authenticate(username string, password string) error
-	Body(id string) (io.Reader, error)
-	Capabilities() ([]string, error)
-	Date() (time.Time, error)
-	Group(group string) (number int, low int, high int, err error)
-	Head(id string) (*nntp.Article, error)
-	HeadText(id string) (io.Reader, error)
-	Help() (io.Reader, error)
-	Last() (number string, msgid string, err error)
-	List(a ...string) ([]string, error)
-	ModeReader() error
-	NewGroups(since time.Time) ([]*nntp.Group, error)
-	NewNews(group string, since time.Time) ([]string, error)
-	Next() (number string, msgid string, err error)
-	Overview(begin int, end int) ([]nntp.MessageOverview, error)
-	Post(a *nntp.Article) error
-	Quit() error
-	RawPost(r io.Reader) error
-	Stat(id string) (number string, msgid string, err error)
-}
-
 type UsenetConnectionPool interface {
-	Get() (NntpConnection, error)
-	Close(c NntpConnection) error
-	Free(c NntpConnection) error
+	Get() (nntpcli.Connection, error)
+	Close(c nntpcli.Connection) error
+	Free(c nntpcli.Connection) error
 	GetActiveConnections() int
 	GetMaxConnections() int
 	GetFreeConnections() int
@@ -62,7 +37,7 @@ func NewConnectionPool(options ...Option) (*connectionPool, error) {
 	factory := func() (interface{}, error) { return dialNNTP(config) }
 
 	// close Specify the method to close the connection
-	close := func(v interface{}) error { return v.(NntpConnection).Quit() }
+	close := func(v interface{}) error { return v.(nntpcli.Connection).Quit() }
 
 	twentyPercent := int(float64(config.maxConnections) * 0.2)
 
@@ -88,19 +63,19 @@ func NewConnectionPool(options ...Option) (*connectionPool, error) {
 	}, nil
 }
 
-func (p *connectionPool) Get() (NntpConnection, error) {
+func (p *connectionPool) Get() (nntpcli.Connection, error) {
 	conn, err := p.pool.Get()
 	if err != nil {
 		return nil, err
 	}
-	return conn.(NntpConnection), nil
+	return conn.(nntpcli.Connection), nil
 }
 
-func (p *connectionPool) Close(c NntpConnection) error {
+func (p *connectionPool) Close(c nntpcli.Connection) error {
 	return p.pool.Close(c)
 }
 
-func (p *connectionPool) Free(c NntpConnection) error {
+func (p *connectionPool) Free(c nntpcli.Connection) error {
 	return p.pool.Put(c)
 }
 
@@ -116,26 +91,21 @@ func (p *connectionPool) GetFreeConnections() int {
 	return p.maxConnections - p.pool.Len()
 }
 
-func dialNNTP(config *Config) (NntpConnection, error) {
+func dialNNTP(config *Config) (nntpcli.Connection, error) {
 	if config.dryRun {
-		return &MockNntpConnection{}, nil
+		return &nntpcli.MockConnection{}, nil
 	}
 
-	dialStr := config.getConnectionString()
 	var err error
-	var c NntpConnection
+	var c nntpcli.Connection
 
 	for {
-		if config.tls {
-			c, err = nntp.DialTLS("tcp", dialStr, config.tlsConfig)
-		} else {
-			c, err = nntp.Dial("tcp", dialStr)
-		}
+		c, err = config.cli.Dial(config.host, config.port, config.tls, false)
 		if err != nil {
 			// if it's a timeout, ignore and try again
 			e, ok := err.(net.Error)
 			if ok && e.Timeout() {
-				config.log.Error(fmt.Sprintf("timeout connecting to %s, retrying", dialStr))
+				config.log.Error(fmt.Sprintf("timeout connecting to %s:%v, retrying", config.host, config.port), "error", e)
 				continue
 			}
 			return nil, err

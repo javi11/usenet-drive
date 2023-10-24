@@ -17,6 +17,7 @@ import (
 	"github.com/javi11/usenet-drive/internal/usenet/filewriter"
 	"github.com/javi11/usenet-drive/internal/usenet/nzbloader"
 	"github.com/javi11/usenet-drive/internal/webdav"
+	"github.com/javi11/usenet-drive/pkg/nntpcli"
 	"github.com/javi11/usenet-drive/pkg/nzb"
 	"github.com/javi11/usenet-drive/pkg/osfs"
 	"github.com/javi11/usenet-drive/pkg/rclonecli"
@@ -63,6 +64,10 @@ var rootCmd = &cobra.Command{
 
 		osFs := osfs.New()
 
+		nntpCli := nntpcli.New(
+			nntpcli.WithLogger(log),
+		)
+
 		// download connection pool
 		downloadConnPool, err := connectionpool.NewConnectionPool(
 			connectionpool.WithHost(config.Usenet.Download.Provider.Host),
@@ -71,6 +76,7 @@ var rootCmd = &cobra.Command{
 			connectionpool.WithPassword(config.Usenet.Download.Provider.Password),
 			connectionpool.WithTLS(config.Usenet.Download.Provider.SSL),
 			connectionpool.WithMaxConnections(config.Usenet.Download.Provider.MaxConnections),
+			connectionpool.WithClient(nntpCli),
 		)
 		if err != nil {
 			log.ErrorContext(ctx, "Failed to init usenet download pool: %v", err)
@@ -86,6 +92,7 @@ var rootCmd = &cobra.Command{
 			connectionpool.WithTLS(config.Usenet.Upload.Provider.SSL),
 			connectionpool.WithMaxConnections(config.Usenet.Upload.Provider.MaxConnections),
 			connectionpool.WithDryRun(config.Usenet.Upload.DryRun),
+			connectionpool.WithClient(nntpCli),
 		)
 		if err != nil {
 			log.ErrorContext(ctx, "Failed to init usenet upload pool: %v", err)

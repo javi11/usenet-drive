@@ -217,3 +217,10 @@ The `UsenetProvider` struct defines the Usenet provider configuration.
 ```bash
 go tool pprof -http=:8082 http://localhost:8080/debug/pprof/profile
 ```
+
+## Highly inspired by
+
+- Upload feature: https://github.com/F4n4t/GoPostStuff
+- Yenc encode: https://github.com/F4n4t/GoPostStuff
+- Yenc decode: https://github.com/chrisfarms/yenc
+- Nzb feature: https://github.com/chrisfarms/nzb

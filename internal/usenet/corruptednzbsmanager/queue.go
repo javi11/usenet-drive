@@ -80,9 +80,6 @@ func (q *corruptedNzbsManager) Add(ctx context.Context, path, errorMessage strin
 }
 
 func (q *corruptedNzbsManager) Delete(ctx context.Context, id int) error {
-	q.mx.Lock()
-	defer q.mx.Unlock()
-
 	cnzb, err := q.Discard(ctx, id)
 	if err != nil {
 		return err

@@ -14,6 +14,7 @@ import (
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/javi11/usenet-drive/internal/usenet"
 	"github.com/javi11/usenet-drive/internal/usenet/connectionpool"
+	"github.com/javi11/usenet-drive/pkg/nntpcli"
 	"github.com/javi11/usenet-drive/pkg/nzb"
 	"github.com/javi11/usenet-drive/pkg/yenc"
 )
@@ -293,7 +294,7 @@ func (v *buffer) downloadSegment(ctx context.Context, segment nzb.NzbSegment, gr
 			retry.Attempts(uint(v.dc.maxDownloadRetries)),
 			retry.DelayType(retry.FixedDelay),
 			retry.RetryIf(func(err error) bool {
-				return connectionpool.IsRetryable(err)
+				return nntpcli.IsRetryableError(err)
 			}),
 			retry.OnRetry(func(n uint, err error) {
 				v.log.Info("Error downloading segment. Retrying", "error", err, "header", segment.Id, "retry", n)

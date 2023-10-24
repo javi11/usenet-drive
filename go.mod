@@ -4,7 +4,7 @@ go 1.21
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.0
-	github.com/chrisfarms/nntp v0.0.0-20150609164919-115924d5d016
+	github.com/avast/retry-go v3.0.0+incompatible
 	github.com/creasty/defaults v1.7.0
 	github.com/go-faker/faker/v4 v4.1.1
 	github.com/golang/mock v1.6.0
@@ -19,6 +19,7 @@ require (
 	github.com/samber/slog-echo v1.2.1
 	github.com/silenceper/pool v1.0.0
 	github.com/spf13/cobra v1.7.0
+	github.com/steinfletcher/apitest v1.5.15
 	github.com/stretchr/testify v1.8.4
 	golang.org/x/exp v0.0.0-20230817173708-d852ddb80c63
 	golang.org/x/net v0.14.0
@@ -27,7 +28,6 @@ require (
 
 require (
 	github.com/BurntSushi/toml v1.3.2 // indirect
-	github.com/avast/retry-go v3.0.0+incompatible // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
 	github.com/hashicorp/errwrap v1.0.0 // indirect
@@ -40,7 +40,6 @@ require (
 	github.com/samber/lo v1.38.1 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
-	github.com/steinfletcher/apitest v1.5.15 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
 	golang.org/x/crypto v0.12.0 // indirect

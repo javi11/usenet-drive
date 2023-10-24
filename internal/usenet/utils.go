@@ -4,13 +4,13 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/javi11/usenet-drive/internal/usenet/connectionpool"
+	"github.com/javi11/usenet-drive/pkg/nntpcli"
 )
 
-func FindGroup(c connectionpool.NntpConnection, groups []string) error {
+func FindGroup(c nntpcli.Connection, groups []string) error {
 	var err error
 	for _, g := range groups {
-		_, _, _, err = c.Group(g)
+		_, _, _, err = c.SelectGroup(g)
 		if err == nil {
 			return nil
 		}
