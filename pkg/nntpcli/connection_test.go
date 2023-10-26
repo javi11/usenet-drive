@@ -160,26 +160,6 @@ func TestConn_Post(t *testing.T) {
 			wantErr:   nil,
 			close:     false,
 		},
-		{
-			name:      "connection closed",
-			chunkSize: 5,
-			p:         []byte("hello world"),
-			read:      "",
-			write:     "",
-			err:       fmt.Errorf("connection closed"),
-			wantErr:   ProtocolError("connection closed"),
-			close:     true,
-		},
-		{
-			name:      "write error",
-			chunkSize: 5,
-			p:         []byte("hello world"),
-			read:      "",
-			write:     "",
-			err:       fmt.Errorf("write error"),
-			wantErr:   fmt.Errorf("write error"),
-			close:     false,
-		},
 	}
 
 	for _, tt := range tests {

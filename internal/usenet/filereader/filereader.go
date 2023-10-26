@@ -53,7 +53,7 @@ func (fr *fileReader) OpenFile(ctx context.Context, path string, flag int, perm 
 		flag,
 		perm,
 		fr.cp,
-		fr.log,
+		fr.log.With("filename", path),
 		onClose,
 		fr.nzbLoader,
 		fr.cNzb,

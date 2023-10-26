@@ -110,8 +110,6 @@ func (f *file) Close() error {
 		return err
 	}
 
-	f.buffer = nil
-
 	if f.onClose != nil {
 		if err := f.onClose(); err != nil {
 			return err

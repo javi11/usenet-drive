@@ -224,7 +224,7 @@ func (v *buffer) downloadSegment(ctx context.Context, segment nzb.NzbSegment, gr
 	if err == nil {
 		chunk = hit
 	} else {
-		var conn connectionpool.NntpConnection
+		var conn nntpcli.Connection
 		segment := segment
 		retryErr := retry.Do(func() error {
 			c, err := v.cp.Get()

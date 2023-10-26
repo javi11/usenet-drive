@@ -274,8 +274,8 @@ func TestCloseFile(t *testing.T) {
 		fs:   fs,
 	}
 	t.Run("Error", func(t *testing.T) {
-		mockFile.EXPECT().Close().Return(os.ErrPermission)
-		mockBuffer.EXPECT().Close().Return(nil)
+		mockFile.EXPECT().Close().Return(os.ErrPermission).Times(1)
+		mockBuffer.EXPECT().Close().Return(nil).Times(1)
 
 		err := f.Close()
 		assert.Equal(t, os.ErrPermission, err)
@@ -284,8 +284,8 @@ func TestCloseFile(t *testing.T) {
 	})
 
 	t.Run("Success", func(t *testing.T) {
-		mockFile.EXPECT().Close().Return(nil)
-		mockBuffer.EXPECT().Close().Return(nil)
+		mockFile.EXPECT().Close().Return(nil).Times(1)
+		mockBuffer.EXPECT().Close().Return(nil).Times(1)
 
 		err := f.Close()
 		assert.NoError(t, err)
@@ -295,8 +295,8 @@ func TestCloseFile(t *testing.T) {
 
 	t.Run("NoOnCloseFunction", func(t *testing.T) {
 		f.onClose = nil
-		mockFile.EXPECT().Close().Return(nil)
-		mockBuffer.EXPECT().Close().Return(nil)
+		mockFile.EXPECT().Close().Return(nil).Times(1)
+		mockBuffer.EXPECT().Close().Return(nil).Times(1)
 
 		err := f.Close()
 		assert.NoError(t, err)
