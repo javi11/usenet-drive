@@ -11,6 +11,7 @@ import (
 	"github.com/javi11/usenet-drive/internal/serverinfo"
 	"github.com/javi11/usenet-drive/internal/usenet/corruptednzbsmanager"
 	"github.com/javi11/usenet-drive/web"
+	"github.com/labstack/echo-contrib/pprof"
 	echo "github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	slogecho "github.com/samber/slog-echo"
@@ -44,7 +45,7 @@ func New(
 		}))
 
 		// Register profile handlers to /debug/pprof/profile
-		handlers.PProfMiddleware(e)
+		pprof.Register(e)
 	}
 
 	v1 := e.Group("/api/v1")

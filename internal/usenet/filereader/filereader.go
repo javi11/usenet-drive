@@ -21,12 +21,18 @@ type fileReader struct {
 	cNzb      corruptednzbsmanager.CorruptedNzbsManager
 	fs        osfs.FileSystem
 	dc        downloadConfig
+	cache     Cache
 }
 
-func NewFileReader(options ...Option) *fileReader {
+func NewFileReader(options ...Option) (*fileReader, error) {
 	config := defaultConfig()
 	for _, option := range options {
 		option(config)
+	}
+
+	cache, err := NewCache(int(config.segmentSize), config.cacheSizeInMB, config.debug)
+	if err != nil {
+		return nil, err
 	}
 
 	return &fileReader{
@@ -35,8 +41,9 @@ func NewFileReader(options ...Option) *fileReader {
 		nzbLoader: config.nzbLoader,
 		cNzb:      config.cNzb,
 		fs:        config.fs,
-		dc:        config.dc,
-	}
+		dc:        config.getDownloadConfig(),
+		cache:     cache,
+	}, nil
 }
 
 func (fr *fileReader) OpenFile(ctx context.Context, path string, flag int, perm fs.FileMode, onClose func() error) (bool, webdav.File, error) {
@@ -52,6 +59,7 @@ func (fr *fileReader) OpenFile(ctx context.Context, path string, flag int, perm 
 		fr.cNzb,
 		fr.fs,
 		fr.dc,
+		fr.cache,
 	)
 }
 

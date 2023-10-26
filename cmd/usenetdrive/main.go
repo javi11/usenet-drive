@@ -135,7 +135,7 @@ var rootCmd = &cobra.Command{
 			filewriter.WithMaxUploadRetries(config.Usenet.Upload.MaxRetries),
 		)
 
-		filereader := filereader.NewFileReader(
+		filereader, err := filereader.NewFileReader(
 			filereader.WithConnectionPool(downloadConnPool),
 			filereader.WithLogger(log),
 			filereader.WithNzbLoader(nzbLoader),
@@ -143,7 +143,14 @@ var rootCmd = &cobra.Command{
 			filereader.WithFileSystem(osFs),
 			filereader.WithMaxDownloadRetries(config.Usenet.Download.MaxRetries),
 			filereader.WithMaxAheadDownloadSegments(config.Usenet.Download.MaxAheadDownloadSegments),
+			filereader.WithSegmentSize(config.Usenet.ArticleSizeInBytes),
+			filereader.WithCacheSize(config.Usenet.Download.MaxCacheSizeInMB),
+			filereader.WithDebug(config.Debug),
 		)
+		if err != nil {
+			log.ErrorContext(ctx, "Failed to create file reader: %v", err)
+			os.Exit(1)
+		}
 
 		// Build webdav server
 		webDavOptions := []webdav.Option{

@@ -26,6 +26,7 @@ func TestOpenFile(t *testing.T) {
 	mockCNzb := corruptednzbsmanager.NewMockCorruptedNzbsManager(ctrl)
 	fs := osfs.NewMockFileSystem(ctrl)
 	cp := connectionpool.NewMockUsenetConnectionPool(ctrl)
+	cache := NewMockCache(ctrl)
 
 	t.Run("Not nzb file", func(t *testing.T) {
 		name := "test.txt"
@@ -51,6 +52,7 @@ func TestOpenFile(t *testing.T) {
 				maxDownloadRetries:       5,
 				maxAheadDownloadSegments: 0,
 			},
+			cache,
 		)
 		assert.NoError(t, err)
 	})
@@ -77,7 +79,9 @@ func TestOpenFile(t *testing.T) {
 			downloadConfig{
 				maxDownloadRetries:       5,
 				maxAheadDownloadSegments: 0,
-			})
+			},
+			cache,
+		)
 		assert.ErrorIs(t, err, os.ErrNotExist)
 	})
 
@@ -119,7 +123,9 @@ func TestOpenFile(t *testing.T) {
 			downloadConfig{
 				maxDownloadRetries:       5,
 				maxAheadDownloadSegments: 0,
-			})
+			},
+			cache,
+		)
 
 		assert.NoError(t, err)
 		assert.True(t, ok)
@@ -171,6 +177,7 @@ func TestOpenFile(t *testing.T) {
 				maxDownloadRetries:       5,
 				maxAheadDownloadSegments: 0,
 			},
+			cache,
 		)
 
 		assert.NoError(t, err)
@@ -202,7 +209,9 @@ func TestOpenFile(t *testing.T) {
 			downloadConfig{
 				maxDownloadRetries:       5,
 				maxAheadDownloadSegments: 0,
-			})
+			},
+			cache,
+		)
 		assert.ErrorIs(t, err, os.ErrNotExist)
 		// File exists but is corrupted
 		assert.True(t, ok)
@@ -230,7 +239,9 @@ func TestOpenFile(t *testing.T) {
 			downloadConfig{
 				maxDownloadRetries:       5,
 				maxAheadDownloadSegments: 0,
-			})
+			},
+			cache,
+		)
 		assert.ErrorIs(t, err, os.ErrPermission)
 		// File should be an nzb at this point but we cannot open it
 		assert.True(t, ok)

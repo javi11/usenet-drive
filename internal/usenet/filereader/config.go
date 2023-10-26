@@ -15,35 +15,64 @@ type downloadConfig struct {
 }
 
 type Config struct {
-	cp        connectionpool.UsenetConnectionPool
-	log       *slog.Logger
-	nzbLoader nzbloader.NzbLoader
-	cNzb      corruptednzbsmanager.CorruptedNzbsManager
-	fs        osfs.FileSystem
-	dc        downloadConfig
+	cp                       connectionpool.UsenetConnectionPool
+	log                      *slog.Logger
+	nzbLoader                nzbloader.NzbLoader
+	cNzb                     corruptednzbsmanager.CorruptedNzbsManager
+	fs                       osfs.FileSystem
+	maxDownloadRetries       int
+	maxAheadDownloadSegments int
+	segmentSize              int64
+	cacheSizeInMB            int
+	debug                    bool
+}
+
+func (c *Config) getDownloadConfig() downloadConfig {
+	return downloadConfig{
+		maxDownloadRetries:       c.maxDownloadRetries,
+		maxAheadDownloadSegments: c.maxAheadDownloadSegments,
+	}
 }
 
 type Option func(*Config)
 
 func defaultConfig() *Config {
 	return &Config{
-		fs: osfs.New(),
-		dc: downloadConfig{
-			maxDownloadRetries:       8,
-			maxAheadDownloadSegments: 1,
-		},
+		debug:                    false,
+		fs:                       osfs.New(),
+		maxDownloadRetries:       8,
+		maxAheadDownloadSegments: 1,
+		cacheSizeInMB:            512,
+	}
+}
+
+func WithDebug(debug bool) Option {
+	return func(c *Config) {
+		c.debug = debug
+	}
+}
+
+func WithCacheSize(cacheSize int) Option {
+	return func(c *Config) {
+		c.cacheSizeInMB = cacheSize
+	}
+}
+
+func WithSegmentSize(segmentSize int64) Option {
+	return func(c *Config) {
+		c.segmentSize = segmentSize
 	}
 }
 
 func WithMaxDownloadRetries(maxDownloadRetries int) Option {
 	return func(c *Config) {
-		c.dc.maxDownloadRetries = maxDownloadRetries
+		c.maxDownloadRetries = maxDownloadRetries
 	}
 }
 
 func WithMaxAheadDownloadSegments(maxAheadDownloadSegments int) Option {
 	return func(c *Config) {
-		c.dc.maxAheadDownloadSegments = maxAheadDownloadSegments
+		c.maxAheadDownloadSegments = maxAheadDownloadSegments
 	}
 }
 

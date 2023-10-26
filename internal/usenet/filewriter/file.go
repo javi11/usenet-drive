@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"syscall"
 	"time"
 
 	"github.com/avast/retry-go"
@@ -384,6 +385,16 @@ func (f *file) upload(ctx context.Context, b []byte, conn nntpcli.Connection) er
 	}
 
 	err := retry.Do(func() error {
+		// connection can be null in case OnRetry fails to get the connection
+		if conn == nil {
+			c, err := f.cp.Get()
+			if err != nil {
+				// Retry
+				return errors.Join(err, syscall.ETIMEDOUT)
+			}
+			conn = c
+		}
+
 		err := conn.Post(b, f.metadata.ChunkSize)
 		if err != nil {
 			return err
@@ -396,16 +407,16 @@ func (f *file) upload(ctx context.Context, b []byte, conn nntpcli.Connection) er
 		retry.Delay(1*time.Second),
 		retry.DelayType(retry.FixedDelay),
 		retry.OnRetry(func(n uint, err error) {
-			f.log.Info("Error uploading segment. Retrying", "error", err, "retry", n)
+			f.log.InfoContext(ctx, "Retrying upload", "error", err, "retry", n)
 
 			err = f.cp.Close(conn)
 			if err != nil {
-				f.log.Error("Error closing connection.", "error", err)
+				f.log.DebugContext(ctx, "Error closing connection.", "error", err)
 			}
 
 			c, err := f.cp.Get()
 			if err != nil {
-				f.log.Error("Error getting connection from pool.", "error", err)
+				f.log.InfoContext(ctx, "Error getting connection from pool.", "error", err)
 			}
 
 			conn = c
@@ -419,12 +430,12 @@ func (f *file) upload(ctx context.Context, b []byte, conn nntpcli.Connection) er
 		if errors.Is(err, context.Canceled) {
 			err = f.cp.Free(conn)
 			if err != nil {
-				f.log.Error("Error freeing the connection.", "error", err)
+				f.log.DebugContext(ctx, "Error freeing the connection.", "error", err)
 			}
 		} else {
 			err = f.cp.Close(conn)
 			if err != nil {
-				f.log.Error("Error closing the connection.", "error", err)
+				f.log.DebugContext(ctx, "Error closing the connection.", "error", err)
 			}
 		}
 

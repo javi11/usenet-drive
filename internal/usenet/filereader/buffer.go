@@ -9,9 +9,10 @@ import (
 	"io"
 	"log/slog"
 	"sync"
+	"sync/atomic"
+	"syscall"
 
 	"github.com/avast/retry-go"
-	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/javi11/usenet-drive/internal/usenet"
 	"github.com/javi11/usenet-drive/internal/usenet/connectionpool"
 	"github.com/javi11/usenet-drive/pkg/nntpcli"
@@ -37,14 +38,14 @@ type buffer struct {
 	size             int
 	nzbFile          *nzb.NzbFile
 	ptr              int64
-	cache            *lru.Cache[string, *yenc.Part]
+	cache            Cache
 	cp               connectionpool.UsenetConnectionPool
 	chunkSize        int
 	dc               downloadConfig
 	log              *slog.Logger
 	closed           chan bool
 	nextSegmentIndex chan int
-	boostedList      *sync.Map
+	wg               *sync.WaitGroup
 }
 
 // NewBuffer creates a new data volume based on a buffer
@@ -55,22 +56,9 @@ func NewBuffer(
 	chunkSize int,
 	dc downloadConfig,
 	cp connectionpool.UsenetConnectionPool,
+	cache Cache,
 	log *slog.Logger,
 ) (Buffer, error) {
-	boostedList := &sync.Map{}
-
-	// Article cache can not be too big since it is stored in memory
-	// With 100 the max memory used is 100 * 740kb = 74mb peer stream
-	// This is mainly used to not download twice the same article multiple times if was not already
-	// full read.
-	cache, err := lru.NewWithEvict[string, *yenc.Part](100, func(key string, value *yenc.Part) {
-		// If the article is evicted from the cache, remove it from the boost list
-		boostedList.Delete(key)
-	})
-	if err != nil {
-		return nil, err
-	}
-
 	buffer := &buffer{
 		ctx:              ctx,
 		chunkSize:        chunkSize,
@@ -82,10 +70,11 @@ func NewBuffer(
 		log:              log,
 		nextSegmentIndex: make(chan int),
 		closed:           make(chan bool),
-		boostedList:      boostedList,
+		wg:               &sync.WaitGroup{},
 	}
 
 	if dc.maxAheadDownloadSegments > 0 {
+		buffer.wg.Add(1)
 		go buffer.downloadBoost(ctx, buffer.nextSegmentIndex)
 	}
 
@@ -124,10 +113,11 @@ func (v *buffer) Seek(offset int64, whence int) (int64, error) {
 
 // Close the buffer. Currently no effect.
 func (v *buffer) Close() error {
-	v.cache.Purge()
 	if v.dc.maxAheadDownloadSegments > 0 {
 		v.closed <- true
+		v.wg.Wait()
 	}
+
 	return nil
 }
 
@@ -157,17 +147,10 @@ func (v *buffer) Read(p []byte) (int, error) {
 		for j := 0; j < v.dc.maxAheadDownloadSegments; j++ {
 			index := nextSegmentIndex + j
 
-			if index >= len(v.nzbFile.Segments) {
+			if index >= len(v.nzbFile.Segments) || v.cache.Has(v.nzbFile.Segments[index].Id) {
 				break
 			}
 
-			_, ok := v.boostedList.Load(v.nzbFile.Segments[index].Id)
-			if ok ||
-				v.cache.Contains(v.nzbFile.Segments[index].Id) {
-				break
-			}
-
-			v.boostedList.Store(v.nzbFile.Segments[index].Id, true)
 			// Preload next segments
 			v.nextSegmentIndex <- index
 		}
@@ -180,7 +163,7 @@ func (v *buffer) Read(p []byte) (int, error) {
 			break
 		}
 		beginWriteAt := n
-		n += copy(p[beginWriteAt:], chunk.Body[beginReadAt:])
+		n += copy(p[beginWriteAt:], chunk[beginReadAt:])
 		beginReadAt = 0
 	}
 	v.ptr += int64(n)
@@ -214,17 +197,10 @@ func (v *buffer) ReadAt(p []byte, off int64) (int, error) {
 		for j := 0; j < v.dc.maxAheadDownloadSegments; j++ {
 			index := nextSegmentIndex + j
 
-			if index >= len(v.nzbFile.Segments) {
+			if index >= len(v.nzbFile.Segments) || v.cache.Has(v.nzbFile.Segments[index].Id) {
 				break
 			}
 
-			_, ok := v.boostedList.Load(v.nzbFile.Segments[index].Id)
-			if ok ||
-				v.cache.Contains(v.nzbFile.Segments[index].Id) {
-				break
-			}
-
-			v.boostedList.Store(v.nzbFile.Segments[index].Id, true)
 			// Preload next segments
 			v.nextSegmentIndex <- index
 		}
@@ -234,59 +210,58 @@ func (v *buffer) ReadAt(p []byte, off int64) (int, error) {
 			break
 		}
 		beginWriteAt := n
-		n += copy(p[beginWriteAt:], chunk.Body[beginReadAt:])
+		n += copy(p[beginWriteAt:], chunk[beginReadAt:])
 		beginReadAt = 0
 	}
 
 	return n, nil
 }
 
-func (v *buffer) downloadSegment(ctx context.Context, segment nzb.NzbSegment, groups []string) (*yenc.Part, error) {
-	hit, _ := v.cache.Get(segment.Id)
+func (v *buffer) downloadSegment(ctx context.Context, segment nzb.NzbSegment, groups []string) ([]byte, error) {
+	hit, err := v.cache.Get(segment.Id)
 
-	var chunk *yenc.Part
-	if hit != nil {
+	var chunk []byte
+	if err == nil {
 		chunk = hit
 	} else {
-		// Get the connection from the pool
-		conn, err := v.cp.Get()
-		if err != nil {
-			if conn != nil {
-				e := v.cp.Close(conn)
-				if e != nil {
-					v.log.Error("Error closing connection on downloading a file.", "error", e)
-				}
-			}
-			v.log.Error("Error getting nntp connection:", "error", err)
-
-			return nil, err
-		}
-		defer func() {
-			if err = v.cp.Free(conn); err != nil {
-				v.log.Error("Error freeing connection on downloading a file.", "error", err)
-			}
-		}()
-
+		var conn connectionpool.NntpConnection
+		segment := segment
 		retryErr := retry.Do(func() error {
+			c, err := v.cp.Get()
+			if err != nil {
+				if conn != nil {
+					e := v.cp.Close(conn)
+					if e != nil {
+						v.log.DebugContext(ctx, "Error closing connection on downloading a file.", "error", e)
+					}
+				}
+				v.log.ErrorContext(ctx, "Error getting nntp connection:", "error", err, "segment", segment.Number)
+
+				// Retry
+				return syscall.ETIMEDOUT
+			}
+			conn = c
+
 			err = usenet.FindGroup(conn, groups)
 			if err != nil {
-				v.log.Error("Error finding nntp group:", "error", err)
 				return err
 			}
 
 			body, err := conn.Body(fmt.Sprintf("<%v>", segment.Id))
 			if err != nil {
-				v.log.Error("Error getting nntp article body, marking it as corrupted.", "error", err, "segment", segment.Number)
 				return err
 			}
 
 			yread, err := yenc.Decode(body)
 			if err != nil {
-				v.log.Error("Error decoding yenc article body:", "error", err, "segment", segment.Number)
 				return err
 			}
 
-			chunk = yread
+			chunk = yread.Body
+
+			if err = v.cp.Free(conn); err != nil {
+				v.log.DebugContext(ctx, "Error freeing connection on downloading a file.", "error", err)
+			}
 
 			return nil
 		},
@@ -297,23 +272,26 @@ func (v *buffer) downloadSegment(ctx context.Context, segment nzb.NzbSegment, gr
 				return nntpcli.IsRetryableError(err)
 			}),
 			retry.OnRetry(func(n uint, err error) {
-				v.log.Info("Error downloading segment. Retrying", "error", err, "header", segment.Id, "retry", n)
+				v.log.InfoContext(ctx, "Retrying download", "error", err, "segment", segment.Id, "retry", n)
 
-				err = v.cp.Close(conn)
-				if err != nil {
-					v.log.Error("Error closing connection.", "error", err)
+				if conn != nil {
+					err = v.cp.Close(conn)
+					if err != nil {
+						v.log.DebugContext(ctx, "Error closing connection.", "error", err)
+					}
 				}
-
-				c, err := v.cp.Get()
-				if err != nil {
-					v.log.Error("Error getting connection from pool.", "error", err)
-				}
-
-				conn = c
 			}),
 		)
 		if retryErr != nil {
 			err := retryErr
+
+			if conn != nil {
+				err = v.cp.Close(conn)
+				if err != nil {
+					v.log.DebugContext(ctx, "Error closing connection.", "error", err)
+				}
+			}
+
 			var e retry.Error
 			if errors.As(err, &e) {
 				err = errors.Join(e.WrappedErrors()...)
@@ -326,26 +304,46 @@ func (v *buffer) downloadSegment(ctx context.Context, segment nzb.NzbSegment, gr
 			return nil, errors.Join(ErrCorruptedNzb, err)
 		}
 
-		v.cache.Add(segment.Id, chunk)
+		v.cache.Set(segment.Id, chunk)
 	}
 
 	return chunk, nil
 }
 
 func (v *buffer) downloadBoost(ctx context.Context, nextSegmentIndex chan int) {
+	defer v.wg.Done()
+
+	activeDownloaders := atomic.Int32{}
+	currentDownloading := map[int]bool{}
+
+	ctx, cancel := context.WithCancelCause(ctx)
 	for {
 		select {
 		case <-ctx.Done():
+			cancel(errors.New("context canceled by the client"))
 			return
 		case <-v.closed:
+			cancel(errors.New("file closed"))
 			return
 		case i := <-nextSegmentIndex:
+			if activeDownloaders.Load() >= int32(v.dc.maxAheadDownloadSegments) || currentDownloading[i] {
+				continue
+			}
+
+			activeDownloaders.Add(1)
+			currentDownloading[i] = true
 			segment := v.nzbFile.Segments[i]
+
+			v.wg.Add(1)
 			go func() {
+				defer v.wg.Done()
 				_, err := v.downloadSegment(ctx, segment, v.nzbFile.Groups)
-				if err != nil {
+				if err != nil && !errors.Is(err, context.Canceled) {
 					v.log.Error("Error downloading segment.", "error", err, "segment", segment.Number)
 				}
+
+				activeDownloaders.Add(-1)
+				currentDownloading[i] = false
 			}()
 		}
 	}

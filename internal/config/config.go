@@ -31,8 +31,9 @@ type Usenet struct {
 
 type Download struct {
 	Provider                 UsenetProvider `yaml:"provider"`
-	MaxAheadDownloadSegments int            `yaml:"max_ahead_download_segments" default:"10"`
+	MaxAheadDownloadSegments int            `yaml:"max_ahead_download_segments"`
 	MaxRetries               int            `yaml:"max_retries" default:"8"`
+	MaxCacheSizeInMB         int            `yaml:"max_cache_size_in_mb" default:"512"`
 }
 
 type Upload struct {
