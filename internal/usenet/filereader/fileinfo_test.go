@@ -43,7 +43,7 @@ func TestNewFileInfoWithStat(t *testing.T) {
 
 		nl.EXPECT().LoadFromFile("test.nzb").Return(&nzbloader.NzbCache{
 			Nzb: nzb,
-			Metadata: usenet.Metadata{
+			Metadata: &usenet.Metadata{
 				FileSize:      10,
 				ModTime:       expectedTime,
 				FileExtension: ".nzb",
@@ -66,7 +66,7 @@ func TestNewFileInfoWithStat(t *testing.T) {
 func TestNeFileInfoWithMetadata(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	fs := osfs.NewMockFileSystem(ctrl)
-	metadata := usenet.Metadata{
+	metadata := &usenet.Metadata{
 		FileSize:      100,
 		ModTime:       time.Now(),
 		FileExtension: ".nzb",

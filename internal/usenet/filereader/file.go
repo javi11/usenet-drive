@@ -24,7 +24,7 @@ type file struct {
 	innerFile osfs.File
 	fsMutex   sync.RWMutex
 	log       *slog.Logger
-	metadata  usenet.Metadata
+	metadata  *usenet.Metadata
 	nzbLoader nzbloader.NzbLoader
 	onClose   func() error
 	cNzb      corruptednzbsmanager.CorruptedNzbsManager

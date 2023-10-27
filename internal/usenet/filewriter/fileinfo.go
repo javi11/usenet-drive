@@ -9,10 +9,10 @@ import (
 
 type fileInfo struct {
 	name     string
-	metadata usenet.Metadata
+	metadata *usenet.Metadata
 }
 
-func NewFileInfo(metadata usenet.Metadata, name string) (fs.FileInfo, error) {
+func NewFileInfo(metadata *usenet.Metadata, name string) (fs.FileInfo, error) {
 	return &fileInfo{
 		metadata: metadata,
 		name:     usenet.ReplaceFileExtension(name, metadata.FileExtension),

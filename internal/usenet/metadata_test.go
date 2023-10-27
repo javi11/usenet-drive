@@ -24,7 +24,7 @@ func TestLoadMetadataFromNzb(t *testing.T) {
 				},
 			},
 		}
-		expectedMetadata := Metadata{
+		expectedMetadata := &Metadata{
 			FileName:      "test_file",
 			FileExtension: "txt",
 			FileSize:      100,
@@ -35,7 +35,7 @@ func TestLoadMetadataFromNzb(t *testing.T) {
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}
-		if metadata != expectedMetadata {
+		if *metadata != *expectedMetadata {
 			t.Errorf("unexpected metadata: got %v, want %v", metadata, expectedMetadata)
 		}
 	})
@@ -133,7 +133,7 @@ func TestLoadMetadataFromNzb(t *testing.T) {
 				},
 			},
 		}
-		expectedMetadata := Metadata{
+		expectedMetadata := &Metadata{
 			FileName:      "test_file",
 			FileExtension: "txt",
 			FileSize:      100,
@@ -144,7 +144,7 @@ func TestLoadMetadataFromNzb(t *testing.T) {
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}
-		if metadata != expectedMetadata {
+		if *metadata != *expectedMetadata {
 			t.Errorf("unexpected metadata: got %v, want %v", metadata, expectedMetadata)
 		}
 	})

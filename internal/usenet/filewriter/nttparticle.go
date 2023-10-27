@@ -28,7 +28,7 @@ func ArticleToBytes(p []byte, data *ArticleData) ([]byte, error) {
 	buf.WriteString(fmt.Sprintf("From: %s\r\n", data.poster))
 	buf.WriteString(fmt.Sprintf("Newsgroups: %s\r\n", data.group))
 	buf.WriteString(fmt.Sprintf("Message-ID: <%s>\r\n", data.msgId))
-	buf.WriteString(fmt.Sprintf("X-Newsposter: UsenetDrive\r\n"))
+	buf.WriteString("X-Newsposter: UsenetDrive\r\n")
 
 	// Build subject
 	subj := fmt.Sprintf(

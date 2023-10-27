@@ -34,7 +34,7 @@ func TestDial(t *testing.T) {
 			if err != nil {
 				return
 			}
-			conn.Write([]byte("200 mock server ready\r\n"))
+			_, _ = conn.Write([]byte("200 mock server ready\r\n"))
 			conn.Close()
 		}
 	}()

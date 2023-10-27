@@ -2,7 +2,6 @@ package connectionpool
 
 import (
 	"crypto/tls"
-	"fmt"
 	"log/slog"
 
 	"github.com/javi11/usenet-drive/pkg/nntpcli"
@@ -19,10 +18,6 @@ type Config struct {
 	log            *slog.Logger
 	dryRun         bool
 	cli            nntpcli.Client
-}
-
-func (c *Config) getConnectionString() string {
-	return fmt.Sprintf("%s:%d", c.host, c.port)
 }
 
 type Option func(*Config)

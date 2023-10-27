@@ -195,7 +195,7 @@ func TestConn_Post(t *testing.T) {
 			}
 
 			err := conn.Post(tt.p, tt.chunkSize)
-			if err != nil && !errors.Is(err, tt.wantErr) {
+			if err != nil && err.Error() != tt.wantErr.Error() {
 				t.Errorf("unexpected error: %v, want: %v", err, tt.wantErr)
 			}
 		})

@@ -126,7 +126,7 @@ func TestNzbLoader_LoadFromFile(t *testing.T) {
 
 		loader.cache.Add("file4.nzb", &NzbCache{
 			Nzb: nzb,
-			Metadata: usenet.Metadata{
+			Metadata: &usenet.Metadata{
 				FileName:      "file4.mkv",
 				FileExtension: "mkv",
 				FileSize:      100,
@@ -174,7 +174,7 @@ func TestNzbLoader_EvictFromCache(t *testing.T) {
 
 		loader.cache.Add("file4.nzb", &NzbCache{
 			Nzb: nzb,
-			Metadata: usenet.Metadata{
+			Metadata: &usenet.Metadata{
 				FileName:      "file4.mkv",
 				FileExtension: "mkv",
 				FileSize:      100,
@@ -222,7 +222,7 @@ func TestNzbLoader_RefreshCachedNzb(t *testing.T) {
 
 		loader.cache.Add("file4.nzb", &NzbCache{
 			Nzb: nzb,
-			Metadata: usenet.Metadata{
+			Metadata: &usenet.Metadata{
 				FileName:      "file4.mkv",
 				FileExtension: "mkv",
 				FileSize:      100,

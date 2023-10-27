@@ -44,7 +44,7 @@ func TestFileReader_Stat(t *testing.T) {
 
 		fs.EXPECT().Stat("test.nzb").Return(mockFsStat, nil).Times(1)
 		mockNzbLoader.EXPECT().LoadFromFile("test.nzb").Return(&nzbloader.NzbCache{
-			Metadata: usenet.Metadata{
+			Metadata: &usenet.Metadata{
 				FileExtension: ".mkv",
 				FileSize:      123,
 				ChunkSize:     456,
@@ -85,7 +85,7 @@ func TestFileReader_Stat(t *testing.T) {
 		fs.EXPECT().IsNotExist(nil).Return(false).Times(1)
 
 		mockNzbLoader.EXPECT().LoadFromFile("test.nzb").Return(&nzbloader.NzbCache{
-			Metadata: usenet.Metadata{
+			Metadata: &usenet.Metadata{
 				FileExtension: ".mkv",
 				FileSize:      123,
 				ChunkSize:     456,

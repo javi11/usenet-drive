@@ -324,8 +324,8 @@ func (f *file) WriteString(s string) (int, error) {
 	return 0, os.ErrPermission
 }
 
-func (f *file) getMetadata() usenet.Metadata {
-	return *f.metadata
+func (f *file) getMetadata() *usenet.Metadata {
+	return f.metadata
 }
 
 func (f *file) addSegment(ctx context.Context, conn nntpcli.Connection, segments []nzb.NzbSegment, b []byte, segmentIndex int) error {

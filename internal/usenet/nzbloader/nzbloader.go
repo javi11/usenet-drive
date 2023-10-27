@@ -21,7 +21,7 @@ type NzbLoader interface {
 
 type NzbCache struct {
 	Nzb      *nzb.Nzb
-	Metadata usenet.Metadata
+	Metadata *usenet.Metadata
 }
 
 type nzbLoader struct {

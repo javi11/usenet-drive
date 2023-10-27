@@ -17,23 +17,23 @@ type Metadata struct {
 	ChunkSize     int64     `json:"chunk_size"`
 }
 
-func LoadMetadataFromNzb(nzbFile *nzb.Nzb) (Metadata, error) {
+func LoadMetadataFromNzb(nzbFile *nzb.Nzb) (*Metadata, error) {
 	if nzbFile == nil ||
 		nzbFile.Meta == nil ||
 		nzbFile.Meta["file_name"] == "" ||
 		nzbFile.Meta["file_size"] == "" ||
 		nzbFile.Meta["mod_time"] == "" ||
 		nzbFile.Meta["file_extension"] == "" {
-		return Metadata{}, fmt.Errorf("corrupted nzb file, missing required metadata")
+		return nil, fmt.Errorf("corrupted nzb file, missing required metadata")
 	}
 
 	fileSize, err := strconv.ParseInt(nzbFile.Meta["file_size"], 10, 64)
 	if err != nil {
-		return Metadata{}, err
+		return nil, err
 	}
 
 	if len(nzbFile.Files) == 0 {
-		return Metadata{}, fmt.Errorf("corrupted nzb file, no files found")
+		return nil, fmt.Errorf("corrupted nzb file, no files found")
 	}
 
 	chunkSize := int64(0)
@@ -42,7 +42,7 @@ func LoadMetadataFromNzb(nzbFile *nzb.Nzb) (Metadata, error) {
 	if cz != "" {
 		chunkSize, err = strconv.ParseInt(cz, 10, 64)
 		if err != nil {
-			return Metadata{}, err
+			return nil, err
 		}
 	} else {
 		// Fallback to old subject format
@@ -50,20 +50,20 @@ func LoadMetadataFromNzb(nzbFile *nzb.Nzb) (Metadata, error) {
 		// segment size is not the real size of a segment. Segment size = chunk size + yenc overhead
 		chunkSize, err = getChunkSizeFromSubject(nzbFile.Files[0].Subject)
 		if err != nil {
-			return Metadata{}, fmt.Errorf("corrupted nzb file, no files found")
+			return nil, fmt.Errorf("corrupted nzb file, no files found")
 		}
 	}
 
 	modTime, err := time.Parse(time.DateTime, nzbFile.Meta["mod_time"])
 	if err != nil {
-		return Metadata{}, err
+		return nil, err
 	}
 
 	if nzbFile.Meta["file_extension"] == "" {
-		return Metadata{}, fmt.Errorf("corrupted nzb file, file extension not found")
+		return nil, fmt.Errorf("corrupted nzb file, file extension not found")
 	}
 
-	return Metadata{
+	return &Metadata{
 		FileName:      nzbFile.Meta["file_name"],
 		FileExtension: nzbFile.Meta["file_extension"],
 		FileSize:      fileSize,

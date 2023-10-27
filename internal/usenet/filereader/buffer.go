@@ -304,7 +304,10 @@ func (v *buffer) downloadSegment(ctx context.Context, segment nzb.NzbSegment, gr
 			return nil, errors.Join(ErrCorruptedNzb, err)
 		}
 
-		v.cache.Set(segment.Id, chunk)
+		err := v.cache.Set(segment.Id, chunk)
+		if err != nil {
+			v.log.ErrorContext(ctx, "Error caching segment.", "error", err, "segment", segment.Number)
+		}
 	}
 
 	return chunk, nil
