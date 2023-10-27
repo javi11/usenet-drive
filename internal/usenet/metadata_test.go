@@ -18,7 +18,7 @@ func TestLoadMetadataFromNzb(t *testing.T) {
 				"file_extension": "txt",
 				"chunk_size":     "10",
 			},
-			Files: []nzb.NzbFile{
+			Files: []*nzb.NzbFile{
 				{
 					Subject: "test_file.txt",
 				},
@@ -44,7 +44,7 @@ func TestLoadMetadataFromNzb(t *testing.T) {
 	t.Run("Missing required metadata", func(t *testing.T) {
 		nzbFile := &nzb.Nzb{
 			Meta: map[string]string{},
-			Files: []nzb.NzbFile{
+			Files: []*nzb.NzbFile{
 				{
 					Subject: "test_file.txt",
 				},
@@ -66,7 +66,7 @@ func TestLoadMetadataFromNzb(t *testing.T) {
 				"file_extension": "txt",
 				"chunk_size":     "10",
 			},
-			Files: []nzb.NzbFile{
+			Files: []*nzb.NzbFile{
 				{
 					Subject: "test_file.txt",
 				},
@@ -88,7 +88,7 @@ func TestLoadMetadataFromNzb(t *testing.T) {
 				"file_extension": "txt",
 				"chunk_size":     "10",
 			},
-			Files: []nzb.NzbFile{},
+			Files: []*nzb.NzbFile{},
 		}
 		_, err := LoadMetadataFromNzb(nzbFile)
 		if err == nil {
@@ -106,7 +106,7 @@ func TestLoadMetadataFromNzb(t *testing.T) {
 				"file_extension": "txt",
 				"chunk_size":     "invalid",
 			},
-			Files: []nzb.NzbFile{
+			Files: []*nzb.NzbFile{
 				{
 					Subject: "test_file.txt",
 				},
@@ -127,7 +127,7 @@ func TestLoadMetadataFromNzb(t *testing.T) {
 				"mod_time":       "2006-01-02 15:04:05",
 				"file_extension": "txt",
 			},
-			Files: []nzb.NzbFile{
+			Files: []*nzb.NzbFile{
 				{
 					Subject: "test_file [10/10] size=10",
 				},
@@ -159,7 +159,7 @@ func TestLoadMetadataFromNzb(t *testing.T) {
 				"file_extension": "txt",
 				"chunk_size":     "10",
 			},
-			Files: []nzb.NzbFile{
+			Files: []*nzb.NzbFile{
 				{
 					Subject: "test_file.txt",
 				},
@@ -180,7 +180,7 @@ func TestLoadMetadataFromNzb(t *testing.T) {
 				"mod_time":   "2006-01-02 15:04:05",
 				"chunk_size": "10",
 			},
-			Files: []nzb.NzbFile{
+			Files: []*nzb.NzbFile{
 				{
 					Subject: "test_file.txt",
 				},

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"os"
 
 	"github.com/creasty/defaults"
@@ -17,6 +18,14 @@ type Config struct {
 	NzbCacheSize int    `yaml:"nzb_cache_size" default:"100"`
 	Rclone       Rclone `yaml:"rclone"`
 	Debug        bool   `yaml:"debug" default:"false"`
+}
+
+func (co Config) MarshalJSON() ([]byte, error) {
+	type conf Config
+	cn := conf(co)
+	cn.Usenet.Download.Provider.Password = "********"
+	cn.Usenet.Upload.Provider.Password = "********"
+	return json.Marshal((*conf)(&cn))
 }
 
 type Rclone struct {

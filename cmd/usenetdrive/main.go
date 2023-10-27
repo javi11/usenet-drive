@@ -61,6 +61,7 @@ var rootCmd = &cobra.Command{
 		log := slog.New(jsonHandler)
 
 		log.InfoContext(ctx, fmt.Sprintf("Starting Usenet Drive %s", Version))
+		log.InfoContext(ctx, "Config parameters:", "config", config)
 
 		osFs := osfs.New()
 

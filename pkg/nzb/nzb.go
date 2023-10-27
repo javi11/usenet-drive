@@ -37,9 +37,9 @@ func (p *nzbParser) Parse(buf io.Reader) (*Nzb, error) {
 		nzb.Meta[md.Type] = md.Value
 	}
 
-	nzb.Files = make([]NzbFile, len(xnzb.File))
+	nzb.Files = make([]*NzbFile, len(xnzb.File))
 	for i, file := range xnzb.File {
-		nzb.Files[i] = xNzbFileToNzbFile(&file)
+		nzb.Files[i] = xNzbFileToNzbFile(file)
 	}
 	return nzb, nil
 }
@@ -51,15 +51,15 @@ const (
 
 type Nzb struct {
 	Meta  map[string]string
-	Files []NzbFile
+	Files []*NzbFile
 }
 
 type NzbFile struct {
-	Groups   []string     `xml:"groups>group"`
-	Segments []NzbSegment `xml:"segments>segment"`
-	Poster   string       `xml:"poster,attr"`
-	Date     int64        `xml:"date,attr"`
-	Subject  string       `xml:"subject,attr"`
+	Groups   []string      `xml:"groups>group"`
+	Segments []*NzbSegment `xml:"segments>segment"`
+	Poster   string        `xml:"poster,attr"`
+	Date     int64         `xml:"date,attr"`
+	Subject  string        `xml:"subject,attr"`
 	Part     int64
 }
 

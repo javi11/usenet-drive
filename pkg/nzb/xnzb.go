@@ -5,10 +5,10 @@ import (
 )
 
 type xNzb struct {
-	XMLName xml.Name   `xml:"nzb"`
-	XMLns   string     `xml:"xmlns,attr"`
-	Head    []xNzbMeta `xml:"head>meta"`
-	File    []xNzbFile `xml:"file"`
+	XMLName xml.Name    `xml:"nzb"`
+	XMLns   string      `xml:"xmlns,attr"`
+	Head    []*xNzbMeta `xml:"head>meta"`
+	File    []*xNzbFile `xml:"file"`
 }
 
 type xNzbMeta struct {
@@ -32,11 +32,11 @@ type xNzbSegment struct {
 }
 
 func nzbToXNzb(nzb *Nzb) *xNzb {
-	head := make([]xNzbMeta, 0)
+	head := make([]*xNzbMeta, 0)
 	for k, v := range nzb.Meta {
-		head = append(head, xNzbMeta{Type: k, Value: v})
+		head = append(head, &xNzbMeta{Type: k, Value: v})
 	}
-	file := make([]xNzbFile, len(nzb.Files))
+	file := make([]*xNzbFile, len(nzb.Files))
 	for i, f := range nzb.Files {
 		segments := make([]xNzbSegment, len(f.Segments))
 		for j, s := range f.Segments {
@@ -47,7 +47,7 @@ func nzbToXNzb(nzb *Nzb) *xNzb {
 			}
 		}
 
-		file[i] = xNzbFile{
+		file[i] = &xNzbFile{
 			Poster:   f.Poster,
 			Date:     f.Date,
 			Subject:  f.Subject,
@@ -63,13 +63,13 @@ func nzbToXNzb(nzb *Nzb) *xNzb {
 	}
 }
 
-func xNzbFileToNzbFile(f *xNzbFile) NzbFile {
-	segments := make([]NzbSegment, len(f.Segments))
+func xNzbFileToNzbFile(f *xNzbFile) *NzbFile {
+	segments := make([]*NzbSegment, len(f.Segments))
 	for i, segment := range f.Segments {
 		segments[i] = xNzbSegmentToNzbSegment(&segment)
 	}
 
-	return NzbFile{
+	return &NzbFile{
 		Poster:   f.Poster,
 		Date:     f.Date,
 		Subject:  f.Subject,
@@ -78,8 +78,8 @@ func xNzbFileToNzbFile(f *xNzbFile) NzbFile {
 	}
 }
 
-func xNzbSegmentToNzbSegment(x *xNzbSegment) NzbSegment {
-	return NzbSegment{
+func xNzbSegmentToNzbSegment(x *xNzbSegment) *NzbSegment {
+	return &NzbSegment{
 		Bytes:  x.Bytes,
 		Number: x.Number,
 		Id:     x.MessageId,

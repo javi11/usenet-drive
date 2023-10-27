@@ -53,10 +53,10 @@ func TestNzbParser_Parse(t *testing.T) {
 				Meta: map[string]string{
 					"title": "Test NZB",
 				},
-				Files: []NzbFile{
+				Files: []*NzbFile{
 					{
 						Groups: []string{"alt.binaries.test"},
-						Segments: []NzbSegment{
+						Segments: []*NzbSegment{
 							{
 								Bytes:  100,
 								Number: 1,

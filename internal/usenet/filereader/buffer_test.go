@@ -29,7 +29,7 @@ func TestBuffer_Read(t *testing.T) {
 	mockPool := connectionpool.NewMockUsenetConnectionPool(ctrl)
 
 	nzbFile := &nzb.NzbFile{
-		Segments: []nzb.NzbSegment{
+		Segments: []*nzb.NzbSegment{
 			{Id: "1", Number: 1},
 			{Id: "2", Number: 2},
 			{Id: "3", Number: 3},
@@ -248,7 +248,7 @@ func TestBuffer_ReadAt(t *testing.T) {
 
 	cache := NewMockCache(ctrl)
 	nzbFile := &nzb.NzbFile{
-		Segments: []nzb.NzbSegment{
+		Segments: []*nzb.NzbSegment{
 			{Id: "1", Number: 1},
 			{Id: "2", Number: 2},
 			{Id: "3", Number: 3},
@@ -450,7 +450,7 @@ func TestBuffer_Seek(t *testing.T) {
 	mockPool := connectionpool.NewMockUsenetConnectionPool(ctrl)
 
 	nzbFile := &nzb.NzbFile{
-		Segments: []nzb.NzbSegment{
+		Segments: []*nzb.NzbSegment{
 			{Id: "1", Number: 1},
 			{Id: "2", Number: 2},
 			{Id: "3", Number: 3},
@@ -616,7 +616,7 @@ func TestBuffer_Close(t *testing.T) {
 	mockPool := connectionpool.NewMockUsenetConnectionPool(ctrl)
 
 	nzbFile := &nzb.NzbFile{
-		Segments: []nzb.NzbSegment{
+		Segments: []*nzb.NzbSegment{
 			{Id: "1", Number: 1},
 			{Id: "2", Number: 2},
 			{Id: "3", Number: 3},
@@ -700,7 +700,7 @@ func TestBuffer_downloadSegment(t *testing.T) {
 	mockPool := connectionpool.NewMockUsenetConnectionPool(ctrl)
 
 	nzbFile := &nzb.NzbFile{
-		Segments: []nzb.NzbSegment{
+		Segments: []*nzb.NzbSegment{
 			{Id: "1", Number: 1},
 			{Id: "2", Number: 2},
 			{Id: "3", Number: 3},

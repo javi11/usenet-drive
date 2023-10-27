@@ -68,7 +68,7 @@ func openFile(
 
 	buffer, err := NewBuffer(
 		ctx,
-		&n.Nzb.Files[0],
+		n.Nzb.Files[0],
 		int(n.Metadata.FileSize),
 		int(n.Metadata.ChunkSize),
 		dc,

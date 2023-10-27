@@ -217,7 +217,7 @@ func (v *buffer) ReadAt(p []byte, off int64) (int, error) {
 	return n, nil
 }
 
-func (v *buffer) downloadSegment(ctx context.Context, segment nzb.NzbSegment, groups []string) ([]byte, error) {
+func (v *buffer) downloadSegment(ctx context.Context, segment *nzb.NzbSegment, groups []string) ([]byte, error) {
 	hit, err := v.cache.Get(segment.Id)
 
 	var chunk []byte

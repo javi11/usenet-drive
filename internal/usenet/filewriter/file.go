@@ -117,7 +117,7 @@ func openFile(
 func (f *file) ReadFrom(src io.Reader) (int64, error) {
 	var bytesWritten int64
 	wg := &multierror.Group{}
-	segments := make([]nzb.NzbSegment, f.nzbMetadata.parts)
+	segments := make([]*nzb.NzbSegment, f.nzbMetadata.parts)
 
 	ctx, cancel := context.WithCancelCause(f.ctx)
 	for i := 0; ; i++ {
@@ -328,7 +328,7 @@ func (f *file) getMetadata() *usenet.Metadata {
 	return f.metadata
 }
 
-func (f *file) addSegment(ctx context.Context, conn nntpcli.Connection, segments []nzb.NzbSegment, b []byte, segmentIndex int) error {
+func (f *file) addSegment(ctx context.Context, conn nntpcli.Connection, segments []*nzb.NzbSegment, b []byte, segmentIndex int) error {
 	a := f.buildArticleData(int64(segmentIndex))
 	b, err := ArticleToBytes(b, a)
 	if err != nil {
@@ -341,7 +341,7 @@ func (f *file) addSegment(ctx context.Context, conn nntpcli.Connection, segments
 		return err
 	}
 
-	segments[segmentIndex] = nzb.NzbSegment{
+	segments[segmentIndex] = &nzb.NzbSegment{
 		Bytes:  a.partSize,
 		Number: a.partNum,
 		Id:     a.msgId,
@@ -445,7 +445,7 @@ func (f *file) upload(ctx context.Context, b []byte, conn nntpcli.Connection) er
 	return nil
 }
 
-func (f *file) writeFinalNzb(segments []nzb.NzbSegment) error {
+func (f *file) writeFinalNzb(segments []*nzb.NzbSegment) error {
 	for _, segment := range segments {
 		if segment.Bytes == 0 {
 			f.log.Warn("Upload was canceled. The file will not be written.")
@@ -457,7 +457,7 @@ func (f *file) writeFinalNzb(segments []nzb.NzbSegment) error {
 	// Create and upload the nzb file
 	subject := fmt.Sprintf("[1/1] - \"%s\" yEnc (1/%d)", f.nzbMetadata.fileNameHash, f.nzbMetadata.parts)
 	nzb := &nzb.Nzb{
-		Files: []nzb.NzbFile{
+		Files: []*nzb.NzbFile{
 			{
 				Segments: segments,
 				Subject:  subject,
