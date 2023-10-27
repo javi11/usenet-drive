@@ -108,7 +108,7 @@ func TestConn_cmd(t *testing.T) {
 			write:      "TEST 123\r\n",
 			wantCode:   201,
 			wantLine:   "Test response",
-			wantErr:    Error{201, "Test response"},
+			wantErr:    NntpError{201, "Test response"},
 			close:      false,
 		},
 	}

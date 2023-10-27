@@ -7,6 +7,8 @@ import (
 	"syscall"
 )
 
+const SegmentAlreadyExistsErrCode = 441
+
 // A ProtocolError represents responses from an NNTP server
 // that seem incorrect for NNTP.
 type ProtocolError string
@@ -16,17 +18,17 @@ func (p ProtocolError) Error() string {
 }
 
 // An Error represents an error response from an NNTP server.
-type Error struct {
+type NntpError struct {
 	Code uint
 	Msg  string
 }
 
-func (e Error) Error() string {
+func (e NntpError) Error() string {
 	return fmt.Sprintf("%03d %s", e.Code, e.Msg)
 }
 
 var retirableErrors = []uint{
-	441,
+	SegmentAlreadyExistsErrCode,
 }
 
 func IsRetryableError(err error) bool {
@@ -36,7 +38,7 @@ func IsRetryableError(err error) bool {
 		return true
 	}
 
-	if err, ok := err.(net.Error); ok && err.Timeout() {
+	if e, ok := err.(net.Error); ok && e.Timeout() {
 		return true
 	}
 
@@ -44,7 +46,7 @@ func IsRetryableError(err error) bool {
 		return true
 	}
 
-	if e, ok := err.(Error); ok {
+	if e, ok := err.(NntpError); ok {
 		for _, r := range retirableErrors {
 			if e.Code == r {
 				return true

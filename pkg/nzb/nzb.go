@@ -24,8 +24,8 @@ func (p *nzbParser) ParseFromString(data string) (*Nzb, error) {
 }
 
 func (p *nzbParser) Parse(buf io.Reader) (*Nzb, error) {
-	xnzb := &xNzb{}
-	err := xml.NewDecoder(buf).Decode(xnzb)
+	xnzb := xNzb{}
+	err := xml.NewDecoder(buf).Decode(&xnzb)
 	if err != nil {
 		return nil, err
 	}
@@ -41,6 +41,9 @@ func (p *nzbParser) Parse(buf io.Reader) (*Nzb, error) {
 	for i, file := range xnzb.File {
 		nzb.Files[i] = xNzbFileToNzbFile(file)
 	}
+
+	xnzb = xNzb{}
+
 	return nzb, nil
 }
 

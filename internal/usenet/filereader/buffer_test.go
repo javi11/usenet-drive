@@ -894,7 +894,7 @@ func TestBuffer_downloadSegment(t *testing.T) {
 
 		cache.EXPECT().Get("3").Return(nil, errors.New("not found")).Times(1)
 		mockConn.EXPECT().SelectGroup("group1").Return(0, 0, 0, nil).Times(1)
-		mockConn.EXPECT().Body("<3>").Return(nil, nntpcli.Error{Code: 441}).Times(1)
+		mockConn.EXPECT().Body("<3>").Return(nil, nntpcli.NntpError{Code: nntpcli.SegmentAlreadyExistsErrCode}).Times(1)
 
 		mockPool.EXPECT().Get().Return(mockConn2, nil).Times(1)
 		mockPool.EXPECT().Free(mockConn2).Return(nil).Times(1)
@@ -938,7 +938,7 @@ func TestBuffer_downloadSegment(t *testing.T) {
 		cache.EXPECT().Get("3").Return(nil, errors.New("not found")).Times(1)
 		mockPool.EXPECT().Get().Return(mockConn, nil).Times(1)
 		mockPool.EXPECT().Close(mockConn).Return(nil).Times(1)
-		mockConn.EXPECT().SelectGroup("group1").Return(0, 0, 0, nntpcli.Error{Code: 441}).Times(1)
+		mockConn.EXPECT().SelectGroup("group1").Return(0, 0, 0, nntpcli.NntpError{Code: nntpcli.SegmentAlreadyExistsErrCode}).Times(1)
 
 		mockPool.EXPECT().Get().Return(mockConn2, nil).Times(1)
 		mockPool.EXPECT().Free(mockConn2).Return(nil).Times(1)

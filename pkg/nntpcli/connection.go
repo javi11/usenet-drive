@@ -156,7 +156,7 @@ func (c *conn) cmd(expectCode uint, format string, args ...interface{}) (code ui
 	if 1 <= expectCode && expectCode < 10 && code/100 != expectCode ||
 		10 <= expectCode && expectCode < 100 && code/10 != expectCode ||
 		100 <= expectCode && expectCode < 1000 && code != expectCode {
-		err = Error{code, line}
+		err = NntpError{code, line}
 	}
 	return
 }

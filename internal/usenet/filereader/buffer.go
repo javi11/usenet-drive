@@ -274,7 +274,7 @@ func (v *buffer) downloadSegment(ctx context.Context, segment *nzb.NzbSegment, g
 			retry.OnRetry(func(n uint, err error) {
 				v.log.InfoContext(ctx, "Retrying download", "error", err, "segment", segment.Id, "retry", n)
 
-				if conn != nil {
+				if conn != nil && !errors.Is(err, syscall.EPIPE) {
 					err = v.cp.Close(conn)
 					if err != nil {
 						v.log.DebugContext(ctx, "Error closing connection.", "error", err)
