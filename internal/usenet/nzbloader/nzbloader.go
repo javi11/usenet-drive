@@ -3,6 +3,7 @@ package nzbloader
 //go:generate mockgen -source=./nzbloader.go -destination=./nzbloader_mock.go -package=nzbloader NzbLoader
 
 import (
+	"bufio"
 	"context"
 
 	lru "github.com/hashicorp/golang-lru/v2"
@@ -92,7 +93,7 @@ func (n *nzbLoader) RefreshCachedNzb(name string, nzb *nzb.Nzb) (bool, error) {
 }
 
 func (n *nzbLoader) loadNzb(f osfs.File) (*NzbCache, error) {
-	nzb, err := n.nzbParser.Parse(f)
+	nzb, err := n.nzbParser.Parse(bufio.NewReader(f))
 	if err != nil {
 		if e := n.cNzb.Add(context.Background(), f.Name(), err.Error()); e != nil {
 			return nil, e

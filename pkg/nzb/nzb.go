@@ -39,7 +39,7 @@ func (p *nzbParser) Parse(buf io.Reader) (*Nzb, error) {
 
 	nzb.Files = make([]*NzbFile, len(xnzb.File))
 	for i, file := range xnzb.File {
-		nzb.Files[i] = xNzbFileToNzbFile(file)
+		nzb.Files[i] = xNzbFileToNzbFile(&file)
 	}
 
 	xnzb = xNzb{}
