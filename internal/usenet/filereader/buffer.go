@@ -36,7 +36,7 @@ type Buffer interface {
 type buffer struct {
 	ctx         context.Context
 	size        int
-	nzbIterator nzbloader.NzbIterator
+	nzbReader   nzbloader.NzbReader
 	nzbGroups   []string
 	ptr         int64
 	cache       Cache
@@ -66,16 +66,11 @@ func NewBuffer(
 		return nil, err
 	}
 
-	iter, err := nzbReader.GetIterator()
-	if err != nil {
-		return nil, err
-	}
-
 	buffer := &buffer{
 		ctx:         ctx,
 		chunkSize:   chunkSize,
 		size:        size,
-		nzbIterator: iter,
+		nzbReader:   nzbReader,
 		nzbGroups:   nzbGroups,
 		cache:       cache,
 		cp:          cp,
@@ -121,8 +116,6 @@ func (v *buffer) Seek(offset int64, whence int) (int64, error) {
 		return 0, ErrSeekTooFar
 	}
 	v.ptr = abs
-	currentSegmentIndex := int(float64(v.ptr) / float64(v.chunkSize))
-	v.nzbIterator.Seek(currentSegmentIndex)
 
 	return abs, nil
 }
@@ -153,18 +146,19 @@ func (v *buffer) Read(p []byte) (int, error) {
 	currentSegmentIndex := int(float64(v.ptr) / float64(v.chunkSize))
 	beginReadAt := max((int(v.ptr) - (currentSegmentIndex * v.chunkSize)), 0)
 
-	v.nzbIterator.Seek(currentSegmentIndex)
-
-	for segment, hasNext := v.nzbIterator.Next(); hasNext; {
+	var i int
+	for segment, hasMore := v.nzbReader.GetSegment(currentSegmentIndex + i); hasMore; {
 		if n >= len(p) {
 			break
 		}
 
+		nextSegmentIndex := currentSegmentIndex + i + 1
 		// Preload next segments
 		for j := 0; j < v.dc.maxAheadDownloadSegments; j++ {
-
+			nextSegmentIndex := nextSegmentIndex + j
 			// Preload next segments
-			if nextSegment, hasNext := v.nzbIterator.Next(); hasNext {
+			if nextSegment, hasMore := v.nzbReader.GetSegment(nextSegmentIndex); hasMore && !v.cache.Has(nextSegment.Id) {
+
 				v.nextSegment <- nextSegment
 			}
 		}
@@ -179,6 +173,7 @@ func (v *buffer) Read(p []byte) (int, error) {
 		beginWriteAt := n
 		n += copy(p[beginWriteAt:], chunk[beginReadAt:])
 		beginReadAt = 0
+		i++
 	}
 	v.ptr += int64(n)
 
@@ -202,18 +197,18 @@ func (v *buffer) ReadAt(p []byte, off int64) (int, error) {
 	currentSegmentIndex := int(float64(off) / float64(v.chunkSize))
 	beginReadAt := max((int(off) - (currentSegmentIndex * v.chunkSize)), 0)
 
-	v.nzbIterator.Seek(currentSegmentIndex)
-
-	for segment, hasNext := v.nzbIterator.Next(); hasNext; {
+	var i int
+	for segment, hasMore := v.nzbReader.GetSegment(currentSegmentIndex + i); hasMore; {
 		if n >= len(p) {
 			break
 		}
 
+		nextSegmentIndex := currentSegmentIndex + i + 1
 		// Preload next segments
 		for j := 0; j < v.dc.maxAheadDownloadSegments; j++ {
-
+			nextSegmentIndex := nextSegmentIndex + j
 			// Preload next segments
-			if nextSegment, hasNext := v.nzbIterator.Next(); hasNext {
+			if nextSegment, hasMore := v.nzbReader.GetSegment(nextSegmentIndex); hasMore && !v.cache.Has(nextSegment.Id) {
 				v.nextSegment <- nextSegment
 			}
 		}
@@ -225,6 +220,7 @@ func (v *buffer) ReadAt(p []byte, off int64) (int, error) {
 		beginWriteAt := n
 		n += copy(p[beginWriteAt:], chunk[beginReadAt:])
 		beginReadAt = 0
+		i++
 	}
 
 	return n, nil
@@ -238,7 +234,6 @@ func (v *buffer) downloadSegment(ctx context.Context, segment *nzb.NzbSegment, g
 		chunk = hit
 	} else {
 		var conn nntpcli.Connection
-		segment := segment
 		retryErr := retry.Do(func() error {
 			c, err := v.cp.Get()
 			if err != nil {

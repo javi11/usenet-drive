@@ -11,26 +11,27 @@ import (
 )
 
 type NzbIterator interface {
-	Next() (*nzb.NzbSegment, bool)
-	Seek(segmentIndex int)
+	Next(from int) (*nzb.NzbSegment, bool)
 }
 
 type NzbReader interface {
 	GetMetadata() (usenet.Metadata, error)
 	GetGroups() ([]string, error)
-	GetIterator() (NzbIterator, error)
+	GetSegment(segmentIndex int) (*nzb.NzbSegment, bool)
 }
 
 type nzbReader struct {
 	decoder  *xml.Decoder
 	metadata *usenet.Metadata
 	groups   []string
-	mx       sync.Mutex
+	segments map[int64]*nzb.NzbSegment
+	mx       sync.RWMutex
 }
 
 func NewNzbReader(reader io.Reader) NzbReader {
 	return &nzbReader{
-		decoder: xml.NewDecoder(reader),
+		decoder:  xml.NewDecoder(reader),
+		segments: map[int64]*nzb.NzbSegment{},
 	}
 }
 
@@ -156,37 +157,19 @@ func (r *nzbReader) GetGroups() ([]string, error) {
 	return r.groups, nil
 }
 
-func (r *nzbReader) GetIterator() (NzbIterator, error) {
-	if len(r.groups) == 0 {
-		// we need to maintain the order of the calls to GetMetadata, GetGroups and GetIterator
-		if _, err := r.GetGroups(); err != nil {
-			return nil, err
-		}
-	}
+func (r *nzbReader) GetSegment(segmentIndex int) (*nzb.NzbSegment, bool) {
+	r.mx.RLock()
+	defer r.mx.RLocker()
 
-	return &nzbIterator{decoder: r.decoder}, nil
-}
-
-type nzbIterator struct {
-	decoder      *xml.Decoder
-	currentIndex int
-	segments     []*nzb.NzbSegment
-	mx           sync.Mutex
-}
-
-func (it *nzbIterator) Next() (*nzb.NzbSegment, bool) {
-	it.mx.Lock()
-	defer it.mx.Unlock()
-	defer func() { it.currentIndex++ }()
-
+	segmentNumber := int64(segmentIndex + 1)
 	// Check if the segment is already in the cache
-	if it.currentIndex+1 <= len(it.segments) && it.segments[it.currentIndex] != nil {
-		return it.segments[it.currentIndex], true
+	if r.segments[segmentNumber] != nil {
+		return r.segments[segmentNumber], true
 	}
 
 	// Check if there are more segments to read from the XML stream
 	for {
-		token, err := it.decoder.Token()
+		token, err := r.decoder.Token()
 		if err != nil {
 			return nil, false
 		}
@@ -194,41 +177,15 @@ func (it *nzbIterator) Next() (*nzb.NzbSegment, bool) {
 		if se, ok := token.(xml.StartElement); ok && se.Name.Local == "segment" {
 			// Read the next segment from the XML stream
 			var segment nzb.NzbSegment
-			it.decoder.DecodeElement(&segment, nil)
-			it.segments = append(it.segments, &segment)
+			r.decoder.DecodeElement(&segment, &se)
+			r.segments[segmentNumber] = &segment
 
-			return &segment, true
-		}
-	}
-
-}
-
-func (it *nzbIterator) Seek(segmentIndex int) {
-	it.mx.Lock()
-	defer it.mx.Unlock()
-
-	it.currentIndex = segmentIndex
-	// Check if the segment is already in the cache
-	if it.currentIndex+1 <= len(it.segments) && it.segments[it.currentIndex] != nil {
-		return
-	}
-
-	// Seek to a specific segment in the XML stream
-	for {
-		token, err := it.decoder.Token()
-		if err != nil {
-			return
-		}
-
-		if se, ok := token.(xml.StartElement); ok && se.Name.Local == "segment" {
-			it.currentIndex++
-			var segment nzb.NzbSegment
-			it.decoder.DecodeElement(&segment, &se)
-			it.segments = append(it.segments, &segment)
-
-			if segment.Number == int64(segmentIndex+1) {
-				return
+			if segment.Number == segmentNumber {
+				return &segment, true
 			}
+
+			continue
 		}
 	}
+
 }
