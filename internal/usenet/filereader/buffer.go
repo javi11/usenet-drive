@@ -146,8 +146,12 @@ func (v *buffer) Read(p []byte) (int, error) {
 	currentSegmentIndex := int(float64(v.ptr) / float64(v.chunkSize))
 	beginReadAt := max((int(v.ptr) - (currentSegmentIndex * v.chunkSize)), 0)
 
-	var i int
-	for segment, hasMore := v.nzbReader.GetSegment(currentSegmentIndex + i); hasMore; {
+	for i := 0; ; i++ {
+		segment, hasMore := v.nzbReader.GetSegment(currentSegmentIndex + i)
+		if !hasMore {
+			break
+		}
+
 		if n >= len(p) {
 			break
 		}
@@ -173,7 +177,6 @@ func (v *buffer) Read(p []byte) (int, error) {
 		beginWriteAt := n
 		n += copy(p[beginWriteAt:], chunk[beginReadAt:])
 		beginReadAt = 0
-		i++
 	}
 	v.ptr += int64(n)
 
@@ -197,8 +200,12 @@ func (v *buffer) ReadAt(p []byte, off int64) (int, error) {
 	currentSegmentIndex := int(float64(off) / float64(v.chunkSize))
 	beginReadAt := max((int(off) - (currentSegmentIndex * v.chunkSize)), 0)
 
-	var i int
-	for segment, hasMore := v.nzbReader.GetSegment(currentSegmentIndex + i); hasMore; {
+	for i := 0; ; i++ {
+		segment, hasMore := v.nzbReader.GetSegment(currentSegmentIndex + i)
+		if !hasMore {
+			break
+		}
+
 		if n >= len(p) {
 			break
 		}
