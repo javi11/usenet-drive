@@ -9,7 +9,6 @@ import (
 	"io"
 	"log/slog"
 	"sync"
-	"sync/atomic"
 	"syscall"
 
 	"github.com/avast/retry-go"
@@ -316,8 +315,8 @@ func (v *buffer) downloadSegment(ctx context.Context, segment *nzb.NzbSegment, g
 func (v *buffer) downloadBoost(ctx context.Context, nextSegmentIndex chan int) {
 	defer v.wg.Done()
 
-	activeDownloaders := atomic.Int32{}
-	currentDownloading := map[int]bool{}
+	var mx sync.RWMutex
+	currentDownloading := make(map[int]bool)
 
 	ctx, cancel := context.WithCancelCause(ctx)
 	for {
@@ -329,14 +328,18 @@ func (v *buffer) downloadBoost(ctx context.Context, nextSegmentIndex chan int) {
 			cancel(errors.New("file closed"))
 			return
 		case i := <-nextSegmentIndex:
-			if activeDownloaders.Load() >= int32(v.dc.maxAheadDownloadSegments) || currentDownloading[i] {
+			mx.RLock()
+			if len(currentDownloading) >= v.dc.maxAheadDownloadSegments || currentDownloading[i] {
+				mx.RUnlock()
 				continue
 			}
+			mx.RUnlock()
 
-			activeDownloaders.Add(1)
+			mx.Lock()
 			currentDownloading[i] = true
-			segment := v.nzbFile.Segments[i]
+			mx.Unlock()
 
+			segment := v.nzbFile.Segments[i]
 			v.wg.Add(1)
 			go func() {
 				defer v.wg.Done()
@@ -345,8 +348,9 @@ func (v *buffer) downloadBoost(ctx context.Context, nextSegmentIndex chan int) {
 					v.log.Error("Error downloading segment.", "error", err, "segment", segment.Number)
 				}
 
-				activeDownloaders.Add(-1)
-				currentDownloading[i] = false
+				mx.Lock()
+				delete(currentDownloading, i)
+				mx.Unlock()
 			}()
 		}
 	}

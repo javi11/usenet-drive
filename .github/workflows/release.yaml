@@ -7,9 +7,18 @@ permissions:
   packages: write
 
 jobs:
+  check:
+    name: Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Make check
+        run: make check
+
   releases-matrix:
     name: Release Go Binary
     runs-on: ubuntu-latest
+    needs: check
     strategy:
       matrix:
         # build and publish in parallel: linux/386, linux/amd64
@@ -32,9 +41,11 @@ jobs:
           binary_name: 'usenet-drive'
           extra_files: README.md
           project_path: './cmd/usenetdrive'
+
   release-docker:
     name: Release Docker Image
     runs-on: ubuntu-latest
+    needs: check
     steps:
       - uses: actions/checkout@v3
       - name: Set up QEMU

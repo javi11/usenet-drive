@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -595,13 +596,12 @@ func TestReadFrom(t *testing.T) {
 
 		mockConn := nntpcli.NewMockConnection(ctrl)
 		mockConn2 := nntpcli.NewMockConnection(ctrl)
-		mockConn.EXPECT().Post(gomock.Any(), segmentSize).Return(syscall.ECONNRESET).Times(1)
+		mockConn.EXPECT().Post(gomock.Any(), segmentSize).Return(net.ErrClosed).Times(1)
 		mockConn2.EXPECT().Post(gomock.Any(), segmentSize).Return(nil).Times(10)
 		// First connection is closed because of the retryable error
 		cp.EXPECT().Get().Return(mockConn, nil).Times(1)
 		// Second connection works as expected
 		cp.EXPECT().Get().Return(mockConn2, nil).Times(10)
-		cp.EXPECT().Close(mockConn).Return(nil).Times(1)
 		cp.EXPECT().Free(mockConn2).Return(nil).Times(10)
 		fs.EXPECT().WriteFile("test.nzb", gomock.Any(), os.FileMode(0644)).Return(nil)
 		mockNzbLoader.EXPECT().RefreshCachedNzb("test.nzb", gomock.Any()).Return(true, nil)

@@ -94,6 +94,7 @@ var rootCmd = &cobra.Command{
 			connectionpool.WithMaxConnections(config.Usenet.Upload.Provider.MaxConnections),
 			connectionpool.WithDryRun(config.Usenet.Upload.DryRun),
 			connectionpool.WithClient(nntpCli),
+			connectionpool.WithLogger(log),
 		)
 		if err != nil {
 			log.ErrorContext(ctx, "Failed to init usenet upload pool: %v", err)

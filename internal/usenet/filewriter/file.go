@@ -7,10 +7,10 @@ import (
 	"io"
 	"io/fs"
 	"log/slog"
+	"net"
 	"os"
 	"path/filepath"
 	"strconv"
-	"syscall"
 	"time"
 
 	"github.com/avast/retry-go"
@@ -175,7 +175,7 @@ func (f *file) ReadFrom(src io.Reader) (int64, error) {
 					retry.Delay(1*time.Second),
 					retry.DelayType(retry.FixedDelay),
 					retry.OnRetry(func(n uint, err error) {
-						f.log.Info("Error uploading segment. Retrying", "error", err, "segment", i, "retry", n)
+						f.log.Info("Error getting connection for upload. Retrying", "error", err, "segment", i, "retry", n)
 					}),
 					retry.RetryIf(func(err error) bool {
 						return nntpcli.IsRetryableError(err)
@@ -329,55 +329,44 @@ func (f *file) getMetadata() *usenet.Metadata {
 }
 
 func (f *file) addSegment(ctx context.Context, conn nntpcli.Connection, segments []*nzb.NzbSegment, b []byte, segmentIndex int) error {
-	a := f.buildArticleData(int64(segmentIndex))
-	articleBytes, err := ArticleToBytes(b, a)
-	if err != nil {
-		f.log.Error("Error building article.", "error", err, "segment", a)
-		err := f.cp.Free(conn)
+	log := f.log.With("segment_number", segmentIndex+1)
+
+	err := retry.Do(func() error {
+		a := f.buildArticleData(int64(segmentIndex))
+		articleBytes, err := ArticleToBytes(b, a)
 		if err != nil {
-			f.log.Error("Error freeing connection.", "error", err)
+			log.Error("Error building article.", "error", err)
+			err := f.cp.Free(conn)
+			if err != nil {
+				log.Error("Error freeing connection.", "error", err)
+			}
+
+			return err
 		}
 
-		return err
-	}
-
-	segments[segmentIndex] = &nzb.NzbSegment{
-		Bytes:  a.partSize,
-		Number: a.partNum,
-		Id:     a.msgId,
-	}
-
-	if f.dryRun {
-		time.Sleep(100 * time.Millisecond)
-
-		return f.cp.Free(conn)
-	}
-
-	var retryArticle *ArticleData
-	err = retry.Do(func() error {
-		if retryArticle != nil {
-			articleBytes, err = ArticleToBytes(b, a)
-			if err != nil {
-				f.log.Error("Error building article.", "error", err, "segment", a)
-				if err != nil {
-					f.log.Error("Error freeing connection.", "error", err)
-				}
-
-				return err
-			}
+		segments[segmentIndex] = &nzb.NzbSegment{
+			Bytes:  a.partSize,
+			Number: a.partNum,
+			Id:     a.msgId,
 		}
 
 		// connection can be null in case OnRetry fails to get the connection
 		if conn == nil {
 			c, err := f.cp.Get()
-			if err != nil {
+			if e, ok := err.(net.Error); ok {
 				// Retry
-				return errors.Join(err, syscall.ETIMEDOUT)
+				return errors.Join(err, e)
 			}
 			conn = c
 		}
 
-		err := conn.Post(articleBytes, f.metadata.ChunkSize)
+		if f.dryRun {
+			time.Sleep(100 * time.Millisecond)
+
+			return f.cp.Free(conn)
+		}
+
+		err = conn.Post(articleBytes, f.metadata.ChunkSize)
 		if err != nil {
 			return err
 		}
@@ -387,30 +376,21 @@ func (f *file) addSegment(ctx context.Context, conn nntpcli.Connection, segments
 		retry.Context(ctx),
 		retry.Attempts(uint(f.maxUploadRetries)),
 		retry.Delay(1*time.Second),
-		retry.DelayType(retry.FixedDelay),
+		retry.DelayType(retry.BackOffDelay),
 		retry.OnRetry(func(n uint, err error) {
-			f.log.InfoContext(ctx, "Retrying upload", "error", err, "retry", n)
+			l := log.With("retry", n)
+			l.InfoContext(ctx, "Retrying upload", "error", err, "retry", n)
 
-			if conn != nil && !errors.Is(err, syscall.EPIPE) {
+			if conn != nil && !errors.Is(err, net.ErrClosed) {
 				e := f.cp.Close(conn)
 				if e != nil {
-					f.log.DebugContext(ctx, "Error closing connection.", "error", e)
+					l.DebugContext(ctx, "Error closing connection.", "error", e)
 				}
 			}
 
 			c, e := f.cp.Get()
 			if e != nil {
-				f.log.InfoContext(ctx, "Error getting connection from pool.", "error", e)
-			}
-
-			if e, ok := err.(nntpcli.NntpError); ok && e.Code == nntpcli.SegmentAlreadyExistsErrCode {
-				// Retry for partial upload
-				retryArticle := f.buildArticleData(int64(segmentIndex))
-				segments[segmentIndex] = &nzb.NzbSegment{
-					Bytes:  retryArticle.partSize,
-					Number: retryArticle.partNum,
-					Id:     retryArticle.msgId,
-				}
+				l.InfoContext(ctx, "Error getting connection from pool.", "error", e)
 			}
 
 			conn = c
@@ -424,16 +404,16 @@ func (f *file) addSegment(ctx context.Context, conn nntpcli.Connection, segments
 		if errors.Is(err, context.Canceled) {
 			err = f.cp.Free(conn)
 			if err != nil {
-				f.log.DebugContext(ctx, "Error freeing the connection.", "error", err)
+				log.DebugContext(ctx, "Error freeing the connection.", "error", err)
 			}
-		} else {
+		} else if !errors.Is(err, net.ErrClosed) {
 			err = f.cp.Close(conn)
 			if err != nil {
-				f.log.DebugContext(ctx, "Error closing the connection.", "error", err)
+				log.DebugContext(ctx, "Error closing the connection.", "error", err)
 			}
 		}
 
-		f.log.Error("Error uploading segment.", "error", err, "segment", a)
+		log.Error("Error uploading segment.", "error", err)
 		return err
 	}
 

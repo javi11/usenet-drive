@@ -1,6 +1,7 @@
 package nzbloader
 
 import (
+	"bufio"
 	"errors"
 	"os"
 	"testing"
@@ -46,7 +47,7 @@ func TestNzbLoader_LoadFromFile(t *testing.T) {
 	// Test case where the file is found but the nzb is corrupted
 	t.Run("corrupted nzb xml", func(t *testing.T) {
 		mockFile := osfs.NewMockFile(ctrl)
-		nzbParserMock.EXPECT().Parse(mockFile).Return(nil, errors.New("corrupted nzb xml"))
+		nzbParserMock.EXPECT().Parse(bufio.NewReader(mockFile)).Return(nil, errors.New("corrupted nzb xml"))
 		mockFile.EXPECT().Name().Return("file2.nzb").Times(1)
 
 		fs.EXPECT().Open("file2.nzb").Return(mockFile, nil)
@@ -66,7 +67,7 @@ func TestNzbLoader_LoadFromFile(t *testing.T) {
 
 		mockFile := osfs.NewMockFile(ctrl)
 		mockFile.EXPECT().Name().Return("file2.nzb").Times(1)
-		nzbParserMock.EXPECT().Parse(mockFile).Return(nzbCopy, nil)
+		nzbParserMock.EXPECT().Parse(bufio.NewReader(mockFile)).Return(nzbCopy, nil)
 
 		fs.EXPECT().Open("file2.nzb").Return(mockFile, nil)
 		cNzb.EXPECT().Add(gomock.Any(), "file2.nzb", "corrupted nzb file, missing required metadata").Return(nil)
@@ -85,7 +86,7 @@ func TestNzbLoader_LoadFromFile(t *testing.T) {
 
 		mockFile := osfs.NewMockFile(ctrl)
 		mockFile.EXPECT().Name().Return("file2.nzb").Times(1)
-		nzbParserMock.EXPECT().Parse(mockFile).Return(nzbCopy, nil)
+		nzbParserMock.EXPECT().Parse(bufio.NewReader(mockFile)).Return(nzbCopy, nil)
 
 		fs.EXPECT().Open("file2.nzb").Return(mockFile, nil)
 		cNzb.EXPECT().Add(gomock.Any(), "file2.nzb", "corrupted nzb file, missing required metadata").
@@ -107,7 +108,7 @@ func TestNzbLoader_LoadFromFile(t *testing.T) {
 
 		mockFile := osfs.NewMockFile(ctrl)
 		mockFile.EXPECT().Name().Return("file3.nzb").Times(1)
-		nzbParserMock.EXPECT().Parse(mockFile).Return(nzb, nil)
+		nzbParserMock.EXPECT().Parse(bufio.NewReader(mockFile)).Return(nzb, nil)
 
 		fs.EXPECT().Open("file3.nzb").Return(mockFile, nil)
 		item, err := loader.LoadFromFile("file3.nzb")

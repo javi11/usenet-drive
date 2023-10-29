@@ -4,6 +4,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -17,19 +18,27 @@ func TestDial(t *testing.T) {
 		t.Fatal(err)
 	}
 	assert.NoError(t, err)
+	var mx sync.RWMutex
+
 	closed := false
 
 	defer func() {
+		mx.Lock()
 		closed = true
 		mockServer.Close()
+		mx.Unlock()
 	}()
 
 	// create a goroutine to accept incoming connections
 	go func() {
 		for {
+			mx.RLock()
 			if closed {
+				mx.RUnlock()
 				return
 			}
+			mx.RUnlock()
+
 			conn, err := mockServer.Accept()
 			if err != nil {
 				return

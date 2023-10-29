@@ -38,7 +38,7 @@ func IsRetryableError(err error) bool {
 		return true
 	}
 
-	if e, ok := err.(net.Error); ok && e.Timeout() {
+	if _, ok := err.(net.Error); ok {
 		return true
 	}
 
