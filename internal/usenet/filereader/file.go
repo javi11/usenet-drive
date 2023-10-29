@@ -24,8 +24,8 @@ type file struct {
 	innerFile osfs.File
 	fsMutex   sync.RWMutex
 	log       *slog.Logger
-	metadata  *usenet.Metadata
-	nzbLoader nzbloader.NzbLoader
+	metadata  usenet.Metadata
+	nzbReader nzbloader.NzbReader
 	onClose   func() error
 	cNzb      corruptednzbsmanager.CorruptedNzbsManager
 	fs        osfs.FileSystem
@@ -39,7 +39,6 @@ func openFile(
 	cp connectionpool.UsenetConnectionPool,
 	log *slog.Logger,
 	onClose func() error,
-	nzbLoader nzbloader.NzbLoader,
 	cNzb corruptednzbsmanager.CorruptedNzbsManager,
 	fs osfs.FileSystem,
 	dc downloadConfig,
@@ -60,17 +59,22 @@ func openFile(
 		return true, nil, err
 	}
 
-	n, err := nzbLoader.LoadFromFileReader(f)
+	nzbReader := nzbloader.NewNzbReader(f)
+
+	metadata, err := nzbReader.GetMetadata()
 	if err != nil {
 		log.ErrorContext(ctx, fmt.Sprintf("Error getting loading nzb %s", path), "err", err)
+		if e := cNzb.Add(ctx, path, err.Error()); e != nil {
+			log.ErrorContext(ctx, fmt.Sprintf("Error adding corrupted nzb %s to the database", path), "err", e)
+		}
 		return true, nil, os.ErrNotExist
 	}
 
 	buffer, err := NewBuffer(
 		ctx,
-		n.Nzb.Files[0],
-		int(n.Metadata.FileSize),
-		int(n.Metadata.ChunkSize),
+		nzbReader,
+		int(metadata.FileSize),
+		int(metadata.ChunkSize),
 		dc,
 		cp,
 		cache,
@@ -83,10 +87,9 @@ func openFile(
 	return true, &file{
 		innerFile: f,
 		buffer:    buffer,
-		metadata:  n.Metadata,
-		path:      usenet.ReplaceFileExtension(path, n.Metadata.FileExtension),
+		metadata:  metadata,
+		path:      usenet.ReplaceFileExtension(path, metadata.FileExtension),
 		log:       log,
-		nzbLoader: nzbLoader,
 		onClose:   onClose,
 		cNzb:      cNzb,
 		fs:        fs,

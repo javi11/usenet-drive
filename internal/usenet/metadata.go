@@ -5,8 +5,6 @@ import (
 	"regexp"
 	"strconv"
 	"time"
-
-	"github.com/javi11/usenet-drive/pkg/nzb"
 )
 
 type Metadata struct {
@@ -17,55 +15,50 @@ type Metadata struct {
 	ChunkSize     int64     `json:"chunk_size"`
 }
 
-func LoadMetadataFromNzb(nzbFile *nzb.Nzb) (*Metadata, error) {
-	if nzbFile == nil ||
-		nzbFile.Meta == nil ||
-		nzbFile.Meta["file_name"] == "" ||
-		nzbFile.Meta["file_size"] == "" ||
-		nzbFile.Meta["mod_time"] == "" ||
-		nzbFile.Meta["file_extension"] == "" {
-		return nil, fmt.Errorf("corrupted nzb file, missing required metadata")
+func LoadMetadataFromMap(metadata map[string]string) (Metadata, error) {
+	if metadata["file_name"] == "" ||
+		metadata["file_size"] == "" ||
+		metadata["mod_time"] == "" ||
+		metadata["file_extension"] == "" ||
+		metadata["subject"] == "" {
+		return Metadata{}, fmt.Errorf("corrupted nzb file, missing required metadata")
 	}
 
-	fileSize, err := strconv.ParseInt(nzbFile.Meta["file_size"], 10, 64)
+	fileSize, err := strconv.ParseInt(metadata["file_size"], 10, 64)
 	if err != nil {
-		return nil, err
-	}
-
-	if len(nzbFile.Files) == 0 {
-		return nil, fmt.Errorf("corrupted nzb file, no files found")
+		return Metadata{}, err
 	}
 
 	chunkSize := int64(0)
 
-	cz := nzbFile.Meta["chunk_size"]
+	cz := metadata["chunk_size"]
 	if cz != "" {
 		chunkSize, err = strconv.ParseInt(cz, 10, 64)
 		if err != nil {
-			return nil, err
+			return Metadata{}, err
 		}
 	} else {
 		// Fallback to old subject format
 		// Chunk size is present in the file subject string
 		// segment size is not the real size of a segment. Segment size = chunk size + yenc overhead
-		chunkSize, err = getChunkSizeFromSubject(nzbFile.Files[0].Subject)
+		chunkSize, err = getChunkSizeFromSubject(metadata["subject"])
 		if err != nil {
-			return nil, fmt.Errorf("corrupted nzb file, no files found")
+			return Metadata{}, fmt.Errorf("corrupted nzb file, no files found")
 		}
 	}
 
-	modTime, err := time.Parse(time.DateTime, nzbFile.Meta["mod_time"])
+	modTime, err := time.Parse(time.DateTime, metadata["mod_time"])
 	if err != nil {
-		return nil, err
+		return Metadata{}, err
 	}
 
-	if nzbFile.Meta["file_extension"] == "" {
-		return nil, fmt.Errorf("corrupted nzb file, file extension not found")
+	if metadata["file_extension"] == "" {
+		return Metadata{}, fmt.Errorf("corrupted nzb file, file extension not found")
 	}
 
-	return &Metadata{
-		FileName:      nzbFile.Meta["file_name"],
-		FileExtension: nzbFile.Meta["file_extension"],
+	return Metadata{
+		FileName:      metadata["file_name"],
+		FileExtension: metadata["file_extension"],
 		FileSize:      fileSize,
 		ChunkSize:     chunkSize,
 		ModTime:       modTime,

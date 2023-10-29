@@ -23,7 +23,7 @@ type fileWriter struct {
 	postGroups       []string
 	log              *slog.Logger
 	fileAllowlist    []string
-	nzbLoader        nzbloader.NzbLoader
+	nzbWriter        nzbloader.NzbWriter
 	cNzb             corruptednzbsmanager.CorruptedNzbsManager
 	dryRun           bool
 	fs               osfs.FileSystem
@@ -42,7 +42,7 @@ func NewFileWriter(options ...Option) *fileWriter {
 		postGroups:       config.postGroups,
 		log:              config.log,
 		fileAllowlist:    config.fileAllowlist,
-		nzbLoader:        config.nzbLoader,
+		nzbWriter:        config.nzbWriter,
 		cNzb:             config.cNzb,
 		dryRun:           config.dryRun,
 		fs:               config.fs,
@@ -70,7 +70,6 @@ func (u *fileWriter) OpenFile(
 		u.cp,
 		randomGroup,
 		u.log,
-		u.nzbLoader,
 		u.maxUploadRetries,
 		u.dryRun,
 		onClose,
@@ -116,26 +115,9 @@ func (u *fileWriter) RenameFile(ctx context.Context, fileName string, newFileNam
 	if originalName != "" {
 		// In case you want to update the file extension we need to update it in the original nzb file
 		if filepath.Ext(newFileName) != filepath.Ext(fileName) {
-			c, err := u.nzbLoader.LoadFromFile(originalName)
-			if err != nil {
-				return false, err
-			}
-
-			n := c.Nzb.UpdateMetadata(nzb.UpdateableMetadata{
+			err := u.nzbWriter.UpdateMetadata(originalName, nzb.UpdateableMetadata{
 				FileExtension: filepath.Ext(newFileName),
 			})
-			b, err := c.Nzb.ToBytes()
-			if err != nil {
-				return false, err
-			}
-
-			err = u.fs.WriteFile(originalName, b, 0766)
-			if err != nil {
-				return false, err
-			}
-
-			// Refresh the cache
-			_, err = u.nzbLoader.RefreshCachedNzb(originalName, n)
 			if err != nil {
 				return false, err
 			}

@@ -9,19 +9,17 @@ import (
 
 	"github.com/javi11/usenet-drive/internal/usenet/connectionpool"
 	"github.com/javi11/usenet-drive/internal/usenet/corruptednzbsmanager"
-	"github.com/javi11/usenet-drive/internal/usenet/nzbloader"
 	"github.com/javi11/usenet-drive/pkg/osfs"
 	"golang.org/x/net/webdav"
 )
 
 type fileReader struct {
-	cp        connectionpool.UsenetConnectionPool
-	log       *slog.Logger
-	nzbLoader nzbloader.NzbLoader
-	cNzb      corruptednzbsmanager.CorruptedNzbsManager
-	fs        osfs.FileSystem
-	dc        downloadConfig
-	cache     Cache
+	cp    connectionpool.UsenetConnectionPool
+	log   *slog.Logger
+	cNzb  corruptednzbsmanager.CorruptedNzbsManager
+	fs    osfs.FileSystem
+	dc    downloadConfig
+	cache Cache
 }
 
 func NewFileReader(options ...Option) (*fileReader, error) {
@@ -36,13 +34,12 @@ func NewFileReader(options ...Option) (*fileReader, error) {
 	}
 
 	return &fileReader{
-		cp:        config.cp,
-		log:       config.log,
-		nzbLoader: config.nzbLoader,
-		cNzb:      config.cNzb,
-		fs:        config.fs,
-		dc:        config.getDownloadConfig(),
-		cache:     cache,
+		cp:    config.cp,
+		log:   config.log,
+		cNzb:  config.cNzb,
+		fs:    config.fs,
+		dc:    config.getDownloadConfig(),
+		cache: cache,
 	}, nil
 }
 
@@ -55,7 +52,6 @@ func (fr *fileReader) OpenFile(ctx context.Context, path string, flag int, perm 
 		fr.cp,
 		fr.log.With("filename", path),
 		onClose,
-		fr.nzbLoader,
 		fr.cNzb,
 		fr.fs,
 		fr.dc,
@@ -85,9 +81,9 @@ func (fr *fileReader) Stat(path string) (bool, fs.FileInfo, error) {
 
 	// If file is a nzb file return a custom file that will mask the nzb
 	fi, err := NewFileInfoWithStat(
+		fr.fs,
 		path,
 		fr.log,
-		fr.nzbLoader,
 		stat,
 	)
 	if err != nil {

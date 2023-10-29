@@ -118,11 +118,7 @@ var rootCmd = &cobra.Command{
 		go adminPanel.Start(ctx, config.ApiPort)
 
 		nzbParser := nzb.NewNzbParser()
-		nzbLoader, err := nzbloader.NewNzbLoader(config.NzbCacheSize, cNzbs, osFs, nzbParser)
-		if err != nil {
-			log.ErrorContext(ctx, "Failed to create nzb loader: %v", err)
-			os.Exit(1)
-		}
+		nzbWriter := nzbloader.NewNzbWriter(osFs, nzbParser)
 
 		filewriter := filewriter.NewFileWriter(
 			filewriter.WithSegmentSize(config.Usenet.ArticleSizeInBytes),
@@ -131,7 +127,7 @@ var rootCmd = &cobra.Command{
 			filewriter.WithLogger(log),
 			filewriter.WithFileAllowlist(config.Usenet.Upload.FileAllowlist),
 			filewriter.WithCorruptedNzbsManager(cNzbs),
-			filewriter.WithNzbLoader(nzbLoader),
+			filewriter.WithNzbWriter(nzbWriter),
 			filewriter.WithDryRun(config.Usenet.Upload.DryRun),
 			filewriter.WithFileSystem(osFs),
 			filewriter.WithMaxUploadRetries(config.Usenet.Upload.MaxRetries),
@@ -140,7 +136,6 @@ var rootCmd = &cobra.Command{
 		filereader, err := filereader.NewFileReader(
 			filereader.WithConnectionPool(downloadConnPool),
 			filereader.WithLogger(log),
-			filereader.WithNzbLoader(nzbLoader),
 			filereader.WithCorruptedNzbsManager(cNzbs),
 			filereader.WithFileSystem(osFs),
 			filereader.WithMaxDownloadRetries(config.Usenet.Download.MaxRetries),

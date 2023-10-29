@@ -15,12 +15,12 @@ import (
 type nzbFileInfo struct {
 	nzbFileStat          os.FileInfo
 	name                 string
-	originalFileMetadata *usenet.Metadata
+	originalFileMetadata usenet.Metadata
 }
 
 func NeFileInfoWithMetadata(
 	path string,
-	metadata *usenet.Metadata,
+	metadata usenet.Metadata,
 	fs osfs.FileSystem,
 ) (fs.FileInfo, error) {
 	info, err := fs.Stat(path)
@@ -38,20 +38,26 @@ func NeFileInfoWithMetadata(
 }
 
 func NewFileInfoWithStat(
+	fs osfs.FileSystem,
 	path string,
 	log *slog.Logger,
-	nzbLoader nzbloader.NzbLoader,
 	nzbFileStat os.FileInfo,
 ) (fs.FileInfo, error) {
-	var metadata *usenet.Metadata
+	var metadata usenet.Metadata
 
-	n, err := nzbLoader.LoadFromFile(path)
+	f, err := fs.Open(path)
 	if err != nil {
 		log.Error(fmt.Sprintf("Error getting file %s, this file will be ignored", path), "error", err)
 		return nil, err
 	}
 
-	metadata = n.Metadata
+	reader := nzbloader.NewNzbReader(f)
+
+	metadata, err = reader.GetMetadata()
+	if err != nil {
+		log.Error(fmt.Sprintf("Error getting metadata for file %s, this file will be ignored", path), "error", err)
+		return nil, err
+	}
 
 	name := nzbFileStat.Name()
 

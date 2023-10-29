@@ -5,7 +5,6 @@ import (
 
 	"github.com/javi11/usenet-drive/internal/usenet/connectionpool"
 	"github.com/javi11/usenet-drive/internal/usenet/corruptednzbsmanager"
-	"github.com/javi11/usenet-drive/internal/usenet/nzbloader"
 	"github.com/javi11/usenet-drive/pkg/osfs"
 )
 
@@ -17,7 +16,6 @@ type downloadConfig struct {
 type Config struct {
 	cp                       connectionpool.UsenetConnectionPool
 	log                      *slog.Logger
-	nzbLoader                nzbloader.NzbLoader
 	cNzb                     corruptednzbsmanager.CorruptedNzbsManager
 	fs                       osfs.FileSystem
 	maxDownloadRetries       int
@@ -91,12 +89,6 @@ func WithConnectionPool(cp connectionpool.UsenetConnectionPool) Option {
 func WithLogger(log *slog.Logger) Option {
 	return func(c *Config) {
 		c.log = log
-	}
-}
-
-func WithNzbLoader(nzbLoader nzbloader.NzbLoader) Option {
-	return func(c *Config) {
-		c.nzbLoader = nzbLoader
 	}
 }
 

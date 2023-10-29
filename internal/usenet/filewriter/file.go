@@ -17,7 +17,6 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/javi11/usenet-drive/internal/usenet"
 	"github.com/javi11/usenet-drive/internal/usenet/connectionpool"
-	"github.com/javi11/usenet-drive/internal/usenet/nzbloader"
 	"github.com/javi11/usenet-drive/pkg/nntpcli"
 	"github.com/javi11/usenet-drive/pkg/nzb"
 	"github.com/javi11/usenet-drive/pkg/osfs"
@@ -45,7 +44,6 @@ type file struct {
 	log              *slog.Logger
 	flag             int
 	perm             fs.FileMode
-	nzbLoader        nzbloader.NzbLoader
 	fs               osfs.FileSystem
 	ctx              context.Context
 }
@@ -60,7 +58,6 @@ func openFile(
 	cp connectionpool.UsenetConnectionPool,
 	randomGroup string,
 	log *slog.Logger,
-	nzbLoader nzbloader.NzbLoader,
 	maxUploadRetries int,
 	dryRun bool,
 	onClose func() error,
@@ -90,7 +87,6 @@ func openFile(
 		maxUploadRetries: maxUploadRetries,
 		dryRun:           dryRun,
 		cp:               cp,
-		nzbLoader:        nzbLoader,
 		fs:               fs,
 		log:              log.With("filename", fileName),
 		onClose:          onClose,
@@ -485,11 +481,6 @@ func (f *file) writeFinalNzb(segments []*nzb.NzbSegment) error {
 		f.log.Error(fmt.Sprintf("Error writing the nzb file to %s.", nzbFilePath), "error", err)
 
 		return io.ErrUnexpectedEOF
-	}
-
-	_, err = f.nzbLoader.RefreshCachedNzb(nzbFilePath, nzb)
-	if err != nil {
-		f.log.Error("Error refreshing Nzb Cache", "error", err)
 	}
 
 	return nil
