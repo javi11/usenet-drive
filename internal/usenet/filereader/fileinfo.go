@@ -1,6 +1,7 @@
 package filereader
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"log/slog"
@@ -56,7 +57,7 @@ func NewFileInfoWithStat(
 	metadata, err = reader.GetMetadata()
 	if err != nil {
 		log.Error(fmt.Sprintf("Error getting metadata for file %s, this file will be ignored", path), "error", err)
-		return nil, err
+		return nil, errors.Join(err, ErrCorruptedNzb)
 	}
 
 	name := nzbFileStat.Name()

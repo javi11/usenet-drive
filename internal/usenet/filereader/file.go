@@ -25,7 +25,6 @@ type file struct {
 	fsMutex   sync.RWMutex
 	log       *slog.Logger
 	metadata  usenet.Metadata
-	nzbReader nzbloader.NzbReader
 	onClose   func() error
 	cNzb      corruptednzbsmanager.CorruptedNzbsManager
 	fs        osfs.FileSystem
@@ -206,11 +205,21 @@ func (f *file) Stat() (os.FileInfo, error) {
 	f.fsMutex.RLock()
 	defer f.fsMutex.RUnlock()
 
-	return NeFileInfoWithMetadata(
+	s, err := NeFileInfoWithMetadata(
 		f.innerFile.Name(),
 		f.metadata,
 		f.fs,
 	)
+
+	if err != nil {
+		err := f.cNzb.Add(context.Background(), f.path, err.Error())
+		if err != nil {
+			f.log.Error("Error adding corrupted nzb to the database:", "error", err)
+		}
+		return nil, os.ErrNotExist
+	}
+
+	return s, nil
 }
 
 func (f *file) Sync() error {

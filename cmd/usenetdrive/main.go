@@ -18,7 +18,6 @@ import (
 	"github.com/javi11/usenet-drive/internal/usenet/nzbloader"
 	"github.com/javi11/usenet-drive/internal/webdav"
 	"github.com/javi11/usenet-drive/pkg/nntpcli"
-	"github.com/javi11/usenet-drive/pkg/nzb"
 	"github.com/javi11/usenet-drive/pkg/osfs"
 	"github.com/javi11/usenet-drive/pkg/rclonecli"
 	"github.com/natefinch/lumberjack"
@@ -117,8 +116,7 @@ var rootCmd = &cobra.Command{
 		adminPanel := adminpanel.New(serverInfo, cNzbs, log, config.Debug)
 		go adminPanel.Start(ctx, config.ApiPort)
 
-		nzbParser := nzb.NewNzbParser()
-		nzbWriter := nzbloader.NewNzbWriter(osFs, nzbParser)
+		nzbWriter := nzbloader.NewNzbWriter(osFs)
 
 		filewriter := filewriter.NewFileWriter(
 			filewriter.WithSegmentSize(config.Usenet.ArticleSizeInBytes),

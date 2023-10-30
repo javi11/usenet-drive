@@ -127,6 +127,8 @@ func (v *buffer) Close() error {
 		v.wg.Wait()
 	}
 
+	v.nzbReader.Close()
+
 	return nil
 }
 
@@ -147,12 +149,12 @@ func (v *buffer) Read(p []byte) (int, error) {
 	beginReadAt := max((int(v.ptr) - (currentSegmentIndex * v.chunkSize)), 0)
 
 	for i := 0; ; i++ {
-		segment, hasMore := v.nzbReader.GetSegment(currentSegmentIndex + i)
-		if !hasMore {
+		if n >= len(p) {
 			break
 		}
 
-		if n >= len(p) {
+		segment, hasMore := v.nzbReader.GetSegment(currentSegmentIndex + i)
+		if !hasMore {
 			break
 		}
 
@@ -201,12 +203,12 @@ func (v *buffer) ReadAt(p []byte, off int64) (int, error) {
 	beginReadAt := max((int(off) - (currentSegmentIndex * v.chunkSize)), 0)
 
 	for i := 0; ; i++ {
-		segment, hasMore := v.nzbReader.GetSegment(currentSegmentIndex + i)
-		if !hasMore {
+		if n >= len(p) {
 			break
 		}
 
-		if n >= len(p) {
+		segment, hasMore := v.nzbReader.GetSegment(currentSegmentIndex + i)
+		if !hasMore {
 			break
 		}
 
@@ -227,7 +229,6 @@ func (v *buffer) ReadAt(p []byte, off int64) (int, error) {
 		beginWriteAt := n
 		n += copy(p[beginWriteAt:], chunk[beginReadAt:])
 		beginReadAt = 0
-		i++
 	}
 
 	return n, nil

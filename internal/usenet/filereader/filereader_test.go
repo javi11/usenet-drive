@@ -7,11 +7,8 @@ import (
 	"time"
 
 	gomock "github.com/golang/mock/gomock"
-	"github.com/javi11/usenet-drive/internal/test"
-	"github.com/javi11/usenet-drive/internal/usenet"
 	"github.com/javi11/usenet-drive/internal/usenet/connectionpool"
 	"github.com/javi11/usenet-drive/internal/usenet/corruptednzbsmanager"
-	"github.com/javi11/usenet-drive/internal/usenet/nzbloader"
 	"github.com/javi11/usenet-drive/pkg/osfs"
 	"github.com/stretchr/testify/assert"
 )
@@ -19,100 +16,79 @@ import (
 func TestFileReader_Stat(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	log := slog.Default()
-	mockNzbLoader := nzbloader.NewMockNzbLoader(ctrl)
 	fs := osfs.NewMockFileSystem(ctrl)
 	cp := connectionpool.NewMockUsenetConnectionPool(ctrl)
 	cNzb := corruptednzbsmanager.NewMockCorruptedNzbsManager(ctrl)
 
 	t.Run("Get the file stat successfully", func(t *testing.T) {
-		name := "test.nzb"
-		today := time.Now()
-
-		nzb, err := test.NewNzbMock()
-		assert.NoError(t, err)
-
+		name := "test.mkv.nzb"
 		fr := &fileReader{
-			cp:        cp,
-			log:       log,
-			nzbLoader: mockNzbLoader,
-			cNzb:      cNzb,
-			fs:        fs,
+			cp:   cp,
+			log:  log,
+			cNzb: cNzb,
+			fs:   fs,
 		}
 
 		mockFsStat := osfs.NewMockFileInfo(ctrl)
-		mockFsStat.EXPECT().Name().Return("test.nzb").Times(1)
+		mockFsStat.EXPECT().Name().Return("test.mkv.nzb").Times(1)
 
-		fs.EXPECT().Stat("test.nzb").Return(mockFsStat, nil).Times(1)
-		mockNzbLoader.EXPECT().LoadFromFile("test.nzb").Return(&nzbloader.NzbCache{
-			Metadata: &usenet.Metadata{
-				FileExtension: ".mkv",
-				FileSize:      123,
-				ChunkSize:     456,
-				FileName:      "file2.mkv",
-				ModTime:       today,
-			},
-			Nzb: nzb,
-		}, nil)
+		fs.EXPECT().Stat(name).Return(mockFsStat, nil).Times(1)
+
+		f, err := os.Open("../../test/nzbmock.xml")
+		assert.NoError(t, err)
+		fs.EXPECT().Open(name).Return(f, nil).Times(1)
+
+		expectedTime, err := time.Parse(time.DateTime, "2023-09-22 20:06:09")
+		assert.NoError(t, err)
 
 		ok, info, err := fr.Stat(name)
 		assert.NoError(t, err)
 		assert.NotNil(t, info)
 		assert.True(t, ok)
-		assert.Equal(t, "test.mkv", info.Name())
-		assert.Equal(t, int64(123), info.Size())
-		assert.Equal(t, today, info.ModTime())
+		assert.Equal(t, "test.mkv.bin", info.Name())
+		assert.Equal(t, int64(1442682314), info.Size())
+		assert.Equal(t, expectedTime, info.ModTime())
 	})
 
 	t.Run("Is a nzb masked filed", func(t *testing.T) {
-		name := "test.mkv"
-		today := time.Now()
-
-		nzb, err := test.NewNzbMock()
-		assert.NoError(t, err)
-
+		name := "test.mkv.bin"
 		fr := &fileReader{
-			cp:        cp,
-			log:       log,
-			nzbLoader: mockNzbLoader,
-			cNzb:      cNzb,
-			fs:        fs,
+			cp:   cp,
+			log:  log,
+			cNzb: cNzb,
+			fs:   fs,
 		}
 
 		fileInfoMaskedFile := osfs.NewMockFileInfo(ctrl)
-		fileInfoMaskedFile.EXPECT().Name().Return("test.nzb").Times(2)
+		fileInfoMaskedFile.EXPECT().Name().Return("test.mkv.nzb").Times(2)
 
-		fs.EXPECT().Stat("test.nzb").Return(fileInfoMaskedFile, nil).Times(1)
+		fs.EXPECT().Stat("test.mkv.nzb").Return(fileInfoMaskedFile, nil).Times(1)
 		fs.EXPECT().IsNotExist(nil).Return(false).Times(1)
 
-		mockNzbLoader.EXPECT().LoadFromFile("test.nzb").Return(&nzbloader.NzbCache{
-			Metadata: &usenet.Metadata{
-				FileExtension: ".mkv",
-				FileSize:      123,
-				ChunkSize:     456,
-				FileName:      "file2.mkv",
-				ModTime:       today,
-			},
-			Nzb: nzb,
-		}, nil)
+		f, err := os.Open("../../test/nzbmock.xml")
+		assert.NoError(t, err)
+		fs.EXPECT().Open("test.mkv.nzb").Return(f, nil).Times(1)
+
+		expectedTime, err := time.Parse(time.DateTime, "2023-09-22 20:06:09")
+		assert.NoError(t, err)
 
 		ok, info, err := fr.Stat(name)
 		assert.NoError(t, err)
 		assert.NotNil(t, info)
 		assert.True(t, ok)
-		assert.Equal(t, "test.mkv", info.Name())
-		assert.Equal(t, int64(123), info.Size())
-		assert.Equal(t, today, info.ModTime())
+		assert.Equal(t, "test.mkv.bin", info.Name())
+		assert.Equal(t, int64(1442682314), info.Size())
+		assert.Equal(t, expectedTime, info.ModTime())
 	})
 
 	t.Run("Nzb masked file not found", func(t *testing.T) {
 		name := "test.mkv"
 
 		fr := &fileReader{
-			cp:        cp,
-			log:       log,
-			nzbLoader: mockNzbLoader,
-			cNzb:      cNzb,
-			fs:        fs,
+			cp:   cp,
+			log:  log,
+			cNzb: cNzb,
+			fs:   fs,
 		}
 
 		fs.EXPECT().Stat("test.nzb").Return(nil, os.ErrNotExist).Times(1)
@@ -125,20 +101,22 @@ func TestFileReader_Stat(t *testing.T) {
 	})
 
 	t.Run("Corrupted metadata", func(t *testing.T) {
-		name := "test.nzb"
+		name := "test.mkv.nzb"
 
 		fr := &fileReader{
-			cp:        cp,
-			log:       log,
-			nzbLoader: mockNzbLoader,
-			cNzb:      cNzb,
-			fs:        fs,
+			cp:   cp,
+			log:  log,
+			cNzb: cNzb,
+			fs:   fs,
 		}
 
 		mockFsStat := osfs.NewMockFileInfo(ctrl)
 
-		fs.EXPECT().Stat("test.nzb").Return(mockFsStat, nil).Times(1)
-		mockNzbLoader.EXPECT().LoadFromFile("test.nzb").Return(nil, ErrCorruptedNzb)
+		fs.EXPECT().Stat("test.mkv.nzb").Return(mockFsStat, nil).Times(1)
+
+		f, err := os.Open("../../test/corruptednzbmock.xml")
+		assert.NoError(t, err)
+		fs.EXPECT().Open(name).Return(f, nil).Times(1)
 
 		ok, info, err := fr.Stat(name)
 		assert.ErrorIs(t, err, os.ErrNotExist)

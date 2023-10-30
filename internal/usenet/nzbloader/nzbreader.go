@@ -1,5 +1,7 @@
 package nzbloader
 
+//go:generate mockgen -source=./nzbreader.go -destination=./nzbreader_mock.go -package=nzbloader NzbReader
+
 import (
 	"encoding/xml"
 	"fmt"
@@ -10,14 +12,11 @@ import (
 	"github.com/javi11/usenet-drive/pkg/nzb"
 )
 
-type NzbIterator interface {
-	Next(from int) (*nzb.NzbSegment, bool)
-}
-
 type NzbReader interface {
 	GetMetadata() (usenet.Metadata, error)
 	GetGroups() ([]string, error)
 	GetSegment(segmentIndex int) (*nzb.NzbSegment, bool)
+	Close()
 }
 
 type nzbReader struct {
@@ -33,6 +32,10 @@ func NewNzbReader(reader io.Reader) NzbReader {
 		decoder:  xml.NewDecoder(reader),
 		segments: map[int64]*nzb.NzbSegment{},
 	}
+}
+
+func (r *nzbReader) Close() {
+	clear(r.segments)
 }
 
 func (r *nzbReader) GetMetadata() (usenet.Metadata, error) {
@@ -177,7 +180,11 @@ func (r *nzbReader) GetSegment(segmentIndex int) (*nzb.NzbSegment, bool) {
 		if se, ok := token.(xml.StartElement); ok && se.Name.Local == "segment" {
 			// Read the next segment from the XML stream
 			var segment nzb.NzbSegment
-			r.decoder.DecodeElement(&segment, &se)
+			err := r.decoder.DecodeElement(&segment, &se)
+			if err != nil {
+				return nil, false
+			}
+
 			r.segments[segmentNumber] = &segment
 
 			if segment.Number == segmentNumber {

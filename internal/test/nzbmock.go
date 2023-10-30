@@ -8,11 +8,11 @@ import (
 )
 
 //go:embed nzbmock.xml
-var nzbmock []byte
+var NzbFile []byte
+
+//go:embed corruptednzbmock.xml
+var CorruptedNzbFile []byte
 
 func NewNzbMock() (*nzb.Nzb, error) {
-	nzbParser := nzb.NewNzbParser()
-
-	buff := bytes.NewBuffer(nzbmock)
-	return nzbParser.Parse(buff)
+	return nzb.ParseFromBuffer(bytes.NewBuffer(NzbFile))
 }

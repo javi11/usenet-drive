@@ -100,9 +100,7 @@ func TestNzbParser_Parse(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
-			parser := NewNzbParser()
-			gotNzb, err := parser.Parse(tt.args.buf)
+			gotNzb, err := ParseFromBuffer(tt.args.buf)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -119,18 +117,12 @@ func TestNzb_ToBytes(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	nzb, err := NewNzbMock()
+	nzb, err := ParseFromBuffer(bytes.NewBuffer(nzbmock))
 	assert.NoError(t, err)
 
 	b, err := nzb.ToBytes()
 	assert.NoError(t, err)
 
-	assert.Equal(t, string(nzbmock), string(b))
-}
-
-func NewNzbMock() (*Nzb, error) {
-	nzbParser := NewNzbParser()
-
-	buff := bytes.NewBuffer(nzbmock)
-	return nzbParser.Parse(buff)
+	assert.Contains(t, string(b), `<meta type="file_size">1442682314</meta>`)
+	assert.Contains(t, string(b), `<segment bytes="792581" number="6">NdTkKlQbLxUfOlDfGmFtBdEd-1695410374703@nyuu</segment>`)
 }

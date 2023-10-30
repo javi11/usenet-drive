@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/javi11/usenet-drive/internal/usenet/connectionpool"
+	"github.com/javi11/usenet-drive/internal/usenet/nzbloader"
 	"github.com/javi11/usenet-drive/pkg/nntpcli"
 	"github.com/javi11/usenet-drive/pkg/nzb"
 	"github.com/javi11/usenet-drive/pkg/yenc"
@@ -28,21 +29,14 @@ func TestBuffer_Read(t *testing.T) {
 
 	mockPool := connectionpool.NewMockUsenetConnectionPool(ctrl)
 
-	nzbFile := &nzb.NzbFile{
-		Segments: []*nzb.NzbSegment{
-			{Id: "1", Number: 1},
-			{Id: "2", Number: 2},
-			{Id: "3", Number: 3},
-		},
-		Groups: []string{"group1", "group2"},
-	}
-
 	cache := NewMockCache(ctrl)
 	t.Run("TestBuffer_Read_Empty", func(t *testing.T) {
+		nzbReader := nzbloader.NewMockNzbReader(ctrl)
 		buf := &buffer{
 			ctx:       context.Background(),
 			size:      3 * 100,
-			nzbFile:   nzbFile,
+			nzbReader: nzbReader,
+			nzbGroups: []string{"group1"},
 			ptr:       0,
 			cache:     cache,
 			cp:        mockPool,
@@ -62,10 +56,12 @@ func TestBuffer_Read(t *testing.T) {
 	})
 
 	t.Run("TestBuffer_Read_PastEnd", func(t *testing.T) {
+		nzbReader := nzbloader.NewMockNzbReader(ctrl)
 		buf := &buffer{
 			ctx:       context.Background(),
 			size:      3 * 100,
-			nzbFile:   nzbFile,
+			nzbReader: nzbReader,
+			nzbGroups: []string{"group1"},
 			ptr:       0,
 			cache:     cache,
 			cp:        mockPool,
@@ -86,10 +82,14 @@ func TestBuffer_Read(t *testing.T) {
 	})
 
 	t.Run("TestBuffer_Read_OneSegment", func(t *testing.T) {
+		nzbReader := nzbloader.NewMockNzbReader(ctrl)
+		nzbReader.EXPECT().GetSegment(0).Return(&nzb.NzbSegment{Id: "1", Number: 1, Bytes: 750000}, true).Times(1)
+
 		buf := &buffer{
 			ctx:       context.Background(),
 			size:      3 * 100,
-			nzbFile:   nzbFile,
+			nzbReader: nzbReader,
+			nzbGroups: []string{"group1"},
 			ptr:       0,
 			cache:     cache,
 			cp:        mockPool,
@@ -124,12 +124,18 @@ func TestBuffer_Read(t *testing.T) {
 	})
 
 	t.Run("TestBuffer_Read_PreloadOneSegment", func(t *testing.T) {
+		nzbReader := nzbloader.NewMockNzbReader(ctrl)
+		nzbReader.EXPECT().GetGroups().Return([]string{"group1"}, nil).Times(1)
+		nzbReader.EXPECT().GetSegment(0).Return(&nzb.NzbSegment{Id: "1", Number: 1, Bytes: 750000}, true).Times(1)
+		nzbReader.EXPECT().GetSegment(1).Return(&nzb.NzbSegment{Id: "2", Number: 2, Bytes: 750000}, true).Times(2)
+		nzbReader.EXPECT().GetSegment(2).Return(&nzb.NzbSegment{Id: "3", Number: 3, Bytes: 750000}, true).Times(1)
+
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(func() {
 			cancel()
 		})
 
-		buf, err := NewBuffer(ctx, nzbFile, 3*100, 5, downloadConfig{
+		buf, err := NewBuffer(ctx, nzbReader, 3*100, 5, downloadConfig{
 			maxDownloadRetries:       5,
 			maxAheadDownloadSegments: 1,
 		}, mockPool, cache, slog.Default())
@@ -193,11 +199,15 @@ func TestBuffer_Read(t *testing.T) {
 	})
 
 	t.Run("TestBuffer_Read_TwoSegments", func(t *testing.T) {
+		nzbReader := nzbloader.NewMockNzbReader(ctrl)
+		nzbReader.EXPECT().GetSegment(0).Return(&nzb.NzbSegment{Id: "1", Number: 1, Bytes: 750000}, true).Times(1)
+		nzbReader.EXPECT().GetSegment(1).Return(&nzb.NzbSegment{Id: "2", Number: 2, Bytes: 750000}, true).Times(1)
 
 		buf := &buffer{
 			ctx:       context.Background(),
 			size:      3 * 100,
-			nzbFile:   nzbFile,
+			nzbReader: nzbReader,
+			nzbGroups: []string{"group1"},
 			ptr:       0,
 			cache:     cache,
 			cp:        mockPool,
@@ -245,22 +255,15 @@ func TestBuffer_ReadAt(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockPool := connectionpool.NewMockUsenetConnectionPool(ctrl)
-
 	cache := NewMockCache(ctrl)
-	nzbFile := &nzb.NzbFile{
-		Segments: []*nzb.NzbSegment{
-			{Id: "1", Number: 1},
-			{Id: "2", Number: 2},
-			{Id: "3", Number: 3},
-		},
-		Groups: []string{"group1", "group2"},
-	}
 
 	t.Run("TestBuffer_ReadAt_Empty", func(t *testing.T) {
+		nzbReader := nzbloader.NewMockNzbReader(ctrl)
 		buf := &buffer{
 			ctx:       context.Background(),
 			size:      3 * 100,
-			nzbFile:   nzbFile,
+			nzbReader: nzbReader,
+			nzbGroups: []string{"group1"},
 			ptr:       0,
 			cache:     cache,
 			cp:        mockPool,
@@ -280,10 +283,12 @@ func TestBuffer_ReadAt(t *testing.T) {
 	})
 
 	t.Run("TestBuffer_ReadAt_PastEnd", func(t *testing.T) {
+		nzbReader := nzbloader.NewMockNzbReader(ctrl)
 		buf := &buffer{
 			ctx:       context.Background(),
 			size:      3 * 100,
-			nzbFile:   nzbFile,
+			nzbReader: nzbReader,
+			nzbGroups: []string{"group1"},
 			ptr:       0,
 			cache:     cache,
 			cp:        mockPool,
@@ -303,10 +308,13 @@ func TestBuffer_ReadAt(t *testing.T) {
 	})
 
 	t.Run("TestBuffer_ReadAt_OneSegment", func(t *testing.T) {
+		nzbReader := nzbloader.NewMockNzbReader(ctrl)
+		nzbReader.EXPECT().GetSegment(0).Return(&nzb.NzbSegment{Id: "1", Number: 1, Bytes: 750000}, true).Times(1)
 		buf := &buffer{
 			ctx:       context.Background(),
 			size:      3 * 100,
-			nzbFile:   nzbFile,
+			nzbReader: nzbReader,
+			nzbGroups: []string{"group1"},
 			ptr:       0,
 			cache:     cache,
 			cp:        mockPool,
@@ -339,12 +347,19 @@ func TestBuffer_ReadAt(t *testing.T) {
 	})
 
 	t.Run("TestBuffer_Read_PreloadOneSegment", func(t *testing.T) {
+		nzbReader := nzbloader.NewMockNzbReader(ctrl)
+		nzbReader.EXPECT().GetGroups().Return([]string{"group1"}, nil).Times(1)
+		nzbReader.EXPECT().GetSegment(1).Return(&nzb.NzbSegment{Id: "2", Number: 2, Bytes: 750000}, true).Times(1)
+		// Preload make the segment 2 to be loaded twice
+		nzbReader.EXPECT().GetSegment(2).Return(&nzb.NzbSegment{Id: "3", Number: 3, Bytes: 750000}, true).Times(2)
+		nzbReader.EXPECT().GetSegment(3).Return(nil, false).Times(1)
+
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(func() {
 			cancel()
 		})
 
-		buf, err := NewBuffer(ctx, nzbFile, 3*100, 5, downloadConfig{
+		buf, err := NewBuffer(ctx, nzbReader, 3*100, 5, downloadConfig{
 			maxDownloadRetries:       5,
 			maxAheadDownloadSegments: 1,
 		}, mockPool, cache, slog.Default())
@@ -397,10 +412,15 @@ func TestBuffer_ReadAt(t *testing.T) {
 	})
 
 	t.Run("TestBuffer_ReadAt_TwoSegments", func(t *testing.T) {
+		nzbReader := nzbloader.NewMockNzbReader(ctrl)
+		nzbReader.EXPECT().GetSegment(1).Return(&nzb.NzbSegment{Id: "2", Number: 2, Bytes: 750000}, true).Times(1)
+		nzbReader.EXPECT().GetSegment(2).Return(&nzb.NzbSegment{Id: "3", Number: 3, Bytes: 750000}, true).Times(1)
+
 		buf := &buffer{
 			ctx:       context.Background(),
 			size:      3 * 100,
-			nzbFile:   nzbFile,
+			nzbReader: nzbReader,
+			nzbGroups: []string{"group1"},
 			ptr:       0,
 			cache:     cache,
 			cp:        mockPool,
@@ -434,7 +454,7 @@ func TestBuffer_ReadAt(t *testing.T) {
 		mockConn.EXPECT().Body("<3>").Return(buff2, nil).Times(1)
 		mockConn.EXPECT().SelectGroup("group1").Return(0, 0, 0, nil).Times(2)
 
-		p := make([]byte, 100)
+		p := make([]byte, 9)
 		// Special attention to the offset, it will start reading from the second segment since chunkSize is 5
 		n, err := buf.ReadAt(p, 6)
 		assert.NoError(t, err)
@@ -448,15 +468,7 @@ func TestBuffer_Seek(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockPool := connectionpool.NewMockUsenetConnectionPool(ctrl)
-
-	nzbFile := &nzb.NzbFile{
-		Segments: []*nzb.NzbSegment{
-			{Id: "1", Number: 1},
-			{Id: "2", Number: 2},
-			{Id: "3", Number: 3},
-		},
-		Groups: []string{"group1", "group2"},
-	}
+	nzbReader := nzbloader.NewMockNzbReader(ctrl)
 
 	cache := NewMockCache(ctrl)
 
@@ -468,7 +480,8 @@ func TestBuffer_Seek(t *testing.T) {
 		buf := &buffer{
 			ctx:       ctx,
 			size:      3 * 100,
-			nzbFile:   nzbFile,
+			nzbReader: nzbReader,
+			nzbGroups: []string{"group1"},
 			ptr:       0,
 			cache:     cache,
 			cp:        mockPool,
@@ -494,7 +507,8 @@ func TestBuffer_Seek(t *testing.T) {
 		buf := &buffer{
 			ctx:       ctx,
 			size:      3 * 100,
-			nzbFile:   nzbFile,
+			nzbReader: nzbReader,
+			nzbGroups: []string{"group1"},
 			ptr:       0,
 			cache:     cache,
 			cp:        mockPool,
@@ -520,7 +534,8 @@ func TestBuffer_Seek(t *testing.T) {
 		buf := &buffer{
 			ctx:       ctx,
 			size:      3 * 100,
-			nzbFile:   nzbFile,
+			nzbReader: nzbReader,
+			nzbGroups: []string{"group1"},
 			ptr:       0,
 			cache:     cache,
 			cp:        mockPool,
@@ -546,7 +561,8 @@ func TestBuffer_Seek(t *testing.T) {
 		buf := &buffer{
 			ctx:       ctx,
 			size:      3 * 100,
-			nzbFile:   nzbFile,
+			nzbReader: nzbReader,
+			nzbGroups: []string{"group1"},
 			ptr:       0,
 			cache:     cache,
 			cp:        mockPool,
@@ -571,7 +587,7 @@ func TestBuffer_Seek(t *testing.T) {
 		buf := &buffer{
 			ctx:       ctx,
 			size:      3 * 100,
-			nzbFile:   nzbFile,
+			nzbReader: nzbReader,
 			ptr:       0,
 			cache:     cache,
 			cp:        mockPool,
@@ -591,7 +607,8 @@ func TestBuffer_Seek(t *testing.T) {
 	t.Run("Test seek too far", func(t *testing.T) {
 		buf := &buffer{
 			size:      3 * 100,
-			nzbFile:   nzbFile,
+			nzbReader: nzbReader,
+			nzbGroups: []string{"group1"},
 			ptr:       0,
 			cache:     cache,
 			cp:        mockPool,
@@ -615,18 +632,12 @@ func TestBuffer_Close(t *testing.T) {
 
 	mockPool := connectionpool.NewMockUsenetConnectionPool(ctrl)
 
-	nzbFile := &nzb.NzbFile{
-		Segments: []*nzb.NzbSegment{
-			{Id: "1", Number: 1},
-			{Id: "2", Number: 2},
-			{Id: "3", Number: 3},
-		},
-		Groups: []string{"group1", "group2"},
-	}
-
 	cache := NewMockCache(ctrl)
 
 	t.Run("Test close buffer", func(t *testing.T) {
+		nzbReader := nzbloader.NewMockNzbReader(ctrl)
+		nzbReader.EXPECT().Close().Return().Times(1)
+
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(func() {
 			cancel()
@@ -634,7 +645,8 @@ func TestBuffer_Close(t *testing.T) {
 		buf := &buffer{
 			ctx:       ctx,
 			size:      3 * 100,
-			nzbFile:   nzbFile,
+			nzbReader: nzbReader,
+			nzbGroups: []string{"group1"},
 			ptr:       0,
 			cache:     cache,
 			cp:        mockPool,
@@ -651,6 +663,9 @@ func TestBuffer_Close(t *testing.T) {
 	})
 
 	t.Run("Test close buffer with download ahead", func(t *testing.T) {
+		nzbReader := nzbloader.NewMockNzbReader(ctrl)
+		nzbReader.EXPECT().Close().Return().Times(1)
+
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(func() {
 			cancel()
@@ -661,7 +676,8 @@ func TestBuffer_Close(t *testing.T) {
 		buf := &buffer{
 			ctx:       ctx,
 			size:      3 * 100,
-			nzbFile:   nzbFile,
+			nzbReader: nzbReader,
+			nzbGroups: []string{"group1"},
 			ptr:       0,
 			cache:     cache,
 			cp:        mockPool,
@@ -698,19 +714,14 @@ func TestBuffer_downloadSegment(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockPool := connectionpool.NewMockUsenetConnectionPool(ctrl)
-
-	nzbFile := &nzb.NzbFile{
-		Segments: []*nzb.NzbSegment{
-			{Id: "1", Number: 1},
-			{Id: "2", Number: 2},
-			{Id: "3", Number: 3},
-		},
-		Groups: []string{"group1"},
-	}
-
 	cache := NewMockCache(ctrl)
 
+	segment := &nzb.NzbSegment{Id: "1", Number: 1, Bytes: 750000}
+	groups := []string{"group1"}
+
 	t.Run("Test download segment", func(t *testing.T) {
+		nzbReader := nzbloader.NewMockNzbReader(ctrl)
+
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(func() {
 			cancel()
@@ -718,7 +729,8 @@ func TestBuffer_downloadSegment(t *testing.T) {
 		buf := &buffer{
 			ctx:       ctx,
 			size:      3 * 100,
-			nzbFile:   nzbFile,
+			nzbReader: nzbReader,
+			nzbGroups: []string{"group1"},
 			ptr:       0,
 			cache:     cache,
 			cp:        mockPool,
@@ -742,12 +754,14 @@ func TestBuffer_downloadSegment(t *testing.T) {
 		mockConn.EXPECT().Body("<1>").Return(buff, nil).Times(1)
 		cache.EXPECT().Set("1", gomock.Any()).Return(nil).Times(1)
 
-		part, err := buf.downloadSegment(context.Background(), nzbFile.Segments[0], nzbFile.Groups)
+		part, err := buf.downloadSegment(context.Background(), segment, groups)
 		assert.NoError(t, err)
 		assert.Equal(t, []byte("body1"), part)
 	})
 
 	t.Run("Test cached segment", func(t *testing.T) {
+		nzbReader := nzbloader.NewMockNzbReader(ctrl)
+
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(func() {
 			cancel()
@@ -755,7 +769,7 @@ func TestBuffer_downloadSegment(t *testing.T) {
 		buf := &buffer{
 			ctx:       ctx,
 			size:      3 * 100,
-			nzbFile:   nzbFile,
+			nzbReader: nzbReader,
 			ptr:       0,
 			cache:     cache,
 			cp:        mockPool,
@@ -773,13 +787,15 @@ func TestBuffer_downloadSegment(t *testing.T) {
 		cache.EXPECT().Get("1").Return(bytes.NewBufferString(expectedBody1).Bytes(), nil).Times(1)
 
 		mockPool.EXPECT().Get().Return(mockConn, nil).Times(0)
-		partCached, err := buf.downloadSegment(context.Background(), nzbFile.Segments[0], nzbFile.Groups)
+		partCached, err := buf.downloadSegment(context.Background(), segment, groups)
 		assert.NoError(t, err)
 		assert.Equal(t, []byte("body1"), partCached)
 	})
 
 	// Test error getting connection
 	t.Run("Test error getting connection", func(t *testing.T) {
+		nzbReader := nzbloader.NewMockNzbReader(ctrl)
+
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(func() {
 			cancel()
@@ -787,7 +803,8 @@ func TestBuffer_downloadSegment(t *testing.T) {
 		buf := &buffer{
 			ctx:       ctx,
 			size:      3 * 100,
-			nzbFile:   nzbFile,
+			nzbReader: nzbReader,
+			nzbGroups: []string{"group1"},
 			ptr:       0,
 			cache:     cache,
 			cp:        mockPool,
@@ -801,12 +818,14 @@ func TestBuffer_downloadSegment(t *testing.T) {
 		cache.EXPECT().Get("1").Return(nil, errors.New("not found")).Times(1)
 		mockPool.EXPECT().Get().Return(nil, errors.New("error")).Times(5)
 
-		_, err := buf.downloadSegment(context.Background(), nzbFile.Segments[0], nzbFile.Groups)
+		_, err := buf.downloadSegment(context.Background(), segment, groups)
 		assert.Error(t, err)
 	})
 
 	// Test error finding group
 	t.Run("Test error finding group", func(t *testing.T) {
+		nzbReader := nzbloader.NewMockNzbReader(ctrl)
+
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(func() {
 			cancel()
@@ -814,7 +833,7 @@ func TestBuffer_downloadSegment(t *testing.T) {
 		buf := &buffer{
 			ctx:       ctx,
 			size:      3 * 100,
-			nzbFile:   nzbFile,
+			nzbReader: nzbReader,
 			ptr:       0,
 			cache:     cache,
 			cp:        mockPool,
@@ -826,18 +845,20 @@ func TestBuffer_downloadSegment(t *testing.T) {
 			log: slog.Default(),
 		}
 		mockConn := nntpcli.NewMockConnection(ctrl)
-		cache.EXPECT().Get("2").Return(nil, errors.New("not found")).Times(1)
+		cache.EXPECT().Get("1").Return(nil, errors.New("not found")).Times(1)
 
 		mockPool.EXPECT().Get().Return(mockConn, nil).Times(1)
 		mockPool.EXPECT().Close(mockConn).Return(nil).Times(1)
 		mockConn.EXPECT().SelectGroup("group1").Return(0, 0, 0, errors.New("error")).Times(1)
 
-		_, err := buf.downloadSegment(context.Background(), nzbFile.Segments[1], nzbFile.Groups)
+		_, err := buf.downloadSegment(context.Background(), segment, groups)
 		assert.Error(t, err)
 	})
 
 	// Test error getting article body
 	t.Run("Test error getting article body", func(t *testing.T) {
+		nzbReader := nzbloader.NewMockNzbReader(ctrl)
+
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(func() {
 			cancel()
@@ -845,7 +866,8 @@ func TestBuffer_downloadSegment(t *testing.T) {
 		buf := &buffer{
 			ctx:       ctx,
 			size:      3 * 100,
-			nzbFile:   nzbFile,
+			nzbReader: nzbReader,
+			nzbGroups: []string{"group1"},
 			ptr:       0,
 			cache:     cache,
 			cp:        mockPool,
@@ -863,11 +885,13 @@ func TestBuffer_downloadSegment(t *testing.T) {
 
 		cache.EXPECT().Get("1").Return(nil, errors.New("not found")).Times(1)
 		mockConn.EXPECT().Body("<1>").Return(nil, errors.New("some error")).Times(1)
-		_, err := buf.downloadSegment(context.Background(), nzbFile.Segments[0], nzbFile.Groups)
+		_, err := buf.downloadSegment(context.Background(), segment, groups)
 		assert.ErrorIs(t, err, ErrCorruptedNzb)
 	})
 
 	t.Run("Test retrying after a body retirable error", func(t *testing.T) {
+		nzbReader := nzbloader.NewMockNzbReader(ctrl)
+
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(func() {
 			cancel()
@@ -875,7 +899,7 @@ func TestBuffer_downloadSegment(t *testing.T) {
 		buf := &buffer{
 			ctx:       ctx,
 			size:      3 * 100,
-			nzbFile:   nzbFile,
+			nzbReader: nzbReader,
 			ptr:       0,
 			cache:     cache,
 			cp:        mockPool,
@@ -892,9 +916,9 @@ func TestBuffer_downloadSegment(t *testing.T) {
 		mockPool.EXPECT().Get().Return(mockConn, nil).Times(1)
 		mockPool.EXPECT().Close(mockConn).Return(nil).Times(1)
 
-		cache.EXPECT().Get("3").Return(nil, errors.New("not found")).Times(1)
+		cache.EXPECT().Get("1").Return(nil, errors.New("not found")).Times(1)
 		mockConn.EXPECT().SelectGroup("group1").Return(0, 0, 0, nil).Times(1)
-		mockConn.EXPECT().Body("<3>").Return(nil, nntpcli.NntpError{Code: nntpcli.SegmentAlreadyExistsErrCode}).Times(1)
+		mockConn.EXPECT().Body("<1>").Return(nil, nntpcli.NntpError{Code: nntpcli.SegmentAlreadyExistsErrCode}).Times(1)
 
 		mockPool.EXPECT().Get().Return(mockConn2, nil).Times(1)
 		mockPool.EXPECT().Free(mockConn2).Return(nil).Times(1)
@@ -904,16 +928,18 @@ func TestBuffer_downloadSegment(t *testing.T) {
 		buff, err := generateYencBuff(expectedBody1)
 		require.NoError(t, err)
 
-		mockConn2.EXPECT().Body("<3>").Return(buff, nil).Times(1)
-		cache.EXPECT().Set("3", gomock.Any()).Return(nil).Times(1)
+		mockConn2.EXPECT().Body("<1>").Return(buff, nil).Times(1)
+		cache.EXPECT().Set("1", gomock.Any()).Return(nil).Times(1)
 
-		part, err := buf.downloadSegment(context.Background(), nzbFile.Segments[2], nzbFile.Groups)
+		part, err := buf.downloadSegment(context.Background(), segment, groups)
 		assert.NoError(t, err)
 		assert.NotNil(t, part)
 		assert.Equal(t, []byte("body1"), part)
 	})
 
 	t.Run("Test retrying after a group retirable error", func(t *testing.T) {
+		nzbReader := nzbloader.NewMockNzbReader(ctrl)
+
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(func() {
 			cancel()
@@ -921,7 +947,8 @@ func TestBuffer_downloadSegment(t *testing.T) {
 		buf := &buffer{
 			ctx:       ctx,
 			size:      3 * 100,
-			nzbFile:   nzbFile,
+			nzbReader: nzbReader,
+			nzbGroups: []string{"group1"},
 			ptr:       0,
 			cache:     cache,
 			cp:        mockPool,
@@ -935,7 +962,7 @@ func TestBuffer_downloadSegment(t *testing.T) {
 		mockConn := nntpcli.NewMockConnection(ctrl)
 		mockConn2 := nntpcli.NewMockConnection(ctrl)
 
-		cache.EXPECT().Get("3").Return(nil, errors.New("not found")).Times(1)
+		cache.EXPECT().Get("1").Return(nil, errors.New("not found")).Times(1)
 		mockPool.EXPECT().Get().Return(mockConn, nil).Times(1)
 		mockPool.EXPECT().Close(mockConn).Return(nil).Times(1)
 		mockConn.EXPECT().SelectGroup("group1").Return(0, 0, 0, nntpcli.NntpError{Code: nntpcli.SegmentAlreadyExistsErrCode}).Times(1)
@@ -948,9 +975,9 @@ func TestBuffer_downloadSegment(t *testing.T) {
 		buff, err := generateYencBuff(expectedBody1)
 		require.NoError(t, err)
 
-		mockConn2.EXPECT().Body("<3>").Return(buff, nil).Times(1)
-		cache.EXPECT().Set("3", gomock.Any()).Return(nil).Times(1)
-		part, err := buf.downloadSegment(context.Background(), nzbFile.Segments[2], nzbFile.Groups)
+		mockConn2.EXPECT().Body("<1>").Return(buff, nil).Times(1)
+		cache.EXPECT().Set("1", gomock.Any()).Return(nil).Times(1)
+		part, err := buf.downloadSegment(context.Background(), segment, groups)
 
 		assert.NoError(t, err)
 		assert.NotNil(t, part)

@@ -1,5 +1,7 @@
 package nzbloader
 
+//go:generate mockgen -source=./nzbwriter.go -destination=./nzbwriter_mock.go -package=nzbloader NzbWriter
+
 import (
 	"github.com/javi11/usenet-drive/pkg/nzb"
 	"github.com/javi11/usenet-drive/pkg/osfs"
@@ -10,14 +12,12 @@ type NzbWriter interface {
 }
 
 type nzbWriter struct {
-	fs        osfs.FileSystem
-	nzbParser nzb.NzbParser
+	fs osfs.FileSystem
 }
 
-func NewNzbWriter(fs osfs.FileSystem, nzbParser nzb.NzbParser) NzbWriter {
+func NewNzbWriter(fs osfs.FileSystem) NzbWriter {
 	return &nzbWriter{
-		fs:        fs,
-		nzbParser: nzbParser,
+		fs: fs,
 	}
 }
 
@@ -28,7 +28,7 @@ func (nw *nzbWriter) UpdateMetadata(filePath string, metadata nzb.UpdateableMeta
 	}
 	defer f.Close()
 
-	nzbFile, err := nw.nzbParser.Parse(f)
+	nzbFile, err := nzb.ParseFromBuffer(f)
 	if err != nil {
 		return err
 	}

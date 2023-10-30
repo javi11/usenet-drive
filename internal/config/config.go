@@ -9,15 +9,14 @@ import (
 )
 
 type Config struct {
-	LogPath      string `yaml:"log_path" default:"/config/activity.log"`
-	RootPath     string `yaml:"root_path"`
-	WebDavPort   string `yaml:"web_dav_port" default:"8080"`
-	ApiPort      string `yaml:"api_port" default:"8081"`
-	Usenet       Usenet `yaml:"usenet"`
-	DBPath       string `yaml:"db_path" default:"/config/usenet-drive.db"`
-	NzbCacheSize int    `yaml:"nzb_cache_size" default:"100"`
-	Rclone       Rclone `yaml:"rclone"`
-	Debug        bool   `yaml:"debug" default:"false"`
+	LogPath    string `yaml:"log_path" default:"/config/activity.log"`
+	RootPath   string `yaml:"root_path"`
+	WebDavPort string `yaml:"web_dav_port" default:"8080"`
+	ApiPort    string `yaml:"api_port" default:"8081"`
+	Usenet     Usenet `yaml:"usenet"`
+	DBPath     string `yaml:"db_path" default:"/config/usenet-drive.db"`
+	Rclone     Rclone `yaml:"rclone"`
+	Debug      bool   `yaml:"debug" default:"false"`
 }
 
 func (co Config) MarshalJSON() ([]byte, error) {

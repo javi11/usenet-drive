@@ -10,11 +10,9 @@ import (
 	"time"
 
 	"github.com/golang/mock/gomock"
-	"github.com/javi11/usenet-drive/internal/test"
 	"github.com/javi11/usenet-drive/internal/usenet"
 	"github.com/javi11/usenet-drive/internal/usenet/connectionpool"
 	"github.com/javi11/usenet-drive/internal/usenet/corruptednzbsmanager"
-	"github.com/javi11/usenet-drive/internal/usenet/nzbloader"
 	"github.com/javi11/usenet-drive/pkg/osfs"
 	"github.com/stretchr/testify/assert"
 )
@@ -22,7 +20,6 @@ import (
 func TestOpenFile(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	log := slog.Default()
-	mockNzbLoader := nzbloader.NewMockNzbLoader(ctrl)
 	mockCNzb := corruptednzbsmanager.NewMockCorruptedNzbsManager(ctrl)
 	fs := osfs.NewMockFileSystem(ctrl)
 	cp := connectionpool.NewMockUsenetConnectionPool(ctrl)
@@ -45,7 +42,6 @@ func TestOpenFile(t *testing.T) {
 			cp,
 			log,
 			onClose,
-			mockNzbLoader,
 			mockCNzb,
 			fs,
 			downloadConfig{
@@ -73,7 +69,6 @@ func TestOpenFile(t *testing.T) {
 			cp,
 			log,
 			onClose,
-			mockNzbLoader,
 			mockCNzb,
 			fs,
 			downloadConfig{
@@ -86,27 +81,14 @@ func TestOpenFile(t *testing.T) {
 	})
 
 	t.Run("Is a Nzb file", func(t *testing.T) {
-		name := "test.nzb"
+		name := "test.mkv.nzb"
 		flag := os.O_RDONLY
 		perm := os.FileMode(0644)
 		onClose := func() error { return nil }
-		mockFile := osfs.NewMockFile(ctrl)
-		today := time.Now()
 
-		nzb, err := test.NewNzbMock()
+		f, err := os.Open("../../test/nzbmock.xml")
 		assert.NoError(t, err)
-
-		fs.EXPECT().OpenFile(name, flag, perm).Return(mockFile, nil).Times(1)
-		mockNzbLoader.EXPECT().LoadFromFileReader(mockFile).Return(&nzbloader.NzbCache{
-			Metadata: &usenet.Metadata{
-				FileExtension: ".mkv",
-				FileSize:      123,
-				ChunkSize:     456,
-				FileName:      "file2.mkv",
-				ModTime:       today,
-			},
-			Nzb: nzb,
-		}, nil).Times(1)
+		fs.EXPECT().OpenFile(name, flag, perm).Return(f, nil).Times(1)
 
 		// Call
 		ok, file, err := openFile(
@@ -117,7 +99,6 @@ func TestOpenFile(t *testing.T) {
 			cp,
 			log,
 			onClose,
-			mockNzbLoader,
 			mockCNzb,
 			fs,
 			downloadConfig{
@@ -129,37 +110,25 @@ func TestOpenFile(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.True(t, ok)
-		assert.Equal(t, "test.mkv", file.Name())
+		assert.Equal(t, "test.mkv.bin", file.Name())
 	})
 
 	t.Run("Is a Nzb file masked", func(t *testing.T) {
-		name := "test.mkv"
+		name := "test.mkv.bin"
 		flag := os.O_RDONLY
 		perm := os.FileMode(0644)
 		onClose := func() error { return nil }
-		mockFile := osfs.NewMockFile(ctrl)
-		today := time.Now()
 
 		fsStatMock := osfs.NewMockFileInfo(ctrl)
-		fsStatMock.EXPECT().Name().Return("test.nzb").Times(1)
+		fsStatMock.EXPECT().Name().Return("test.mkv.nzb").Times(1)
 
-		fs.EXPECT().Stat("test.nzb").Return(fsStatMock, nil).Times(1)
+		fs.EXPECT().Stat("test.mkv.nzb").Return(fsStatMock, nil).Times(1)
 		fs.EXPECT().IsNotExist(nil).Return(false).Times(1)
 
-		nzb, err := test.NewNzbMock()
+		f, err := os.Open("../../test/nzbmock.xml")
 		assert.NoError(t, err)
 
-		fs.EXPECT().OpenFile("test.nzb", flag, perm).Return(mockFile, nil).Times(1)
-		mockNzbLoader.EXPECT().LoadFromFileReader(mockFile).Return(&nzbloader.NzbCache{
-			Metadata: &usenet.Metadata{
-				FileExtension: ".mkv",
-				FileSize:      123,
-				ChunkSize:     456,
-				FileName:      "file2.mkv",
-				ModTime:       today,
-			},
-			Nzb: nzb,
-		}, nil).Times(1)
+		fs.EXPECT().OpenFile("test.mkv.nzb", flag, perm).Return(f, nil).Times(1)
 
 		// Call
 		ok, file, err := openFile(
@@ -170,7 +139,6 @@ func TestOpenFile(t *testing.T) {
 			cp,
 			log,
 			onClose,
-			mockNzbLoader,
 			mockCNzb,
 			fs,
 			downloadConfig{
@@ -182,7 +150,7 @@ func TestOpenFile(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.True(t, ok)
-		assert.Equal(t, "test.mkv", file.Name())
+		assert.Equal(t, "test.mkv.bin", file.Name())
 	})
 
 	t.Run("Nzb file with corrupted metadata", func(t *testing.T) {
@@ -190,10 +158,11 @@ func TestOpenFile(t *testing.T) {
 		flag := os.O_RDONLY
 		perm := os.FileMode(0644)
 		onClose := func() error { return nil }
-		mockFile := osfs.NewMockFile(ctrl)
 
-		fs.EXPECT().OpenFile("test.nzb", flag, perm).Return(mockFile, nil).Times(1)
-		mockNzbLoader.EXPECT().LoadFromFileReader(mockFile).Return(nil, ErrCorruptedNzb).Times(1)
+		f, err := os.Open("../../test/corruptednzbmock.xml")
+		assert.NoError(t, err)
+		fs.EXPECT().OpenFile("test.nzb", flag, perm).Return(f, nil).Times(1)
+		mockCNzb.EXPECT().Add(context.Background(), "test.nzb", "corrupted nzb file, missing required metadata").Return(nil).Times(1)
 
 		ok, _, err := openFile(
 			context.Background(),
@@ -203,7 +172,6 @@ func TestOpenFile(t *testing.T) {
 			cp,
 			log,
 			onClose,
-			mockNzbLoader,
 			mockCNzb,
 			fs,
 			downloadConfig{
@@ -233,7 +201,6 @@ func TestOpenFile(t *testing.T) {
 			cp,
 			log,
 			onClose,
-			mockNzbLoader,
 			mockCNzb,
 			fs,
 			downloadConfig{
@@ -252,7 +219,6 @@ func TestOpenFile(t *testing.T) {
 func TestCloseFile(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	log := slog.Default()
-	mockNzbLoader := nzbloader.NewMockNzbLoader(ctrl)
 	mockCNzb := corruptednzbsmanager.NewMockCorruptedNzbsManager(ctrl)
 	fs := osfs.NewMockFileSystem(ctrl)
 	mockFile := osfs.NewMockFile(ctrl)
@@ -264,8 +230,7 @@ func TestCloseFile(t *testing.T) {
 		innerFile: mockFile,
 		fsMutex:   sync.RWMutex{},
 		log:       log,
-		metadata:  &usenet.Metadata{},
-		nzbLoader: mockNzbLoader,
+		metadata:  usenet.Metadata{},
 		onClose: func() error {
 			onClosedCalled = true
 			return nil
@@ -307,7 +272,6 @@ func TestCloseFile(t *testing.T) {
 func TestRead(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	log := slog.Default()
-	mockNzbLoader := nzbloader.NewMockNzbLoader(ctrl)
 	mockCNzb := corruptednzbsmanager.NewMockCorruptedNzbsManager(ctrl)
 	fs := osfs.NewMockFileSystem(ctrl)
 	mockFile := osfs.NewMockFile(ctrl)
@@ -320,8 +284,7 @@ func TestRead(t *testing.T) {
 			innerFile: mockFile,
 			fsMutex:   sync.RWMutex{},
 			log:       log,
-			metadata:  &usenet.Metadata{},
-			nzbLoader: mockNzbLoader,
+			metadata:  usenet.Metadata{},
 			onClose:   func() error { return nil },
 			cNzb:      mockCNzb,
 			fs:        fs,
@@ -344,8 +307,7 @@ func TestRead(t *testing.T) {
 			innerFile: mockFile,
 			fsMutex:   sync.RWMutex{},
 			log:       log,
-			metadata:  &usenet.Metadata{},
-			nzbLoader: mockNzbLoader,
+			metadata:  usenet.Metadata{},
 			onClose:   func() error { return nil },
 			cNzb:      mockCNzb,
 			fs:        fs,
@@ -366,7 +328,6 @@ func TestRead(t *testing.T) {
 func TestReadAt(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	log := slog.Default()
-	mockNzbLoader := nzbloader.NewMockNzbLoader(ctrl)
 	mockCNzb := corruptednzbsmanager.NewMockCorruptedNzbsManager(ctrl)
 	fs := osfs.NewMockFileSystem(ctrl)
 	mockFile := osfs.NewMockFile(ctrl)
@@ -379,8 +340,7 @@ func TestReadAt(t *testing.T) {
 			innerFile: mockFile,
 			fsMutex:   sync.RWMutex{},
 			log:       log,
-			metadata:  &usenet.Metadata{},
-			nzbLoader: mockNzbLoader,
+			metadata:  usenet.Metadata{},
 			onClose:   func() error { return nil },
 			cNzb:      mockCNzb,
 			fs:        fs,
@@ -404,8 +364,7 @@ func TestReadAt(t *testing.T) {
 			innerFile: mockFile,
 			fsMutex:   sync.RWMutex{},
 			log:       log,
-			metadata:  &usenet.Metadata{},
-			nzbLoader: mockNzbLoader,
+			metadata:  usenet.Metadata{},
 			onClose:   func() error { return nil },
 			cNzb:      mockCNzb,
 			fs:        fs,
@@ -427,7 +386,6 @@ func TestReadAt(t *testing.T) {
 func TestSystemFileMethods(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	log := slog.Default()
-	mockNzbLoader := nzbloader.NewMockNzbLoader(ctrl)
 	mockCNzb := corruptednzbsmanager.NewMockCorruptedNzbsManager(ctrl)
 	fs := osfs.NewMockFileSystem(ctrl)
 	mockFile := osfs.NewMockFile(ctrl)
@@ -440,8 +398,7 @@ func TestSystemFileMethods(t *testing.T) {
 			innerFile: mockFile,
 			fsMutex:   sync.RWMutex{},
 			log:       log,
-			metadata:  &usenet.Metadata{},
-			nzbLoader: mockNzbLoader,
+			metadata:  usenet.Metadata{},
 			onClose:   func() error { return nil },
 			cNzb:      mockCNzb,
 			fs:        fs,
@@ -460,8 +417,7 @@ func TestSystemFileMethods(t *testing.T) {
 			innerFile: mockFile,
 			fsMutex:   sync.RWMutex{},
 			log:       log,
-			metadata:  &usenet.Metadata{},
-			nzbLoader: mockNzbLoader,
+			metadata:  usenet.Metadata{},
 			onClose:   func() error { return nil },
 			cNzb:      mockCNzb,
 			fs:        fs,
@@ -479,8 +435,7 @@ func TestSystemFileMethods(t *testing.T) {
 			innerFile: mockFile,
 			fsMutex:   sync.RWMutex{},
 			log:       log,
-			metadata:  &usenet.Metadata{},
-			nzbLoader: mockNzbLoader,
+			metadata:  usenet.Metadata{},
 			onClose:   func() error { return nil },
 			cNzb:      mockCNzb,
 			fs:        fs,
@@ -500,8 +455,7 @@ func TestSystemFileMethods(t *testing.T) {
 			innerFile: mockFile,
 			fsMutex:   sync.RWMutex{},
 			log:       log,
-			metadata:  &usenet.Metadata{},
-			nzbLoader: mockNzbLoader,
+			metadata:  usenet.Metadata{},
 			onClose:   func() error { return nil },
 			cNzb:      mockCNzb,
 			fs:        fs,
@@ -520,8 +474,7 @@ func TestSystemFileMethods(t *testing.T) {
 			innerFile: mockFile,
 			fsMutex:   sync.RWMutex{},
 			log:       log,
-			metadata:  &usenet.Metadata{},
-			nzbLoader: mockNzbLoader,
+			metadata:  usenet.Metadata{},
 			onClose:   func() error { return nil },
 			cNzb:      mockCNzb,
 			fs:        fs,
@@ -538,8 +491,7 @@ func TestSystemFileMethods(t *testing.T) {
 			innerFile: mockFile,
 			fsMutex:   sync.RWMutex{},
 			log:       log,
-			metadata:  &usenet.Metadata{},
-			nzbLoader: mockNzbLoader,
+			metadata:  usenet.Metadata{},
 			onClose:   func() error { return nil },
 			cNzb:      mockCNzb,
 			fs:        fs,
@@ -560,8 +512,7 @@ func TestSystemFileMethods(t *testing.T) {
 			innerFile: mockFile,
 			fsMutex:   sync.RWMutex{},
 			log:       log,
-			metadata:  &usenet.Metadata{},
-			nzbLoader: mockNzbLoader,
+			metadata:  usenet.Metadata{},
 			onClose:   func() error { return nil },
 			cNzb:      mockCNzb,
 			fs:        fs,
@@ -581,8 +532,7 @@ func TestSystemFileMethods(t *testing.T) {
 			innerFile: mockFile,
 			fsMutex:   sync.RWMutex{},
 			log:       log,
-			metadata:  &usenet.Metadata{},
-			nzbLoader: mockNzbLoader,
+			metadata:  usenet.Metadata{},
 			onClose:   func() error { return nil },
 			cNzb:      mockCNzb,
 			fs:        fs,
@@ -601,8 +551,7 @@ func TestSystemFileMethods(t *testing.T) {
 			innerFile: mockFile,
 			fsMutex:   sync.RWMutex{},
 			log:       log,
-			metadata:  &usenet.Metadata{},
-			nzbLoader: mockNzbLoader,
+			metadata:  usenet.Metadata{},
 			onClose:   func() error { return nil },
 			cNzb:      mockCNzb,
 			fs:        fs,
@@ -619,8 +568,7 @@ func TestSystemFileMethods(t *testing.T) {
 			innerFile: mockFile,
 			fsMutex:   sync.RWMutex{},
 			log:       log,
-			metadata:  &usenet.Metadata{},
-			nzbLoader: mockNzbLoader,
+			metadata:  usenet.Metadata{},
 			onClose:   func() error { return nil },
 			cNzb:      mockCNzb,
 			fs:        fs,
@@ -639,8 +587,7 @@ func TestSystemFileMethods(t *testing.T) {
 			innerFile: mockFile,
 			fsMutex:   sync.RWMutex{},
 			log:       log,
-			metadata:  &usenet.Metadata{},
-			nzbLoader: mockNzbLoader,
+			metadata:  usenet.Metadata{},
 			onClose:   func() error { return nil },
 			cNzb:      mockCNzb,
 			fs:        fs,
@@ -657,8 +604,7 @@ func TestSystemFileMethods(t *testing.T) {
 			innerFile: mockFile,
 			fsMutex:   sync.RWMutex{},
 			log:       log,
-			metadata:  &usenet.Metadata{},
-			nzbLoader: mockNzbLoader,
+			metadata:  usenet.Metadata{},
 			onClose:   func() error { return nil },
 			cNzb:      mockCNzb,
 			fs:        fs,
@@ -676,8 +622,7 @@ func TestSystemFileMethods(t *testing.T) {
 			innerFile: mockFile,
 			fsMutex:   sync.RWMutex{},
 			log:       log,
-			metadata:  &usenet.Metadata{},
-			nzbLoader: mockNzbLoader,
+			metadata:  usenet.Metadata{},
 			onClose:   func() error { return nil },
 			cNzb:      mockCNzb,
 			fs:        fs,
@@ -695,8 +640,7 @@ func TestSystemFileMethods(t *testing.T) {
 			innerFile: mockFile,
 			fsMutex:   sync.RWMutex{},
 			log:       log,
-			metadata:  &usenet.Metadata{},
-			nzbLoader: mockNzbLoader,
+			metadata:  usenet.Metadata{},
 			onClose:   func() error { return nil },
 			cNzb:      mockCNzb,
 			fs:        fs,
@@ -717,8 +661,7 @@ func TestSystemFileMethods(t *testing.T) {
 			innerFile: mockFile,
 			fsMutex:   sync.RWMutex{},
 			log:       log,
-			metadata:  &usenet.Metadata{},
-			nzbLoader: mockNzbLoader,
+			metadata:  usenet.Metadata{},
 			onClose:   func() error { return nil },
 			cNzb:      mockCNzb,
 			fs:        fs,
@@ -739,17 +682,16 @@ func TestSystemFileMethods(t *testing.T) {
 			innerFile: mockFile,
 			fsMutex:   sync.RWMutex{},
 			log:       log,
-			metadata: &usenet.Metadata{
+			metadata: usenet.Metadata{
 				FileExtension: ".mkv",
 				FileSize:      123,
 				ChunkSize:     456,
 				FileName:      "test.mkv",
 				ModTime:       today,
 			},
-			nzbLoader: mockNzbLoader,
-			onClose:   func() error { return nil },
-			cNzb:      mockCNzb,
-			fs:        fs,
+			onClose: func() error { return nil },
+			cNzb:    mockCNzb,
+			fs:      fs,
 		}
 
 		mockFsStat := osfs.NewMockFileInfo(ctrl)

@@ -1,29 +1,16 @@
 package nzb
 
-//go:generate mockgen -source=./nzb.go -destination=./nzb_mock.go -package=nzb NzbParser
-
 import (
 	"bytes"
 	"encoding/xml"
 	"io"
 )
 
-type NzbParser interface {
-	Parse(buf io.Reader) (*Nzb, error)
-	ParseFromString(data string) (*Nzb, error)
+func ParseFromString(data string) (*Nzb, error) {
+	return ParseFromBuffer(bytes.NewBufferString(data))
 }
 
-type nzbParser struct{}
-
-func NewNzbParser() NzbParser {
-	return &nzbParser{}
-}
-
-func (p *nzbParser) ParseFromString(data string) (*Nzb, error) {
-	return p.Parse(bytes.NewBufferString(data))
-}
-
-func (p *nzbParser) Parse(buf io.Reader) (*Nzb, error) {
+func ParseFromBuffer(buf io.Reader) (*Nzb, error) {
 	xnzb := xNzb{}
 	err := xml.NewDecoder(buf).Decode(&xnzb)
 	if err != nil {

@@ -18,7 +18,6 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/javi11/usenet-drive/internal/usenet"
 	"github.com/javi11/usenet-drive/internal/usenet/connectionpool"
-	"github.com/javi11/usenet-drive/internal/usenet/nzbloader"
 	"github.com/javi11/usenet-drive/pkg/nntpcli"
 	"github.com/javi11/usenet-drive/pkg/nzb"
 	"github.com/javi11/usenet-drive/pkg/osfs"
@@ -28,7 +27,6 @@ import (
 func TestOpenFile(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	log := slog.Default()
-	mockNzbLoader := nzbloader.NewMockNzbLoader(ctrl)
 	fs := osfs.NewMockFileSystem(ctrl)
 	cp := connectionpool.NewMockUsenetConnectionPool(ctrl)
 	fileSize := int64(100)
@@ -52,7 +50,6 @@ func TestOpenFile(t *testing.T) {
 		cp,
 		randomGroup,
 		log,
-		mockNzbLoader,
 		5,
 		dryRun,
 		onClose,
@@ -65,7 +62,6 @@ func TestOpenFile(t *testing.T) {
 func TestCloseFile(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	log := slog.Default()
-	mockNzbLoader := nzbloader.NewMockNzbLoader(ctrl)
 	fs := osfs.NewMockFileSystem(ctrl)
 	cp := connectionpool.NewMockUsenetConnectionPool(ctrl)
 	fileSize := int64(100)
@@ -83,7 +79,6 @@ func TestCloseFile(t *testing.T) {
 		maxUploadRetries: 5,
 		dryRun:           dryRun,
 		cp:               cp,
-		nzbLoader:        mockNzbLoader,
 		fs:               fs,
 		log:              log,
 		flag:             os.O_WRONLY,
@@ -125,7 +120,6 @@ func TestSystemFileMethods(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	log := slog.Default()
-	mockNzbLoader := nzbloader.NewMockNzbLoader(ctrl)
 	fs := osfs.NewMockFileSystem(ctrl)
 	cp := connectionpool.NewMockUsenetConnectionPool(ctrl)
 	fileSize := int64(100)
@@ -144,7 +138,6 @@ func TestSystemFileMethods(t *testing.T) {
 		maxUploadRetries: 5,
 		dryRun:           dryRun,
 		cp:               cp,
-		nzbLoader:        mockNzbLoader,
 		fs:               fs,
 		log:              log,
 		flag:             os.O_WRONLY,
@@ -278,7 +271,6 @@ func TestReadFrom(t *testing.T) {
 	maxUploadRetries := 5
 
 	t.Run("File uploaded", func(t *testing.T) {
-		mockNzbLoader := nzbloader.NewMockNzbLoader(ctrl)
 		fs := osfs.NewMockFileSystem(ctrl)
 		cp := connectionpool.NewMockUsenetConnectionPool(ctrl)
 		metadata := &usenet.Metadata{
@@ -294,7 +286,6 @@ func TestReadFrom(t *testing.T) {
 			maxUploadRetries: maxUploadRetries,
 			dryRun:           dryRun,
 			cp:               cp,
-			nzbLoader:        mockNzbLoader,
 			fs:               fs,
 			log:              log,
 			flag:             os.O_WRONLY,
@@ -326,7 +317,6 @@ func TestReadFrom(t *testing.T) {
 		}
 
 		fs.EXPECT().WriteFile("test.nzb", gomock.Any(), os.FileMode(0644)).Return(nil)
-		mockNzbLoader.EXPECT().RefreshCachedNzb("test.nzb", gomock.Any()).Return(true, nil)
 
 		n, e := openedFile.ReadFrom(src)
 		assert.NoError(t, e)
@@ -335,7 +325,6 @@ func TestReadFrom(t *testing.T) {
 	})
 
 	t.Run("Wrong expected file size", func(t *testing.T) {
-		mockNzbLoader := nzbloader.NewMockNzbLoader(ctrl)
 		fs := osfs.NewMockFileSystem(ctrl)
 		cp := connectionpool.NewMockUsenetConnectionPool(ctrl)
 
@@ -344,7 +333,6 @@ func TestReadFrom(t *testing.T) {
 			maxUploadRetries: maxUploadRetries,
 			dryRun:           dryRun,
 			cp:               cp,
-			nzbLoader:        mockNzbLoader,
 			fs:               fs,
 			log:              log,
 			flag:             os.O_WRONLY,
@@ -379,7 +367,6 @@ func TestReadFrom(t *testing.T) {
 	})
 
 	t.Run("Read stops before the write the expected size", func(t *testing.T) {
-		mockNzbLoader := nzbloader.NewMockNzbLoader(ctrl)
 		fs := osfs.NewMockFileSystem(ctrl)
 		cp := connectionpool.NewMockUsenetConnectionPool(ctrl)
 
@@ -388,7 +375,6 @@ func TestReadFrom(t *testing.T) {
 			maxUploadRetries: maxUploadRetries,
 			dryRun:           dryRun,
 			cp:               cp,
-			nzbLoader:        mockNzbLoader,
 			fs:               fs,
 			log:              log,
 			flag:             os.O_WRONLY,
@@ -424,7 +410,6 @@ func TestReadFrom(t *testing.T) {
 	})
 
 	t.Run("Retry if get connection failed", func(t *testing.T) {
-		mockNzbLoader := nzbloader.NewMockNzbLoader(ctrl)
 		fs := osfs.NewMockFileSystem(ctrl)
 		cp := connectionpool.NewMockUsenetConnectionPool(ctrl)
 
@@ -433,7 +418,6 @@ func TestReadFrom(t *testing.T) {
 			maxUploadRetries: maxUploadRetries,
 			dryRun:           dryRun,
 			cp:               cp,
-			nzbLoader:        mockNzbLoader,
 			fs:               fs,
 			log:              log,
 			flag:             os.O_WRONLY,
@@ -465,7 +449,6 @@ func TestReadFrom(t *testing.T) {
 		cp.EXPECT().Close(mockConn).Return(nil).Times(1)
 		cp.EXPECT().Free(mockConn).Return(nil).Times(10)
 		fs.EXPECT().WriteFile("test.nzb", gomock.Any(), os.FileMode(0644)).Return(nil)
-		mockNzbLoader.EXPECT().RefreshCachedNzb("test.nzb", gomock.Any()).Return(true, nil)
 
 		n, e := openedFile.ReadFrom(src)
 		assert.NoError(t, e)
@@ -473,7 +456,6 @@ func TestReadFrom(t *testing.T) {
 	})
 
 	t.Run("If max number of retries are exhausted on get connection throw an error", func(t *testing.T) {
-		mockNzbLoader := nzbloader.NewMockNzbLoader(ctrl)
 		fs := osfs.NewMockFileSystem(ctrl)
 		cp := connectionpool.NewMockUsenetConnectionPool(ctrl)
 
@@ -482,7 +464,6 @@ func TestReadFrom(t *testing.T) {
 			maxUploadRetries: maxUploadRetries,
 			dryRun:           dryRun,
 			cp:               cp,
-			nzbLoader:        mockNzbLoader,
 			fs:               fs,
 			log:              log,
 			flag:             os.O_WRONLY,
@@ -516,7 +497,6 @@ func TestReadFrom(t *testing.T) {
 	})
 
 	t.Run("If error is not retryable get connection, do not retry", func(t *testing.T) {
-		mockNzbLoader := nzbloader.NewMockNzbLoader(ctrl)
 		fs := osfs.NewMockFileSystem(ctrl)
 		cp := connectionpool.NewMockUsenetConnectionPool(ctrl)
 
@@ -525,7 +505,6 @@ func TestReadFrom(t *testing.T) {
 			maxUploadRetries: maxUploadRetries,
 			dryRun:           dryRun,
 			cp:               cp,
-			nzbLoader:        mockNzbLoader,
 			fs:               fs,
 			log:              log,
 			flag:             os.O_WRONLY,
@@ -560,7 +539,6 @@ func TestReadFrom(t *testing.T) {
 	})
 
 	t.Run("Retry if upload throws a retryable error", func(t *testing.T) {
-		mockNzbLoader := nzbloader.NewMockNzbLoader(ctrl)
 		fs := osfs.NewMockFileSystem(ctrl)
 		cp := connectionpool.NewMockUsenetConnectionPool(ctrl)
 
@@ -569,7 +547,6 @@ func TestReadFrom(t *testing.T) {
 			maxUploadRetries: maxUploadRetries,
 			dryRun:           dryRun,
 			cp:               cp,
-			nzbLoader:        mockNzbLoader,
 			fs:               fs,
 			log:              log,
 			flag:             os.O_WRONLY,
@@ -604,7 +581,6 @@ func TestReadFrom(t *testing.T) {
 		cp.EXPECT().Get().Return(mockConn2, nil).Times(10)
 		cp.EXPECT().Free(mockConn2).Return(nil).Times(10)
 		fs.EXPECT().WriteFile("test.nzb", gomock.Any(), os.FileMode(0644)).Return(nil)
-		mockNzbLoader.EXPECT().RefreshCachedNzb("test.nzb", gomock.Any()).Return(true, nil)
 
 		n, e := openedFile.ReadFrom(src)
 		assert.NoError(t, e)
@@ -612,7 +588,6 @@ func TestReadFrom(t *testing.T) {
 	})
 
 	t.Run("Retry and recreate segment for partial upload", func(t *testing.T) {
-		mockNzbLoader := nzbloader.NewMockNzbLoader(ctrl)
 		fs := osfs.NewMockFileSystem(ctrl)
 		cp := connectionpool.NewMockUsenetConnectionPool(ctrl)
 
@@ -621,7 +596,6 @@ func TestReadFrom(t *testing.T) {
 			maxUploadRetries: maxUploadRetries,
 			dryRun:           dryRun,
 			cp:               cp,
-			nzbLoader:        mockNzbLoader,
 			fs:               fs,
 			log:              log,
 			flag:             os.O_WRONLY,
@@ -657,7 +631,6 @@ func TestReadFrom(t *testing.T) {
 		cp.EXPECT().Close(mockConn).Return(nil).Times(1)
 		cp.EXPECT().Free(mockConn2).Return(nil).Times(10)
 		fs.EXPECT().WriteFile("test.nzb", gomock.Any(), os.FileMode(0644)).Return(nil)
-		mockNzbLoader.EXPECT().RefreshCachedNzb("test.nzb", gomock.Any()).Return(true, nil)
 
 		n, e := openedFile.ReadFrom(src)
 		assert.NoError(t, e)
@@ -665,7 +638,6 @@ func TestReadFrom(t *testing.T) {
 	})
 
 	t.Run("Return an error if file write failed", func(t *testing.T) {
-		mockNzbLoader := nzbloader.NewMockNzbLoader(ctrl)
 		fs := osfs.NewMockFileSystem(ctrl)
 		cp := connectionpool.NewMockUsenetConnectionPool(ctrl)
 
@@ -674,7 +646,6 @@ func TestReadFrom(t *testing.T) {
 			maxUploadRetries: maxUploadRetries,
 			dryRun:           dryRun,
 			cp:               cp,
-			nzbLoader:        mockNzbLoader,
 			fs:               fs,
 			log:              log,
 			flag:             os.O_WRONLY,
@@ -711,7 +682,6 @@ func TestReadFrom(t *testing.T) {
 	})
 
 	t.Run("Do not fail if refresh nzb cache failed", func(t *testing.T) {
-		mockNzbLoader := nzbloader.NewMockNzbLoader(ctrl)
 		fs := osfs.NewMockFileSystem(ctrl)
 		cp := connectionpool.NewMockUsenetConnectionPool(ctrl)
 
@@ -720,7 +690,6 @@ func TestReadFrom(t *testing.T) {
 			maxUploadRetries: maxUploadRetries,
 			dryRun:           dryRun,
 			cp:               cp,
-			nzbLoader:        mockNzbLoader,
 			fs:               fs,
 			log:              log,
 			flag:             os.O_WRONLY,
@@ -750,7 +719,6 @@ func TestReadFrom(t *testing.T) {
 		cp.EXPECT().Get().Return(mockConn, nil).Times(10)
 		cp.EXPECT().Free(mockConn).Return(nil).Times(10)
 		fs.EXPECT().WriteFile("test.nzb", gomock.Any(), os.FileMode(0644)).Return(nil)
-		mockNzbLoader.EXPECT().RefreshCachedNzb("test.nzb", gomock.Any()).Return(true, errors.New("error"))
 
 		n, e := openedFile.ReadFrom(src)
 		assert.NoError(t, e)
@@ -758,7 +726,6 @@ func TestReadFrom(t *testing.T) {
 	})
 
 	t.Run("Cancel the upload if file is context is canceled", func(t *testing.T) {
-		mockNzbLoader := nzbloader.NewMockNzbLoader(ctrl)
 		fs := osfs.NewMockFileSystem(ctrl)
 		cp := connectionpool.NewMockUsenetConnectionPool(ctrl)
 
@@ -768,7 +735,6 @@ func TestReadFrom(t *testing.T) {
 			maxUploadRetries: maxUploadRetries,
 			dryRun:           dryRun,
 			cp:               cp,
-			nzbLoader:        mockNzbLoader,
 			fs:               fs,
 			log:              log,
 			flag:             os.O_WRONLY,

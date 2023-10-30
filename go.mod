@@ -11,7 +11,6 @@ require (
 	github.com/golang/mock v1.6.0
 	github.com/google/uuid v1.3.1
 	github.com/hashicorp/go-multierror v1.1.1
-	github.com/hashicorp/golang-lru/v2 v2.0.6
 	github.com/labstack/echo-contrib v0.15.0
 	github.com/labstack/echo/v4 v4.11.2
 	github.com/mattn/go-sqlite3 v1.14.17

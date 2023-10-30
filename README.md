@@ -149,7 +149,6 @@ The `Config` struct defines the configuration for the Usenet Drive application. 
 
 ### Fields
 
-- `nzb_cache_size` (int): The number of NZBs to keep in memory. Default value is `100`. WARN remember that each NZB can be a big file increasing this will increase the memory usage.
 - `root_path` (string!): The root path of your webdav virtual file system and where all nzb and not uploaded files will be saved. It is recommended to add a path to a fast disk for instance a SSD or NVME since this will improve a lot the playback of video files.
 - `web_dav_port` (string): The port number for the server. Default value is `8080`.
 - `api_port` (string): The port number for the server. Default value is `8080`.

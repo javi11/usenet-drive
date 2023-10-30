@@ -3,9 +3,6 @@
 <nzb xmlns="http://www.newzbin.com/DTD/2003/nzb">
         <head>
                 <meta type="file_size">1442682314</meta>
-                <meta type="file_name">some-file.mp4</meta>
-                <meta type="file_extension">.bin</meta>
-                <meta type="mod_time">2023-09-22 20:06:09</meta>
                 <meta type="chunk_size">7500000</meta>
         </head>
         <file poster="hEglQTo &lt;wpsLDMm@ZqWgGlu.info&gt;" date="1695410374" subject="[1/1] - &quot;0cc7fabce3cf0a994d94ecf67a43b04f&quot; - size=768000 - yEnc (1/9) 1442682314">
