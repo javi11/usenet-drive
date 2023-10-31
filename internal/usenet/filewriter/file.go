@@ -40,12 +40,13 @@ type file struct {
 	metadata         *usenet.Metadata
 	cp               connectionpool.UsenetConnectionPool
 	maxUploadRetries int
-	onClose          func() error
+	onClose          func(err error) error
 	log              *slog.Logger
 	flag             int
 	perm             fs.FileMode
 	fs               osfs.FileSystem
 	ctx              context.Context
+	uploadErr        error
 }
 
 func openFile(
@@ -60,7 +61,7 @@ func openFile(
 	log *slog.Logger,
 	maxUploadRetries int,
 	dryRun bool,
-	onClose func() error,
+	onClose func(err error) error,
 	fs osfs.FileSystem,
 ) (*file, error) {
 	if dryRun {
@@ -119,8 +120,15 @@ func (f *file) ReadFrom(src io.Reader) (int64, error) {
 	for i := 0; ; i++ {
 		select {
 		case <-ctx.Done():
+			if err := wg.Wait().ErrorOrNil(); !errors.Is(err, context.Canceled) {
+				f.log.Error("Error closing upload threads.", "error", wg.Wait().ErrorOrNil())
+			}
+
 			if err := context.Cause(ctx); err != nil {
-				f.log.Error("Error uploading the file", "error", err)
+				if !errors.Is(err, context.Canceled) {
+					f.log.Error("Error uploading the file", "error", err)
+				}
+				f.uploadErr = err
 
 				return bytesWritten, err
 			}
@@ -244,7 +252,7 @@ func (f *file) Write(b []byte) (int, error) {
 }
 
 func (f *file) Close() error {
-	return f.onClose()
+	return f.onClose(f.uploadErr)
 }
 
 func (f *file) Chdir() error {
@@ -329,6 +337,10 @@ func (f *file) addSegment(ctx context.Context, conn nntpcli.Connection, segments
 
 	err := retry.Do(func() error {
 		a := f.buildArticleData(int64(segmentIndex))
+		if a == nil {
+			return ErrRetryable
+		}
+
 		articleBytes, err := ArticleToBytes(b, a)
 		if err != nil {
 			log.Error("Error building article.", "error", err)
@@ -392,7 +404,7 @@ func (f *file) addSegment(ctx context.Context, conn nntpcli.Connection, segments
 			conn = c
 		}),
 		retry.RetryIf(func(err error) bool {
-			return nntpcli.IsRetryableError(err)
+			return nntpcli.IsRetryableError(err) || errors.Is(err, ErrRetryable)
 		}),
 	)
 
@@ -419,7 +431,11 @@ func (f *file) addSegment(ctx context.Context, conn nntpcli.Connection, segments
 func (f *file) buildArticleData(segmentIndex int64) *ArticleData {
 	start := segmentIndex * f.metadata.ChunkSize
 	end := min((segmentIndex+1)*f.metadata.ChunkSize, f.nzbMetadata.expectedFileSize)
-	msgId := generateMessageId()
+	msgId, err := generateMessageId()
+	if err != nil {
+		f.log.Error("Error generating message id.", "error", err)
+		return nil
+	}
 
 	return &ArticleData{
 		partNum:   segmentIndex + 1,

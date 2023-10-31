@@ -37,7 +37,7 @@ func TestOpenFile(t *testing.T) {
 	name := "test.mkv"
 	flag := os.O_RDONLY
 	perm := os.FileMode(0644)
-	onClose := func() error { return nil }
+	onClose := func(err error) error { return nil }
 
 	// Call
 	f, err := openFile(
@@ -101,7 +101,7 @@ func TestCloseFile(t *testing.T) {
 	}
 
 	onClosedCalled := false
-	onClose := func() error {
+	onClose := func(_ error) error {
 		onClosedCalled = true
 		return nil
 	}

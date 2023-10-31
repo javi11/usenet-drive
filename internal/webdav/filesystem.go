@@ -75,7 +75,7 @@ func (fs *remoteFilesystem) OpenFile(ctx context.Context, name string, flag int,
 		return f, nil
 	}
 
-	onClose := func() error {
+	onClose := func(err error) error {
 		return nil
 	}
 	if flag == os.O_RDWR|os.O_CREATE|os.O_TRUNC && fs.fileWriter.HasAllowedFileExtension(name) {
@@ -85,10 +85,14 @@ func (fs *remoteFilesystem) OpenFile(ctx context.Context, name string, flag int,
 		}
 
 		// If the file is an allowed upload file, and was opened for writing, when close, add it to the upload queue
-		onClose = func() error {
+		onClose = func(err error) error {
+			if err != nil {
+				fs.log.InfoContext(ctx, "Upload file was discarded because an error", "name", name, "err", err)
+				return nil
+			}
+
 			fs.log.InfoContext(ctx, "File uploaded", "name", name, "size", finalSize)
 			fs.refreshRcloneCache(ctx, name)
-
 			return nil
 		}
 

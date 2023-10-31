@@ -93,7 +93,7 @@ func (p *connectionPool) GetFreeConnections() int {
 
 func dialNNTP(config *Config) (nntpcli.Connection, error) {
 	if config.dryRun {
-		return &nntpcli.MockConnection{}, nil
+		return nntpcli.NewFakeConnection(), nil
 	}
 
 	var err error

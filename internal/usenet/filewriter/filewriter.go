@@ -56,7 +56,7 @@ func (u *fileWriter) OpenFile(
 	fileSize int64,
 	flag int,
 	perm fs.FileMode,
-	onClose func() error,
+	onClose func(err error) error,
 ) (webdav.File, error) {
 	randomGroup := u.postGroups[rand.Intn(len(u.postGroups))]
 

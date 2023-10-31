@@ -8,7 +8,7 @@ import (
 )
 
 type RemoteFileWriter interface {
-	OpenFile(ctx context.Context, name string, fileSize int64, flag int, perm fs.FileMode, onClose func() error) (webdav.File, error)
+	OpenFile(ctx context.Context, name string, fileSize int64, flag int, perm fs.FileMode, onClose func(err error) error) (webdav.File, error)
 	RemoveFile(ctx context.Context, fileName string) (bool, error)
 	HasAllowedFileExtension(fileName string) bool
 	RenameFile(ctx context.Context, fileName string, newFileName string) (bool, error)

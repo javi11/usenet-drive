@@ -15,7 +15,7 @@ type file struct {
 	innerFile  *os.File
 	fsMutex    sync.RWMutex
 	fileReader RemoteFileReader
-	onClose    func() error
+	onClose    func(err error) error
 	log        *slog.Logger
 }
 
@@ -23,7 +23,7 @@ func OpenFile(
 	name string,
 	flag int,
 	perm fs.FileMode,
-	onClose func() error,
+	onClose func(err error) error,
 	log *slog.Logger,
 	fileReader RemoteFileReader,
 ) (*file, error) {
@@ -59,7 +59,7 @@ func (f *file) Close() error {
 	}
 
 	if f.onClose != nil {
-		err := f.onClose()
+		err := f.onClose(err)
 		if err != nil {
 			return err
 		}

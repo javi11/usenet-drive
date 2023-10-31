@@ -22,9 +22,13 @@ func generateRandomPoster() string {
 	return fmt.Sprintf("%s <%s>", username, email)
 }
 
-func generateMessageId() string {
-	id := uuid.New()
-	return fmt.Sprintf("%s@usenetdrive", id.String())
+func generateMessageId() (string, error) {
+	id, err := uuid.NewRandom()
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("%s@usenetdrive", id.String()), nil
 }
 
 func isNzbFile(name string) bool {
