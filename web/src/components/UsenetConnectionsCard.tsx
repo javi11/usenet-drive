@@ -48,7 +48,7 @@ export default function UsenetConnectionsCard({ data, title }: UsenetConnections
                 {title} usenet connections
             </Text>
             <Text c="dimmed" ta="center" fz="sm">
-                {data.active} of {data.total} available connections
+                used {data.active} of {data.total} available connections
             </Text>
 
             <Group position="apart" mt="xs">

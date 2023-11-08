@@ -13,3 +13,7 @@ func maybeId(cmd, id string) string {
 	}
 	return cmd
 }
+
+func ProviderName(host, username string) string {
+	return host + "-" + username
+}

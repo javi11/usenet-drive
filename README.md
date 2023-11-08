@@ -170,8 +170,10 @@ The `usenet` struct defines the Usenet configuration.
 
 ### Fields
 
-- `download` (Download): The Usenet provider for downloading.
-- `upload` (Upload): The Usenet options for uploading.
+- `download` (Download): Downloading configuration.
+- `upload` (Upload): Uploading configuration.
+- `providers` (UsenetProvider): Usenet providers to download/upload files
+- `fake_connections` (bool): Whether to use fake connections. Default value is `false`. This is useful for testing purposes.
 
 ## Download Struct
 
@@ -179,7 +181,6 @@ The `Download` struct defines the Usenet provider for downloading.
 
 ### Fields
 
-- `provider` (UsenetProvider): Usenet provider to download files
 - `max_ahead_download_segments` (string): The maximum number of segments to download ahead. Default value is `1`. Be aware that increasing this value will increase the memory usage and connections usage.
 - `max_retries` (int): The maximum number of retries to download a segment. Default value is `8`.
 - `max_cache_size_in_mb` (int): The maximum size of the cache in MB. Default value is `1024`. WARN the tool will fill all this cache as soon as download start.
@@ -190,8 +191,6 @@ The `Upload` struct defines the Usenet provider for uploading.
 
 ### Fields
 
-- `provider` (UsenetProvider): Usenet provider to upload files
-  Alternatively, you can use the same provider and split the available connections to allow more parallel uploads.
 - `file_allow_list` ([]string): The list of allowed file extensions. For example, `[".mkv", ".mp4"]`, in this case only files with the extensions `.mkv` and `.mp4` will be uploaded to usenet. Take care not upload files that change frequently, like subtitules or text files, since they will be uploaded every time they change. In usenet you can not edit files. **_If using rclone crypt all file extensions will ends with .bin so in order to specify the real extension, you must add .bin at the end. Ex: .mkv.bin ._**
 - `max_retries` (int): The maximum number of retries to upload a segment. Default value is `8`.
 
@@ -208,6 +207,7 @@ The `UsenetProvider` struct defines the Usenet provider configuration.
 - `groups` ([]string): The list of Usenet groups. For example, `["alt.binaries.teevee", "alt.binaries.movies"]`.
 - `ssl` (bool): Whether to use SSL for the Usenet provider. Default value is `true`.
 - `max_connections` (int): The maximum number of connections to the Usenet provider.
+- `download_only` (bool): Whether this provider only allows downloading. Default value is `false`.
 
 ## Limitations
 

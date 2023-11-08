@@ -6,13 +6,26 @@ import (
 )
 
 type fakeConnection struct {
+	host         string
+	username     string
+	downloadOnly bool
 }
 
-func NewFakeConnection() Connection {
+func NewFakeConnection(host string, downloadOnly bool) Connection {
 	return &fakeConnection{}
 }
 
+func (c *fakeConnection) Provider() string {
+	return ProviderName(c.host, c.username)
+}
+
+func (c *fakeConnection) IsDownloadOnly() bool {
+	return c.downloadOnly
+}
+
 func (c *fakeConnection) Authenticate(username, password string) error {
+	c.username = username
+
 	return nil
 }
 

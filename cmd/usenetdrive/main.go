@@ -68,35 +68,14 @@ var rootCmd = &cobra.Command{
 			nntpcli.WithLogger(log),
 		)
 
-		// download connection pool
-		downloadConnPool, err := connectionpool.NewConnectionPool(
-			connectionpool.WithHost(config.Usenet.Download.Provider.Host),
-			connectionpool.WithPort(config.Usenet.Download.Provider.Port),
-			connectionpool.WithUsername(config.Usenet.Download.Provider.Username),
-			connectionpool.WithPassword(config.Usenet.Download.Provider.Password),
-			connectionpool.WithTLS(config.Usenet.Download.Provider.SSL),
-			connectionpool.WithMaxConnections(config.Usenet.Download.Provider.MaxConnections),
+		// download and upload connection pool
+		connPool, err := connectionpool.NewConnectionPool(
+			connectionpool.WithFakeConnections(config.Usenet.FakeConnections),
+			connectionpool.WithProviders(config.Usenet.Providers),
 			connectionpool.WithClient(nntpCli),
 		)
 		if err != nil {
-			log.ErrorContext(ctx, "Failed to init usenet download pool: %v", err)
-			os.Exit(1)
-		}
-
-		// Upload connection pool
-		uploadConnPool, err := connectionpool.NewConnectionPool(
-			connectionpool.WithHost(config.Usenet.Upload.Provider.Host),
-			connectionpool.WithPort(config.Usenet.Upload.Provider.Port),
-			connectionpool.WithUsername(config.Usenet.Upload.Provider.Username),
-			connectionpool.WithPassword(config.Usenet.Upload.Provider.Password),
-			connectionpool.WithTLS(config.Usenet.Upload.Provider.SSL),
-			connectionpool.WithMaxConnections(config.Usenet.Upload.Provider.MaxConnections),
-			connectionpool.WithDryRun(config.Usenet.Upload.DryRun),
-			connectionpool.WithClient(nntpCli),
-			connectionpool.WithLogger(log),
-		)
-		if err != nil {
-			log.ErrorContext(ctx, "Failed to init usenet upload pool: %v", err)
+			log.ErrorContext(ctx, "Failed to init usenet connection pool: %v", err)
 			os.Exit(1)
 		}
 
@@ -111,17 +90,17 @@ var rootCmd = &cobra.Command{
 		cNzbs := corruptednzbsmanager.New(sqlLite, osFs)
 
 		// Server info
-		serverInfo := serverinfo.NewServerInfo(downloadConnPool, uploadConnPool, config.RootPath)
+		serverInfo := serverinfo.NewServerInfo(connPool, config.RootPath)
 
 		adminPanel := adminpanel.New(serverInfo, cNzbs, log, config.Debug)
 		go adminPanel.Start(ctx, config.ApiPort)
 
 		nzbWriter := nzbloader.NewNzbWriter(osFs)
 
-		filewriter := filewriter.NewFileWriter(
+		fileWriter := filewriter.NewFileWriter(
 			filewriter.WithSegmentSize(config.Usenet.ArticleSizeInBytes),
-			filewriter.WithConnectionPool(uploadConnPool),
-			filewriter.WithPostGroups(config.Usenet.Upload.Provider.Groups),
+			filewriter.WithConnectionPool(connPool),
+			filewriter.WithPostGroups(config.Usenet.Upload.Groups),
 			filewriter.WithLogger(log),
 			filewriter.WithFileAllowlist(config.Usenet.Upload.FileAllowlist),
 			filewriter.WithCorruptedNzbsManager(cNzbs),
@@ -131,8 +110,8 @@ var rootCmd = &cobra.Command{
 			filewriter.WithMaxUploadRetries(config.Usenet.Upload.MaxRetries),
 		)
 
-		filereader, err := filereader.NewFileReader(
-			filereader.WithConnectionPool(downloadConnPool),
+		fileReader, err := filereader.NewFileReader(
+			filereader.WithConnectionPool(connPool),
 			filereader.WithLogger(log),
 			filereader.WithCorruptedNzbsManager(cNzbs),
 			filereader.WithFileSystem(osFs),
@@ -151,8 +130,8 @@ var rootCmd = &cobra.Command{
 		webDavOptions := []webdav.Option{
 			webdav.WithLogger(log),
 			webdav.WithRootPath(config.RootPath),
-			webdav.WithFileWriter(filewriter),
-			webdav.WithFileReader(filereader),
+			webdav.WithFileWriter(fileWriter),
+			webdav.WithFileReader(fileReader),
 		}
 
 		if config.Rclone.VFSUrl != "" {

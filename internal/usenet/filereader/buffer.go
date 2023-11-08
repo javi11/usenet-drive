@@ -249,7 +249,7 @@ func (v *buffer) downloadSegment(ctx context.Context, segment *nzb.NzbSegment, g
 	} else {
 		var conn nntpcli.Connection
 		retryErr := retry.Do(func() error {
-			c, err := v.cp.Get()
+			c, err := v.cp.GetDownloadConnection()
 			if err != nil {
 				if conn != nil {
 					e := v.cp.Close(conn)

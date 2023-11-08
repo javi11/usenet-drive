@@ -7,8 +7,8 @@ import (
 
 type ServerInfo interface {
 	GetRootFolderDiskUsage() DiskUsage
-	GetDownloadConnections() UsenetConnections
-	GetUploadConnections() UsenetConnections
+	GetConnections() UsenetConnections
+	GetDownloadOnlyConnections() UsenetConnections
 }
 
 type DiskUsage struct {
@@ -25,13 +25,12 @@ type UsenetConnections struct {
 }
 
 type serverInfo struct {
-	downloadCp connectionpool.UsenetConnectionPool
-	uploadCp   connectionpool.UsenetConnectionPool
-	rootPath   string
+	conPool  connectionpool.UsenetConnectionPool
+	rootPath string
 }
 
-func NewServerInfo(dlCp connectionpool.UsenetConnectionPool, upCp connectionpool.UsenetConnectionPool, rootPath string) *serverInfo {
-	return &serverInfo{rootPath: rootPath, downloadCp: dlCp, uploadCp: upCp}
+func NewServerInfo(cp connectionpool.UsenetConnectionPool, rootPath string) *serverInfo {
+	return &serverInfo{rootPath: rootPath, conPool: cp}
 }
 
 func (s *serverInfo) GetRootFolderDiskUsage() DiskUsage {
@@ -45,18 +44,18 @@ func (s *serverInfo) GetRootFolderDiskUsage() DiskUsage {
 	}
 }
 
-func (s *serverInfo) GetDownloadConnections() UsenetConnections {
+func (s *serverInfo) GetConnections() UsenetConnections {
 	return UsenetConnections{
-		Total:  s.downloadCp.GetMaxConnections(),
-		Free:   s.downloadCp.GetFreeConnections(),
-		Active: s.downloadCp.GetActiveConnections(),
+		Total:  s.conPool.GetMaxConnections(),
+		Free:   s.conPool.GetFreeConnections(),
+		Active: s.conPool.GetMaxConnections() - s.conPool.GetFreeConnections(),
 	}
 }
 
-func (s *serverInfo) GetUploadConnections() UsenetConnections {
+func (s *serverInfo) GetDownloadOnlyConnections() UsenetConnections {
 	return UsenetConnections{
-		Total:  s.uploadCp.GetMaxConnections(),
-		Free:   s.uploadCp.GetFreeConnections(),
-		Active: s.uploadCp.GetActiveConnections(),
+		Total:  s.conPool.GetMaxDownloadOnlyConnections(),
+		Free:   s.conPool.GetDownloadOnlyFreeConnections(),
+		Active: s.conPool.GetMaxDownloadOnlyConnections() - s.conPool.GetDownloadOnlyFreeConnections(),
 	}
 }

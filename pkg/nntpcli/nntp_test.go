@@ -58,7 +58,7 @@ func TestDial(t *testing.T) {
 	// create a client and dial the mock server
 	t.Run("Dial", func(t *testing.T) {
 		c := &client{timeout: 5 * time.Second}
-		conn, err := c.Dial(host, port, false, false)
+		conn, err := c.Dial(host, port, false, false, false)
 		assert.NoError(t, err)
 		assert.NotNil(t, conn)
 	})
@@ -66,7 +66,7 @@ func TestDial(t *testing.T) {
 	// create a client and dial a non-existent server
 	t.Run("DialFail", func(t *testing.T) {
 		c := &client{timeout: 5 * time.Second}
-		_, err = c.Dial("127.0.0.1", 12345, false, false)
+		_, err = c.Dial("127.0.0.1", 12345, false, false, false)
 		assert.Error(t, err)
 	})
 }

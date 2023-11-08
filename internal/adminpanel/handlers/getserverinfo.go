@@ -8,17 +8,17 @@ import (
 )
 
 type serverInfoResponse struct {
-	RootFolderDiskUsage       serverinfo.DiskUsage         `json:"root_folder_disk_usage"`
-	UploadUsenetConnections   serverinfo.UsenetConnections `json:"upload_usenet_connections"`
-	DownloadUsenetConnections serverinfo.UsenetConnections `json:"download_usenet_connections"`
+	RootFolderDiskUsage           serverinfo.DiskUsage         `json:"root_folder_disk_usage"`
+	UsenetDownloadOnlyConnections serverinfo.UsenetConnections `json:"download_only_usenet_connections"`
+	UsenetConnections             serverinfo.UsenetConnections `json:"usenet_connections"`
 }
 
 func GetServerInfoHandler(si serverinfo.ServerInfo) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		result := serverInfoResponse{
-			RootFolderDiskUsage:       si.GetRootFolderDiskUsage(),
-			UploadUsenetConnections:   si.GetUploadConnections(),
-			DownloadUsenetConnections: si.GetDownloadConnections(),
+			RootFolderDiskUsage:           si.GetRootFolderDiskUsage(),
+			UsenetDownloadOnlyConnections: si.GetDownloadOnlyConnections(),
+			UsenetConnections:             si.GetConnections(),
 		}
 
 		return c.JSON(http.StatusOK, result)

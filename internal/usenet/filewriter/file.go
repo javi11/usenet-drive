@@ -157,7 +157,7 @@ func (f *file) ReadFrom(src io.Reader) (int64, error) {
 
 				i := i
 				retryErr := retry.Do(func() error {
-					conn, err := f.cp.Get()
+					conn, err := f.cp.GetUploadConnection()
 					if err != nil {
 						if conn != nil {
 							if e := f.cp.Close(conn); e != nil {
@@ -360,7 +360,7 @@ func (f *file) addSegment(ctx context.Context, conn nntpcli.Connection, segments
 
 		// connection can be null in case OnRetry fails to get the connection
 		if conn == nil {
-			c, err := f.cp.Get()
+			c, err := f.cp.GetUploadConnection()
 			if e, ok := err.(net.Error); ok {
 				// Retry
 				return errors.Join(err, e)
@@ -396,7 +396,7 @@ func (f *file) addSegment(ctx context.Context, conn nntpcli.Connection, segments
 				}
 			}
 
-			c, e := f.cp.Get()
+			c, e := f.cp.GetUploadConnection()
 			if e != nil {
 				l.InfoContext(ctx, "Error getting connection from pool.", "error", e)
 			}

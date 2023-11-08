@@ -1,7 +1,6 @@
 package config
 
 import (
-	"encoding/json"
 	"os"
 
 	"github.com/creasty/defaults"
@@ -19,46 +18,40 @@ type Config struct {
 	Debug      bool   `yaml:"debug" default:"false"`
 }
 
-func (co Config) MarshalJSON() ([]byte, error) {
-	type conf Config
-	cn := conf(co)
-	cn.Usenet.Download.Provider.Password = "********"
-	cn.Usenet.Upload.Provider.Password = "********"
-	return json.Marshal((*conf)(&cn))
-}
-
 type Rclone struct {
 	VFSUrl string `yaml:"vfs_url"`
 }
 
 type Usenet struct {
-	Download           Download `yaml:"download"`
-	Upload             Upload   `yaml:"upload"`
-	ArticleSizeInBytes int64    `yaml:"article_size_in_bytes" default:"750000"`
+	Download           Download         `yaml:"download"`
+	Upload             Upload           `yaml:"upload"`
+	Providers          []UsenetProvider `yaml:"providers"`
+	FakeConnections    bool             `yaml:"fake_connections" default:"false"`
+	ArticleSizeInBytes int64            `yaml:"article_size_in_bytes" default:"750000"`
 }
 
 type Download struct {
-	Provider                 UsenetProvider `yaml:"provider"`
-	MaxAheadDownloadSegments int            `yaml:"max_ahead_download_segments"`
-	MaxRetries               int            `yaml:"max_retries" default:"8"`
-	MaxCacheSizeInMB         int            `yaml:"max_cache_size_in_mb" default:"512"`
+	MaxAheadDownloadSegments int `yaml:"max_ahead_download_segments"`
+	MaxRetries               int `yaml:"max_retries" default:"8"`
+	MaxCacheSizeInMB         int `yaml:"max_cache_size_in_mb" default:"512"`
 }
 
 type Upload struct {
-	DryRun        bool           `yaml:"dry_run" default:"false"`
-	Provider      UsenetProvider `yaml:"provider"`
-	FileAllowlist []string       `yaml:"file_allow_list"`
-	MaxRetries    int            `yaml:"max_retries" default:"8"`
+	DryRun        bool     `yaml:"dry_run" default:"false"`
+	FileAllowlist []string `yaml:"file_allow_list"`
+	MaxRetries    int      `yaml:"max_retries" default:"8"`
+	Groups        []string `yaml:"groups"`
 }
 
 type UsenetProvider struct {
-	Host           string   `yaml:"host"`
-	Port           int      `yaml:"port"`
-	Username       string   `yaml:"username"`
-	Password       string   `yaml:"password"`
-	Groups         []string `yaml:"groups"`
-	SSL            bool     `yaml:"ssl"`
-	MaxConnections int      `yaml:"max_connections"`
+	Host           string `yaml:"host"`
+	Port           int    `yaml:"port"`
+	Username       string `yaml:"username"`
+	Password       string `yaml:"password" json:"-"`
+	TLS            bool   `yaml:"tls"`
+	MaxConnections int    `yaml:"max_connections"`
+	DownloadOnly   bool   `yaml:"download_only"`
+	InsecureSSL    bool   `yaml:"insecure_ssl" default:"false"`
 }
 
 func FromFile(path string) (*Config, error) {

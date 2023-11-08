@@ -63,6 +63,20 @@ func (mr *MockConnectionMockRecorder) Body(id interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Body", reflect.TypeOf((*MockConnection)(nil).Body), id)
 }
 
+// IsDownloadOnly mocks base method.
+func (m *MockConnection) IsDownloadOnly() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsDownloadOnly")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsDownloadOnly indicates an expected call of IsDownloadOnly.
+func (mr *MockConnectionMockRecorder) IsDownloadOnly() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsDownloadOnly", reflect.TypeOf((*MockConnection)(nil).IsDownloadOnly))
+}
+
 // Post mocks base method.
 func (m *MockConnection) Post(p []byte, chunkSize int64) error {
 	m.ctrl.T.Helper()
@@ -75,6 +89,20 @@ func (m *MockConnection) Post(p []byte, chunkSize int64) error {
 func (mr *MockConnectionMockRecorder) Post(p, chunkSize interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Post", reflect.TypeOf((*MockConnection)(nil).Post), p, chunkSize)
+}
+
+// Provider mocks base method.
+func (m *MockConnection) Provider() string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Provider")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// Provider indicates an expected call of Provider.
+func (mr *MockConnectionMockRecorder) Provider() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Provider", reflect.TypeOf((*MockConnection)(nil).Provider))
 }
 
 // Quit mocks base method.

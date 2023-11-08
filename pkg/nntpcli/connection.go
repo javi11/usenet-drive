@@ -11,6 +11,8 @@ import (
 )
 
 type Connection interface {
+	Provider() string
+	IsDownloadOnly() bool
 	Authenticate(username, password string) error
 	Body(id string) (io.Reader, error)
 	SelectGroup(group string) (number int, low int, high int, err error)
@@ -19,16 +21,21 @@ type Connection interface {
 }
 
 type conn struct {
-	conn  io.WriteCloser
-	r     *bufio.Reader
-	close bool
-	br    *bodyReader
+	conn         io.WriteCloser
+	r            *bufio.Reader
+	close        bool
+	br           *bodyReader
+	host         string
+	username     string
+	downloadOnly bool
 }
 
-func newConn(c net.Conn) (Connection, error) {
+func newConn(c net.Conn, host string, downloadOnly bool) (Connection, error) {
 	res := &conn{
-		conn: c,
-		r:    bufio.NewReaderSize(c, 4096),
+		conn:         c,
+		host:         host,
+		r:            bufio.NewReaderSize(c, 4096),
+		downloadOnly: downloadOnly,
 	}
 
 	_, err := res.r.ReadString('\n')
@@ -37,6 +44,14 @@ func newConn(c net.Conn) (Connection, error) {
 	}
 
 	return res, nil
+}
+
+func (c *conn) Provider() string {
+	return ProviderName(c.host, c.username)
+}
+
+func (c *conn) IsDownloadOnly() bool {
+	return c.downloadOnly
 }
 
 func (c *conn) SelectGroup(group string) (number, low, high int, err error) {
@@ -71,6 +86,11 @@ func (c *conn) Authenticate(username, password string) error {
 	if code/100 == 3 {
 		_, _, err = c.cmd(2, "AUTHINFO PASS %s", password)
 	}
+
+	if err != nil {
+		c.username = username
+	}
+
 	return err
 }
 
