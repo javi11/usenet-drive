@@ -41,7 +41,7 @@ type connectionPool struct {
 	maxConn               int
 	downloadOnlyProviders map[string]*providerStatus
 	otherProviders        map[string]*providerStatus
-	mx                    *sync.Mutex
+	mx                    *sync.RWMutex
 }
 
 func NewConnectionPool(options ...Option) (UsenetConnectionPool, error) {
@@ -121,29 +121,28 @@ func NewConnectionPool(options ...Option) (UsenetConnectionPool, error) {
 		freeConn:              maxConn,
 		downloadOnlyProviders: downloadOnlyProviders,
 		otherProviders:        otherProviders,
-		mx:                    &sync.Mutex{},
+		mx:                    &sync.RWMutex{},
 	}, nil
 }
 
 func (p *connectionPool) GetUploadConnection() (nntpcli.Connection, error) {
-	p.mx.Lock()
-	defer p.mx.Unlock()
-
 	conn, err := p.pool.Get()
 	if err != nil {
 		return nil, err
 	}
 
+	p.mx.Lock()
+	defer p.mx.Unlock()
 	p.freeConn--
 	return conn.(nntpcli.Connection), nil
 }
 
 func (p *connectionPool) GetDownloadConnection() (nntpcli.Connection, error) {
-	p.mx.Lock()
-	defer p.mx.Unlock()
+	p.mx.RLock()
 
 	var conn interface{}
 	if (p.freeDownloadConn-p.freeConn) == 0 && p.freeConn > 0 {
+		p.mx.RUnlock()
 		// In case there is no download connection available, but there are upload connections available, use an upload connection
 		c, err := p.pool.Get()
 		if err != nil {
@@ -151,24 +150,29 @@ func (p *connectionPool) GetDownloadConnection() (nntpcli.Connection, error) {
 		}
 
 		conn = c
+
+		p.mx.Lock()
 		p.freeConn--
+		p.mx.Unlock()
 	} else {
+		p.mx.RUnlock()
+
 		c, err := p.downloadPool.Get()
 		if err != nil {
 			return nil, err
 		}
 
 		conn = c
+
+		p.mx.Lock()
 		p.freeDownloadConn--
+		p.mx.Unlock()
 	}
 
 	return conn.(nntpcli.Connection), nil
 }
 
 func (p *connectionPool) Close(c nntpcli.Connection) error {
-	p.mx.Lock()
-	defer p.mx.Unlock()
-
 	var ps *providerStatus
 	var pool pool.Pool
 	if c.IsDownloadOnly() {
@@ -188,6 +192,9 @@ func (p *connectionPool) Close(c nntpcli.Connection) error {
 		return err
 	}
 
+	p.mx.Lock()
+	defer p.mx.Unlock()
+
 	if ps.provider.DownloadOnly {
 		p.freeDownloadConn++
 	} else {
@@ -199,9 +206,6 @@ func (p *connectionPool) Close(c nntpcli.Connection) error {
 }
 
 func (p *connectionPool) Free(c nntpcli.Connection) error {
-	p.mx.Lock()
-	defer p.mx.Unlock()
-
 	var pool pool.Pool
 	if c.IsDownloadOnly() {
 		pool = p.downloadPool
@@ -214,6 +218,8 @@ func (p *connectionPool) Free(c nntpcli.Connection) error {
 		return err
 	}
 
+	p.mx.Lock()
+	defer p.mx.Unlock()
 	if c.IsDownloadOnly() {
 		p.freeDownloadConn++
 	} else {
