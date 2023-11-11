@@ -251,6 +251,7 @@ func dialNNTP(cli nntpcli.Client, fakeConnections bool, providerConf map[string]
 
 	for {
 		ps := firstFreeProvider(providerConf)
+		log.Debug(fmt.Sprintf("connecting to %s:%v available connections %v", ps.provider.Host, ps.provider.Port, ps.availableConnections))
 		if fakeConnections {
 			return nntpcli.NewFakeConnection(ps.provider.Host, ps.provider.DownloadOnly), nil
 		}

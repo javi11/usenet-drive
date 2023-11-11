@@ -73,6 +73,7 @@ var rootCmd = &cobra.Command{
 			connectionpool.WithFakeConnections(config.Usenet.FakeConnections),
 			connectionpool.WithProviders(config.Usenet.Providers),
 			connectionpool.WithClient(nntpCli),
+			connectionpool.WithLogger(log),
 		)
 		if err != nil {
 			log.ErrorContext(ctx, "Failed to init usenet connection pool: %v", err)
