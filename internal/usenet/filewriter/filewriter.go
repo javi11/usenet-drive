@@ -12,6 +12,7 @@ import (
 	"github.com/javi11/usenet-drive/internal/usenet/connectionpool"
 	"github.com/javi11/usenet-drive/internal/usenet/corruptednzbsmanager"
 	"github.com/javi11/usenet-drive/internal/usenet/nzbloader"
+	status "github.com/javi11/usenet-drive/internal/usenet/statusreporter"
 	"github.com/javi11/usenet-drive/pkg/nzb"
 	"github.com/javi11/usenet-drive/pkg/osfs"
 	"golang.org/x/net/webdav"
@@ -28,6 +29,7 @@ type fileWriter struct {
 	dryRun           bool
 	fs               osfs.FileSystem
 	maxUploadRetries int
+	sr               status.StatusReporter
 }
 
 func NewFileWriter(options ...Option) *fileWriter {
@@ -47,6 +49,7 @@ func NewFileWriter(options ...Option) *fileWriter {
 		dryRun:           config.dryRun,
 		fs:               config.fs,
 		maxUploadRetries: config.maxUploadRetries,
+		sr:               config.sr,
 	}
 }
 
@@ -74,6 +77,7 @@ func (u *fileWriter) OpenFile(
 		u.dryRun,
 		onClose,
 		u.fs,
+		u.sr,
 	)
 }
 

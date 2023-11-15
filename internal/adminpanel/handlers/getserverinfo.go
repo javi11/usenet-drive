@@ -11,6 +11,7 @@ type serverInfoResponse struct {
 	RootFolderDiskUsage           serverinfo.DiskUsage         `json:"root_folder_disk_usage"`
 	UsenetDownloadOnlyConnections serverinfo.UsenetConnections `json:"download_only_usenet_connections"`
 	UsenetConnections             serverinfo.UsenetConnections `json:"usenet_connections"`
+	GlobalActivity                serverinfo.GlobalActivity    `json:"global_activity"`
 }
 
 func GetServerInfoHandler(si serverinfo.ServerInfo) echo.HandlerFunc {
@@ -19,6 +20,7 @@ func GetServerInfoHandler(si serverinfo.ServerInfo) echo.HandlerFunc {
 			RootFolderDiskUsage:           si.GetRootFolderDiskUsage(),
 			UsenetDownloadOnlyConnections: si.GetDownloadOnlyConnections(),
 			UsenetConnections:             si.GetConnections(),
+			GlobalActivity:                si.GetGlobalActivity(),
 		}
 
 		return c.JSON(http.StatusOK, result)

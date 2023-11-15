@@ -5,16 +5,19 @@ import {
   IconHome2,
   IconBrandGithub,
   IconFileBroken,
+  IconActivity,
 } from '@tabler/icons-react';
 import Home from './pages/Home'
 import NotFound from './pages/NotFound'
 import logo from './assets/logo.png'
 import NavbarLink from './components/NavBarLink';
 import CorruptedNzbs from './pages/CorruptedNzbs';
+import Activity from './pages/Activity';
 
 const paths = [
   { href: '/', icon: IconHome2, label: 'Home', elem: <Home /> },
   { href: '/nzbs/corrupted', icon: IconFileBroken, label: 'List of corrupted NZBs', elem: <CorruptedNzbs /> },
+  { href: '/activity', icon: IconActivity, label: 'Download/Upload activity', elem: <Activity /> },
 ];
 
 export default function App() {

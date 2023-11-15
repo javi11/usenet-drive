@@ -13,6 +13,7 @@ import (
 	"github.com/javi11/usenet-drive/internal/usenet"
 	"github.com/javi11/usenet-drive/internal/usenet/connectionpool"
 	"github.com/javi11/usenet-drive/internal/usenet/corruptednzbsmanager"
+	status "github.com/javi11/usenet-drive/internal/usenet/statusreporter"
 	"github.com/javi11/usenet-drive/pkg/osfs"
 	"github.com/stretchr/testify/assert"
 )
@@ -24,6 +25,7 @@ func TestOpenFile(t *testing.T) {
 	fs := osfs.NewMockFileSystem(ctrl)
 	cp := connectionpool.NewMockUsenetConnectionPool(ctrl)
 	cache := NewMockCache(ctrl)
+	mockSr := status.NewMockStatusReporter(ctrl)
 
 	t.Run("Not nzb file", func(t *testing.T) {
 		name := "test.txt"
@@ -49,6 +51,7 @@ func TestOpenFile(t *testing.T) {
 				maxAheadDownloadSegments: 0,
 			},
 			cache,
+			mockSr,
 		)
 		assert.NoError(t, err)
 	})
@@ -76,6 +79,7 @@ func TestOpenFile(t *testing.T) {
 				maxAheadDownloadSegments: 0,
 			},
 			cache,
+			mockSr,
 		)
 		assert.ErrorIs(t, err, os.ErrNotExist)
 	})
@@ -89,6 +93,7 @@ func TestOpenFile(t *testing.T) {
 		f, err := os.Open("../../test/nzbmock.xml")
 		assert.NoError(t, err)
 		fs.EXPECT().OpenFile(name, flag, perm).Return(f, nil).Times(1)
+		mockSr.EXPECT().StartDownload(gomock.Any(), name).Times(1)
 
 		// Call
 		ok, file, err := openFile(
@@ -106,6 +111,7 @@ func TestOpenFile(t *testing.T) {
 				maxAheadDownloadSegments: 0,
 			},
 			cache,
+			mockSr,
 		)
 
 		assert.NoError(t, err)
@@ -124,6 +130,7 @@ func TestOpenFile(t *testing.T) {
 
 		fs.EXPECT().Stat("test.mkv.nzb").Return(fsStatMock, nil).Times(1)
 		fs.EXPECT().IsNotExist(nil).Return(false).Times(1)
+		mockSr.EXPECT().StartDownload(gomock.Any(), name).Times(1)
 
 		f, err := os.Open("../../test/nzbmock.xml")
 		assert.NoError(t, err)
@@ -146,6 +153,7 @@ func TestOpenFile(t *testing.T) {
 				maxAheadDownloadSegments: 0,
 			},
 			cache,
+			mockSr,
 		)
 
 		assert.NoError(t, err)
@@ -179,6 +187,7 @@ func TestOpenFile(t *testing.T) {
 				maxAheadDownloadSegments: 0,
 			},
 			cache,
+			mockSr,
 		)
 		assert.ErrorIs(t, err, os.ErrNotExist)
 		// File exists but is corrupted
@@ -208,6 +217,7 @@ func TestOpenFile(t *testing.T) {
 				maxAheadDownloadSegments: 0,
 			},
 			cache,
+			mockSr,
 		)
 		assert.ErrorIs(t, err, os.ErrPermission)
 		// File should be an nzb at this point but we cannot open it
@@ -224,6 +234,8 @@ func TestCloseFile(t *testing.T) {
 	mockFile := osfs.NewMockFile(ctrl)
 	mockBuffer := NewMockBuffer(ctrl)
 	onClosedCalled := false
+	mockSr := status.NewMockStatusReporter(ctrl)
+
 	f := &file{
 		path:      "test.nzb",
 		buffer:    mockBuffer,
@@ -237,6 +249,7 @@ func TestCloseFile(t *testing.T) {
 		},
 		cNzb: mockCNzb,
 		fs:   fs,
+		sr:   mockSr,
 	}
 	t.Run("Error", func(t *testing.T) {
 		mockFile.EXPECT().Close().Return(os.ErrPermission).Times(1)
@@ -251,6 +264,7 @@ func TestCloseFile(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		mockFile.EXPECT().Close().Return(nil).Times(1)
 		mockBuffer.EXPECT().Close().Return(nil).Times(1)
+		mockSr.EXPECT().FinishDownload(gomock.Any()).Times(1)
 
 		err := f.Close()
 		assert.NoError(t, err)
@@ -262,6 +276,7 @@ func TestCloseFile(t *testing.T) {
 		f.onClose = nil
 		mockFile.EXPECT().Close().Return(nil).Times(1)
 		mockBuffer.EXPECT().Close().Return(nil).Times(1)
+		mockSr.EXPECT().FinishDownload(gomock.Any()).Times(1)
 
 		err := f.Close()
 		assert.NoError(t, err)
@@ -276,6 +291,7 @@ func TestRead(t *testing.T) {
 	fs := osfs.NewMockFileSystem(ctrl)
 	mockFile := osfs.NewMockFile(ctrl)
 	mockBuffer := NewMockBuffer(ctrl)
+	mockSr := status.NewMockStatusReporter(ctrl)
 
 	t.Run("Read success", func(t *testing.T) {
 		f := &file{
@@ -288,11 +304,13 @@ func TestRead(t *testing.T) {
 			onClose:   func() error { return nil },
 			cNzb:      mockCNzb,
 			fs:        fs,
+			sr:        mockSr,
 		}
 
 		b := []byte("test")
 		n := len(b)
 
+		mockSr.EXPECT().AddTimeData(gomock.Any(), gomock.Any()).Times(1)
 		mockBuffer.EXPECT().Read(b).Return(n, nil)
 
 		n2, err := f.Read(b)
@@ -311,6 +329,7 @@ func TestRead(t *testing.T) {
 			onClose:   func() error { return nil },
 			cNzb:      mockCNzb,
 			fs:        fs,
+			sr:        mockSr,
 		}
 
 		b := []byte("test")
@@ -332,6 +351,7 @@ func TestReadAt(t *testing.T) {
 	fs := osfs.NewMockFileSystem(ctrl)
 	mockFile := osfs.NewMockFile(ctrl)
 	mockBuffer := NewMockBuffer(ctrl)
+	mockSr := status.NewMockStatusReporter(ctrl)
 
 	t.Run("ReadAt success", func(t *testing.T) {
 		f := &file{
@@ -344,6 +364,7 @@ func TestReadAt(t *testing.T) {
 			onClose:   func() error { return nil },
 			cNzb:      mockCNzb,
 			fs:        fs,
+			sr:        mockSr,
 		}
 
 		b := []byte("test")
@@ -368,6 +389,7 @@ func TestReadAt(t *testing.T) {
 			onClose:   func() error { return nil },
 			cNzb:      mockCNzb,
 			fs:        fs,
+			sr:        mockSr,
 		}
 
 		b := []byte("test")
@@ -390,6 +412,7 @@ func TestSystemFileMethods(t *testing.T) {
 	fs := osfs.NewMockFileSystem(ctrl)
 	mockFile := osfs.NewMockFile(ctrl)
 	mockBuffer := NewMockBuffer(ctrl)
+	mockSr := status.NewMockStatusReporter(ctrl)
 
 	t.Run("Chown", func(t *testing.T) {
 		f := &file{
@@ -402,6 +425,7 @@ func TestSystemFileMethods(t *testing.T) {
 			onClose:   func() error { return nil },
 			cNzb:      mockCNzb,
 			fs:        fs,
+			sr:        mockSr,
 		}
 		mockFile.EXPECT().Chown(1000, 1000).Return(nil)
 
@@ -421,6 +445,7 @@ func TestSystemFileMethods(t *testing.T) {
 			onClose:   func() error { return nil },
 			cNzb:      mockCNzb,
 			fs:        fs,
+			sr:        mockSr,
 		}
 		mockFile.EXPECT().Chdir().Return(nil)
 
@@ -439,6 +464,7 @@ func TestSystemFileMethods(t *testing.T) {
 			onClose:   func() error { return nil },
 			cNzb:      mockCNzb,
 			fs:        fs,
+			sr:        mockSr,
 		}
 		mockFile.EXPECT().Chmod(os.FileMode(0644)).Return(nil)
 
@@ -459,6 +485,7 @@ func TestSystemFileMethods(t *testing.T) {
 			onClose:   func() error { return nil },
 			cNzb:      mockCNzb,
 			fs:        fs,
+			sr:        mockSr,
 		}
 
 		mockFile.EXPECT().Fd().Return(fd)
@@ -495,6 +522,7 @@ func TestSystemFileMethods(t *testing.T) {
 			onClose:   func() error { return nil },
 			cNzb:      mockCNzb,
 			fs:        fs,
+			sr:        mockSr,
 		}
 
 		mockFile.EXPECT().Readdirnames(0).Return(names, nil)
@@ -516,6 +544,7 @@ func TestSystemFileMethods(t *testing.T) {
 			onClose:   func() error { return nil },
 			cNzb:      mockCNzb,
 			fs:        fs,
+			sr:        mockSr,
 		}
 
 		mockFile.EXPECT().SetDeadline(tm).Return(nil)
@@ -536,6 +565,7 @@ func TestSystemFileMethods(t *testing.T) {
 			onClose:   func() error { return nil },
 			cNzb:      mockCNzb,
 			fs:        fs,
+			sr:        mockSr,
 		}
 
 		mockFile.EXPECT().SetReadDeadline(tm).Return(nil)
@@ -555,6 +585,7 @@ func TestSystemFileMethods(t *testing.T) {
 			onClose:   func() error { return nil },
 			cNzb:      mockCNzb,
 			fs:        fs,
+			sr:        mockSr,
 		}
 
 		err := f.SetWriteDeadline(time.Now())
@@ -591,6 +622,7 @@ func TestSystemFileMethods(t *testing.T) {
 			onClose:   func() error { return nil },
 			cNzb:      mockCNzb,
 			fs:        fs,
+			sr:        mockSr,
 		}
 
 		err := f.Truncate(123)
@@ -608,6 +640,7 @@ func TestSystemFileMethods(t *testing.T) {
 			onClose:   func() error { return nil },
 			cNzb:      mockCNzb,
 			fs:        fs,
+			sr:        mockSr,
 		}
 
 		n, err := f.Write([]byte("test"))
@@ -626,6 +659,7 @@ func TestSystemFileMethods(t *testing.T) {
 			onClose:   func() error { return nil },
 			cNzb:      mockCNzb,
 			fs:        fs,
+			sr:        mockSr,
 		}
 
 		n, err := f.WriteAt([]byte("test"), 0)
@@ -644,6 +678,7 @@ func TestSystemFileMethods(t *testing.T) {
 			onClose:   func() error { return nil },
 			cNzb:      mockCNzb,
 			fs:        fs,
+			sr:        mockSr,
 		}
 
 		n, err := f.WriteString("test")
@@ -665,6 +700,7 @@ func TestSystemFileMethods(t *testing.T) {
 			onClose:   func() error { return nil },
 			cNzb:      mockCNzb,
 			fs:        fs,
+			sr:        mockSr,
 		}
 
 		mockBuffer.EXPECT().Seek(offset, whence).Return(n, nil)
@@ -692,6 +728,7 @@ func TestSystemFileMethods(t *testing.T) {
 			onClose: func() error { return nil },
 			cNzb:    mockCNzb,
 			fs:      fs,
+			sr:      mockSr,
 		}
 
 		mockFsStat := osfs.NewMockFileInfo(ctrl)

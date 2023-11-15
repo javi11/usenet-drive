@@ -50,6 +50,7 @@ func New(
 
 	v1 := e.Group("/api/v1")
 	{
+		v1.GET("/activity", handlers.GetActivityHandler(si))
 		v1.GET("/server-info", handlers.GetServerInfoHandler(si))
 		v1.GET("/nzbs/corrupted", handlers.GetCorruptedNzbListHandler(cNzb))
 		v1.DELETE("/nzbs/corrupted/:id", handlers.DeleteCorruptedNzbHandler(cNzb))

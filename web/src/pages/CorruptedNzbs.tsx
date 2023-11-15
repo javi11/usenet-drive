@@ -33,7 +33,6 @@ function buildURL({
     sorting,
     pagination,
 }: Params) {
-    //build the URL (https://www.mantine-react-table.com/api/data?start=0&size=10&filters=[]&sorting=[])
     const fetchURL = new URL(
         `/api/v1/nzbs/corrupted`,
         process.env.NODE_ENV === 'production'

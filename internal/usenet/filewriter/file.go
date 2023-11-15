@@ -14,9 +14,11 @@ import (
 	"time"
 
 	"github.com/avast/retry-go"
+	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
 	"github.com/javi11/usenet-drive/internal/usenet"
 	"github.com/javi11/usenet-drive/internal/usenet/connectionpool"
+	status "github.com/javi11/usenet-drive/internal/usenet/statusreporter"
 	"github.com/javi11/usenet-drive/pkg/nntpcli"
 	"github.com/javi11/usenet-drive/pkg/nzb"
 	"github.com/javi11/usenet-drive/pkg/osfs"
@@ -47,6 +49,8 @@ type file struct {
 	fs               osfs.FileSystem
 	ctx              context.Context
 	uploadErr        error
+	sr               status.StatusReporter
+	sessionId        uuid.UUID
 }
 
 func openFile(
@@ -63,6 +67,7 @@ func openFile(
 	dryRun bool,
 	onClose func(err error) error,
 	fs osfs.FileSystem,
+	sr status.StatusReporter,
 ) (*file, error) {
 	if dryRun {
 		log.InfoContext(ctx, "Dry run. Skipping upload", "filename", filePath)
@@ -82,6 +87,9 @@ func openFile(
 	}
 
 	poster := generateRandomPoster()
+
+	sessionId := uuid.New()
+	sr.StartUpload(sessionId, filePath)
 
 	return &file{
 		ctx:              ctx,
@@ -108,6 +116,7 @@ func openFile(
 			FileExtension: filepath.Ext(fileName),
 			ChunkSize:     segmentSize,
 		},
+		sessionId: sessionId,
 	}, nil
 }
 
@@ -123,6 +132,8 @@ func (f *file) ReadFrom(src io.Reader) (int64, error) {
 			if err := wg.Wait().ErrorOrNil(); !errors.Is(err, context.Canceled) {
 				f.log.Error("Error closing upload threads.", "error", wg.Wait().ErrorOrNil())
 			}
+
+			f.sr.FinishUpload(f.sessionId)
 
 			if err := context.Cause(ctx); err != nil {
 				if !errors.Is(err, context.Canceled) {
@@ -198,6 +209,11 @@ func (f *file) ReadFrom(src io.Reader) (int64, error) {
 				bytesWritten += int64(bytesRead)
 				f.metadata.FileSize = bytesWritten
 				f.metadata.ModTime = time.Now()
+
+				f.sr.AddTimeData(f.sessionId, &status.TimeData{
+					Milliseconds: time.Now().UnixNano() / 1e6,
+					Bytes:        int64(bytesRead),
+				})
 			}
 			if err != nil {
 				if err != io.EOF {
@@ -238,7 +254,7 @@ func (f *file) ReadFrom(src io.Reader) (int64, error) {
 				}
 
 				f.log.Info("Upload finished successfully.")
-				cancel(nil)
+				f.sr.FinishUpload(f.sessionId)
 
 				return bytesWritten, nil
 			}
@@ -252,6 +268,8 @@ func (f *file) Write(b []byte) (int, error) {
 }
 
 func (f *file) Close() error {
+	f.sr.FinishUpload(f.sessionId)
+
 	return f.onClose(f.uploadErr)
 }
 

@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/javi11/usenet-drive/db"
 	"github.com/javi11/usenet-drive/internal/adminpanel"
@@ -16,6 +17,7 @@ import (
 	"github.com/javi11/usenet-drive/internal/usenet/filereader"
 	"github.com/javi11/usenet-drive/internal/usenet/filewriter"
 	"github.com/javi11/usenet-drive/internal/usenet/nzbloader"
+	status "github.com/javi11/usenet-drive/internal/usenet/statusreporter"
 	"github.com/javi11/usenet-drive/internal/webdav"
 	"github.com/javi11/usenet-drive/pkg/nntpcli"
 	"github.com/javi11/usenet-drive/pkg/osfs"
@@ -90,8 +92,13 @@ var rootCmd = &cobra.Command{
 
 		cNzbs := corruptednzbsmanager.New(sqlLite, osFs)
 
+		// Status reporter
+		sr := status.NewStatusReporter()
+		ticker := time.NewTicker(1 * time.Second)
+		go sr.Start(ctx, ticker)
+
 		// Server info
-		serverInfo := serverinfo.NewServerInfo(connPool, config.RootPath)
+		serverInfo := serverinfo.NewServerInfo(connPool, sr, config.RootPath)
 
 		adminPanel := adminpanel.New(serverInfo, cNzbs, log, config.Debug)
 		go adminPanel.Start(ctx, config.ApiPort)
@@ -109,6 +116,7 @@ var rootCmd = &cobra.Command{
 			filewriter.WithDryRun(config.Usenet.Upload.DryRun),
 			filewriter.WithFileSystem(osFs),
 			filewriter.WithMaxUploadRetries(config.Usenet.Upload.MaxRetries),
+			filewriter.WithStatusReporter(sr),
 		)
 
 		fileReader, err := filereader.NewFileReader(
@@ -121,6 +129,7 @@ var rootCmd = &cobra.Command{
 			filereader.WithSegmentSize(config.Usenet.ArticleSizeInBytes),
 			filereader.WithCacheSize(config.Usenet.Download.MaxCacheSizeInMB),
 			filereader.WithDebug(config.Debug),
+			filereader.WithStatusReporter(sr),
 		)
 		if err != nil {
 			log.ErrorContext(ctx, "Failed to create file reader: %v", err)

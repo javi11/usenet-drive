@@ -9,6 +9,7 @@ import (
 
 	"github.com/javi11/usenet-drive/internal/usenet/connectionpool"
 	"github.com/javi11/usenet-drive/internal/usenet/corruptednzbsmanager"
+	status "github.com/javi11/usenet-drive/internal/usenet/statusreporter"
 	"github.com/javi11/usenet-drive/pkg/osfs"
 	"golang.org/x/net/webdav"
 )
@@ -20,6 +21,7 @@ type fileReader struct {
 	fs    osfs.FileSystem
 	dc    downloadConfig
 	cache Cache
+	sr    status.StatusReporter
 }
 
 func NewFileReader(options ...Option) (*fileReader, error) {
@@ -40,6 +42,7 @@ func NewFileReader(options ...Option) (*fileReader, error) {
 		fs:    config.fs,
 		dc:    config.getDownloadConfig(),
 		cache: cache,
+		sr:    config.sr,
 	}, nil
 }
 
@@ -56,6 +59,7 @@ func (fr *fileReader) OpenFile(ctx context.Context, path string, flag int, perm 
 		fr.fs,
 		fr.dc,
 		fr.cache,
+		fr.sr,
 	)
 }
 

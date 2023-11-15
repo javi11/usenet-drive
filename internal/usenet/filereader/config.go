@@ -5,6 +5,7 @@ import (
 
 	"github.com/javi11/usenet-drive/internal/usenet/connectionpool"
 	"github.com/javi11/usenet-drive/internal/usenet/corruptednzbsmanager"
+	status "github.com/javi11/usenet-drive/internal/usenet/statusreporter"
 	"github.com/javi11/usenet-drive/pkg/osfs"
 )
 
@@ -23,6 +24,7 @@ type Config struct {
 	segmentSize              int64
 	cacheSizeInMB            int
 	debug                    bool
+	sr                       status.StatusReporter
 }
 
 func (c *Config) getDownloadConfig() downloadConfig {
@@ -95,5 +97,11 @@ func WithLogger(log *slog.Logger) Option {
 func WithCorruptedNzbsManager(cNzb corruptednzbsmanager.CorruptedNzbsManager) Option {
 	return func(c *Config) {
 		c.cNzb = cNzb
+	}
+}
+
+func WithStatusReporter(sr status.StatusReporter) Option {
+	return func(c *Config) {
+		c.sr = sr
 	}
 }

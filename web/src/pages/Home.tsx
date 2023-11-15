@@ -12,6 +12,7 @@ import DiskUsageCard, { DiskUsage } from '../components/DiskUsageCard';
 import UsenetConnectionsCard, { UsenetConnections } from '../components/UsenetConnectionsCard';
 import { useEffect, useState } from 'react';
 import { notifications } from '@mantine/notifications';
+import { NetworkUsageCard } from '../components/NetworkUsage';
 
 const useStyles = createStyles((theme) => ({
     title: {
@@ -44,6 +45,10 @@ interface ServerInfo {
     root_folder_disk_usage: DiskUsage;
     usenet_connections: UsenetConnections;
     download_only_usenet_connections: UsenetConnections;
+    global_activity: {
+        download_speed: number;
+        upload_speed: number;
+    };
 }
 
 export default function Home() {
@@ -66,6 +71,10 @@ export default function Home() {
             active: 0,
             free: 0,
         },
+        global_activity: {
+            download_speed: 0,
+            upload_speed: 0,
+        }
     });
     useEffect(() => {
 
@@ -117,6 +126,7 @@ export default function Home() {
             </Title>
 
             <SimpleGrid cols={2} spacing="xl" mt={50} breakpoints={[{ maxWidth: 'md', cols: 1 }]}>
+                <NetworkUsageCard data={serverInfo.global_activity} />
                 <DiskUsageCard data={serverInfo.root_folder_disk_usage} />
                 <UsenetConnectionsCard data={serverInfo.download_only_usenet_connections} title="Download only" />
                 <UsenetConnectionsCard data={serverInfo.usenet_connections} title="Available" />

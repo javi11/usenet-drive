@@ -6,6 +6,7 @@ import (
 	"github.com/javi11/usenet-drive/internal/usenet/connectionpool"
 	"github.com/javi11/usenet-drive/internal/usenet/corruptednzbsmanager"
 	"github.com/javi11/usenet-drive/internal/usenet/nzbloader"
+	status "github.com/javi11/usenet-drive/internal/usenet/statusreporter"
 	"github.com/javi11/usenet-drive/pkg/osfs"
 )
 
@@ -20,6 +21,7 @@ type Config struct {
 	dryRun           bool
 	fs               osfs.FileSystem
 	maxUploadRetries int
+	sr               status.StatusReporter
 }
 
 type Option func(*Config)
@@ -27,6 +29,9 @@ type Option func(*Config)
 func defaultConfig() *Config {
 	return &Config{
 		maxUploadRetries: 8,
+		fs:               osfs.New(),
+		segmentSize:      750000,
+		fileAllowlist:    []string{},
 	}
 }
 
@@ -87,5 +92,11 @@ func WithFileSystem(fs osfs.FileSystem) Option {
 func WithMaxUploadRetries(maxUploadRetries int) Option {
 	return func(c *Config) {
 		c.maxUploadRetries = maxUploadRetries
+	}
+}
+
+func WithStatusReporter(sr status.StatusReporter) Option {
+	return func(c *Config) {
+		c.sr = sr
 	}
 }

@@ -9,6 +9,7 @@ import (
 	gomock "github.com/golang/mock/gomock"
 	"github.com/javi11/usenet-drive/internal/usenet/connectionpool"
 	"github.com/javi11/usenet-drive/internal/usenet/corruptednzbsmanager"
+	status "github.com/javi11/usenet-drive/internal/usenet/statusreporter"
 	"github.com/javi11/usenet-drive/pkg/osfs"
 	"github.com/stretchr/testify/assert"
 )
@@ -19,6 +20,7 @@ func TestFileReader_Stat(t *testing.T) {
 	fs := osfs.NewMockFileSystem(ctrl)
 	cp := connectionpool.NewMockUsenetConnectionPool(ctrl)
 	cNzb := corruptednzbsmanager.NewMockCorruptedNzbsManager(ctrl)
+	mockSr := status.NewMockStatusReporter(ctrl)
 
 	t.Run("Get the file stat successfully", func(t *testing.T) {
 		name := "test.mkv.nzb"
@@ -27,6 +29,7 @@ func TestFileReader_Stat(t *testing.T) {
 			log:  log,
 			cNzb: cNzb,
 			fs:   fs,
+			sr:   mockSr,
 		}
 
 		mockFsStat := osfs.NewMockFileInfo(ctrl)
@@ -57,6 +60,7 @@ func TestFileReader_Stat(t *testing.T) {
 			log:  log,
 			cNzb: cNzb,
 			fs:   fs,
+			sr:   mockSr,
 		}
 
 		fileInfoMaskedFile := osfs.NewMockFileInfo(ctrl)
@@ -89,6 +93,7 @@ func TestFileReader_Stat(t *testing.T) {
 			log:  log,
 			cNzb: cNzb,
 			fs:   fs,
+			sr:   mockSr,
 		}
 
 		fs.EXPECT().Stat("test.nzb").Return(nil, os.ErrNotExist).Times(1)
@@ -108,6 +113,7 @@ func TestFileReader_Stat(t *testing.T) {
 			log:  log,
 			cNzb: cNzb,
 			fs:   fs,
+			sr:   mockSr,
 		}
 
 		mockFsStat := osfs.NewMockFileInfo(ctrl)

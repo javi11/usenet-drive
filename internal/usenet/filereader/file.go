@@ -11,10 +11,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/javi11/usenet-drive/internal/usenet"
 	"github.com/javi11/usenet-drive/internal/usenet/connectionpool"
 	"github.com/javi11/usenet-drive/internal/usenet/corruptednzbsmanager"
 	"github.com/javi11/usenet-drive/internal/usenet/nzbloader"
+	status "github.com/javi11/usenet-drive/internal/usenet/statusreporter"
 	"github.com/javi11/usenet-drive/pkg/osfs"
 )
 
@@ -28,6 +30,8 @@ type file struct {
 	onClose   func() error
 	cNzb      corruptednzbsmanager.CorruptedNzbsManager
 	fs        osfs.FileSystem
+	sr        status.StatusReporter
+	sessionId uuid.UUID
 }
 
 func openFile(
@@ -42,6 +46,7 @@ func openFile(
 	fs osfs.FileSystem,
 	dc downloadConfig,
 	cache Cache,
+	sr status.StatusReporter,
 ) (bool, *file, error) {
 	if !isNzbFile(path) {
 		originalFile := getOriginalNzb(fs, path)
@@ -83,7 +88,11 @@ func openFile(
 		return true, nil, err
 	}
 
+	sessionId := uuid.New()
+	sr.StartDownload(sessionId, path)
+
 	return true, &file{
+		sessionId: sessionId,
 		innerFile: f,
 		buffer:    buffer,
 		metadata:  metadata,
@@ -92,6 +101,7 @@ func openFile(
 		onClose:   onClose,
 		cNzb:      cNzb,
 		fs:        fs,
+		sr:        sr,
 	}, nil
 }
 
@@ -108,6 +118,8 @@ func (f *file) Chown(uid, gid int) error {
 }
 
 func (f *file) Close() error {
+	f.sr.FinishDownload(f.sessionId)
+
 	if err := f.buffer.Close(); err != nil {
 		return err
 	}
@@ -147,6 +159,11 @@ func (f *file) Read(b []byte) (int, error) {
 
 		return n, err
 	}
+
+	f.sr.AddTimeData(f.sessionId, &status.TimeData{
+		Milliseconds: time.Now().UnixNano() / 1e6,
+		Bytes:        int64(n),
+	})
 
 	return n, nil
 }
