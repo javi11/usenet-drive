@@ -130,7 +130,7 @@ func TestOpenFile(t *testing.T) {
 
 		fs.EXPECT().Stat("test.mkv.nzb").Return(fsStatMock, nil).Times(1)
 		fs.EXPECT().IsNotExist(nil).Return(false).Times(1)
-		mockSr.EXPECT().StartDownload(gomock.Any(), name).Times(1)
+		mockSr.EXPECT().StartDownload(gomock.Any(), "test.mkv.nzb").Times(1)
 
 		f, err := os.Open("../../test/nzbmock.xml")
 		assert.NoError(t, err)
@@ -254,6 +254,7 @@ func TestCloseFile(t *testing.T) {
 	t.Run("Error", func(t *testing.T) {
 		mockFile.EXPECT().Close().Return(os.ErrPermission).Times(1)
 		mockBuffer.EXPECT().Close().Return(nil).Times(1)
+		mockSr.EXPECT().FinishDownload(gomock.Any()).Times(1)
 
 		err := f.Close()
 		assert.Equal(t, os.ErrPermission, err)

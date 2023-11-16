@@ -341,6 +341,7 @@ func TestReadFrom(t *testing.T) {
 	t.Run("Wrong expected file size", func(t *testing.T) {
 		fs := osfs.NewMockFileSystem(ctrl)
 		cp := connectionpool.NewMockUsenetConnectionPool(ctrl)
+		mockSr := status.NewMockStatusReporter(ctrl)
 
 		openedFile := &file{
 			ctx:              context.Background(),
@@ -383,9 +384,10 @@ func TestReadFrom(t *testing.T) {
 		assert.ErrorIs(t, e, ErrUnexpectedFileSize)
 	})
 
-	t.Run("Read stops before the write the expected size", func(t *testing.T) {
+	t.Run("Read stops before the write due to unexpected size", func(t *testing.T) {
 		fs := osfs.NewMockFileSystem(ctrl)
 		cp := connectionpool.NewMockUsenetConnectionPool(ctrl)
+		mockSr := status.NewMockStatusReporter(ctrl)
 
 		openedFile := &file{
 			ctx:              context.Background(),
@@ -720,6 +722,7 @@ func TestReadFrom(t *testing.T) {
 	t.Run("Cancel the upload if file is context is canceled", func(t *testing.T) {
 		fs := osfs.NewMockFileSystem(ctrl)
 		cp := connectionpool.NewMockUsenetConnectionPool(ctrl)
+		mockSr := status.NewMockStatusReporter(ctrl)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		openedFile := &file{
