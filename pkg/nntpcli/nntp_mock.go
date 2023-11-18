@@ -34,16 +34,16 @@ func (m *MockClient) EXPECT() *MockClientMockRecorder {
 }
 
 // Dial mocks base method.
-func (m *MockClient) Dial(address string, port int, useTLS, insecureSSL, downloadOnly bool) (Connection, error) {
+func (m *MockClient) Dial(address string, port int, useTLS, insecureSSL bool, providerId string, connectionType ConnectionType) (Connection, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Dial", address, port, useTLS, insecureSSL, downloadOnly)
+	ret := m.ctrl.Call(m, "Dial", address, port, useTLS, insecureSSL, providerId, connectionType)
 	ret0, _ := ret[0].(Connection)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Dial indicates an expected call of Dial.
-func (mr *MockClientMockRecorder) Dial(address, port, useTLS, insecureSSL, downloadOnly interface{}) *gomock.Call {
+func (mr *MockClientMockRecorder) Dial(address, port, useTLS, insecureSSL, providerId, connectionType interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Dial", reflect.TypeOf((*MockClient)(nil).Dial), address, port, useTLS, insecureSSL, downloadOnly)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Dial", reflect.TypeOf((*MockClient)(nil).Dial), address, port, useTLS, insecureSSL, providerId, connectionType)
 }

@@ -8,10 +8,11 @@ import (
 )
 
 type Config struct {
-	providers       []config.UsenetProvider
-	log             *slog.Logger
-	fakeConnections bool
-	cli             nntpcli.Client
+	downloadProviders []config.UsenetProvider
+	uploadProviders   []config.UsenetProvider
+	log               *slog.Logger
+	fakeConnections   bool
+	cli               nntpcli.Client
 }
 
 type Option func(*Config)
@@ -28,9 +29,15 @@ func WithClient(cli nntpcli.Client) Option {
 	}
 }
 
-func WithProviders(providers []config.UsenetProvider) Option {
+func WithDownloadProviders(providers []config.UsenetProvider) Option {
 	return func(c *Config) {
-		c.providers = providers
+		c.downloadProviders = providers
+	}
+}
+
+func WithUploadProviders(providers []config.UsenetProvider) Option {
+	return func(c *Config) {
+		c.uploadProviders = providers
 	}
 }
 

@@ -184,6 +184,7 @@ The `Download` struct defines the Usenet provider for downloading.
 - `max_ahead_download_segments` (string): The maximum number of segments to download ahead. Default value is `1`. Be aware that increasing this value will increase the memory usage and connections usage.
 - `max_retries` (int): The maximum number of retries to download a segment. Default value is `8`.
 - `max_cache_size_in_mb` (int): The maximum size of the cache in MB. Default value is `1024`. WARN the tool will fill all this cache as soon as download start.
+- `providers` (UsenetProvider): Usenet providers to download files. (It is recommended an unlimited provider for this)
 
 ## Upload Struct
 
@@ -193,6 +194,7 @@ The `Upload` struct defines the Usenet provider for uploading.
 
 - `file_allow_list` ([]string): The list of allowed file extensions. For example, `[".mkv", ".mp4"]`, in this case only files with the extensions `.mkv` and `.mp4` will be uploaded to usenet. Take care not upload files that change frequently, like subtitules or text files, since they will be uploaded every time they change. In usenet you can not edit files. **_If using rclone crypt all file extensions will ends with .bin so in order to specify the real extension, you must add .bin at the end. Ex: .mkv.bin ._**
 - `max_retries` (int): The maximum number of retries to upload a segment. Default value is `8`.
+- `providers` (UsenetProvider): Usenet providers to upload files. (It is recommended a block account for this)
 
 ## UsenetProvider Struct
 

@@ -23,24 +23,25 @@ type Rclone struct {
 }
 
 type Usenet struct {
-	Download           Download         `yaml:"download"`
-	Upload             Upload           `yaml:"upload"`
-	Providers          []UsenetProvider `yaml:"providers"`
-	FakeConnections    bool             `yaml:"fake_connections" default:"false"`
-	ArticleSizeInBytes int64            `yaml:"article_size_in_bytes" default:"750000"`
+	Download           Download `yaml:"download"`
+	Upload             Upload   `yaml:"upload"`
+	FakeConnections    bool     `yaml:"fake_connections" default:"false"`
+	ArticleSizeInBytes int64    `yaml:"article_size_in_bytes" default:"750000"`
 }
 
 type Download struct {
-	MaxAheadDownloadSegments int `yaml:"max_ahead_download_segments"`
-	MaxRetries               int `yaml:"max_retries" default:"8"`
-	MaxCacheSizeInMB         int `yaml:"max_cache_size_in_mb" default:"512"`
+	MaxAheadDownloadSegments int              `yaml:"max_ahead_download_segments"`
+	MaxRetries               int              `yaml:"max_retries" default:"8"`
+	MaxCacheSizeInMB         int              `yaml:"max_cache_size_in_mb" default:"512"`
+	Providers                []UsenetProvider `yaml:"providers"`
 }
 
 type Upload struct {
-	DryRun        bool     `yaml:"dry_run" default:"false"`
-	FileAllowlist []string `yaml:"file_allow_list"`
-	MaxRetries    int      `yaml:"max_retries" default:"8"`
-	Groups        []string `yaml:"groups"`
+	DryRun        bool             `yaml:"dry_run" default:"false"`
+	FileAllowlist []string         `yaml:"file_allow_list"`
+	MaxRetries    int              `yaml:"max_retries" default:"8"`
+	Groups        []string         `yaml:"groups"`
+	Providers     []UsenetProvider `yaml:"providers"`
 }
 
 type UsenetProvider struct {
@@ -50,7 +51,6 @@ type UsenetProvider struct {
 	Password       string `yaml:"password" json:"-"`
 	TLS            bool   `yaml:"tls"`
 	MaxConnections int    `yaml:"max_connections"`
-	DownloadOnly   bool   `yaml:"download_only"`
 	InsecureSSL    bool   `yaml:"insecure_ssl" default:"false"`
 }
 

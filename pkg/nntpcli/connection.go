@@ -10,9 +10,16 @@ import (
 	"strings"
 )
 
+type ConnectionType int
+
+const (
+	DownloadConnection ConnectionType = 0
+	UploadConnection   ConnectionType = 1
+)
+
 type Connection interface {
-	Provider() string
-	IsDownloadOnly() bool
+	ProviderID() string
+	GetConnectionType() ConnectionType
 	Authenticate(username, password string) error
 	Body(id string) (io.Reader, error)
 	SelectGroup(group string) (number int, low int, high int, err error)
@@ -21,21 +28,22 @@ type Connection interface {
 }
 
 type conn struct {
-	conn         io.WriteCloser
-	r            *bufio.Reader
-	close        bool
-	br           *bodyReader
-	host         string
-	username     string
-	downloadOnly bool
+	conn           io.WriteCloser
+	r              *bufio.Reader
+	close          bool
+	br             *bodyReader
+	host           string
+	providerId     string
+	connectionType ConnectionType
 }
 
-func newConn(c net.Conn, host string, downloadOnly bool) (Connection, error) {
+func newConn(c net.Conn, host string, providerId string, connectionType ConnectionType) (Connection, error) {
 	res := &conn{
-		conn:         c,
-		host:         host,
-		r:            bufio.NewReaderSize(c, 4096),
-		downloadOnly: downloadOnly,
+		conn:           c,
+		host:           host,
+		r:              bufio.NewReaderSize(c, 4096),
+		connectionType: connectionType,
+		providerId:     providerId,
 	}
 
 	_, err := res.r.ReadString('\n')
@@ -46,12 +54,12 @@ func newConn(c net.Conn, host string, downloadOnly bool) (Connection, error) {
 	return res, nil
 }
 
-func (c *conn) Provider() string {
-	return ProviderName(c.host, c.username)
+func (c *conn) ProviderID() string {
+	return c.providerId
 }
 
-func (c *conn) IsDownloadOnly() bool {
-	return c.downloadOnly
+func (c *conn) GetConnectionType() ConnectionType {
+	return c.connectionType
 }
 
 func (c *conn) SelectGroup(group string) (number, low, high int, err error) {
@@ -85,10 +93,6 @@ func (c *conn) Authenticate(username, password string) error {
 	code, _, err := c.cmd(2, "AUTHINFO USER %s", username)
 	if code/100 == 3 {
 		_, _, err = c.cmd(2, "AUTHINFO PASS %s", password)
-	}
-
-	if err != nil {
-		c.username = username
 	}
 
 	return err

@@ -63,18 +63,18 @@ func (mr *MockConnectionMockRecorder) Body(id interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Body", reflect.TypeOf((*MockConnection)(nil).Body), id)
 }
 
-// IsDownloadOnly mocks base method.
-func (m *MockConnection) IsDownloadOnly() bool {
+// GetConnectionType mocks base method.
+func (m *MockConnection) GetConnectionType() ConnectionType {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IsDownloadOnly")
-	ret0, _ := ret[0].(bool)
+	ret := m.ctrl.Call(m, "GetConnectionType")
+	ret0, _ := ret[0].(ConnectionType)
 	return ret0
 }
 
-// IsDownloadOnly indicates an expected call of IsDownloadOnly.
-func (mr *MockConnectionMockRecorder) IsDownloadOnly() *gomock.Call {
+// GetConnectionType indicates an expected call of GetConnectionType.
+func (mr *MockConnectionMockRecorder) GetConnectionType() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsDownloadOnly", reflect.TypeOf((*MockConnection)(nil).IsDownloadOnly))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetConnectionType", reflect.TypeOf((*MockConnection)(nil).GetConnectionType))
 }
 
 // Post mocks base method.
@@ -91,18 +91,18 @@ func (mr *MockConnectionMockRecorder) Post(p, chunkSize interface{}) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Post", reflect.TypeOf((*MockConnection)(nil).Post), p, chunkSize)
 }
 
-// Provider mocks base method.
-func (m *MockConnection) Provider() string {
+// ProviderID mocks base method.
+func (m *MockConnection) ProviderID() string {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Provider")
+	ret := m.ctrl.Call(m, "ProviderID")
 	ret0, _ := ret[0].(string)
 	return ret0
 }
 
-// Provider indicates an expected call of Provider.
-func (mr *MockConnectionMockRecorder) Provider() *gomock.Call {
+// ProviderID indicates an expected call of ProviderID.
+func (mr *MockConnectionMockRecorder) ProviderID() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Provider", reflect.TypeOf((*MockConnection)(nil).Provider))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ProviderID", reflect.TypeOf((*MockConnection)(nil).ProviderID))
 }
 
 // Quit mocks base method.

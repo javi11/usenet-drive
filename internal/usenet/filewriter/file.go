@@ -114,6 +114,7 @@ func openFile(
 			ChunkSize:     segmentSize,
 		},
 		sessionId: sessionId,
+		sr:        sr,
 	}, nil
 }
 

@@ -8,8 +8,8 @@ import (
 
 type ServerInfo interface {
 	GetRootFolderDiskUsage() DiskUsage
-	GetConnections() UsenetConnections
-	GetDownloadOnlyConnections() UsenetConnections
+	GetUploadConnections() UsenetConnections
+	GetDownloadConnections() UsenetConnections
 	GetActivity() []Activity
 	GetGlobalActivity() GlobalActivity
 }
@@ -61,19 +61,19 @@ func (s *serverInfo) GetRootFolderDiskUsage() DiskUsage {
 	}
 }
 
-func (s *serverInfo) GetConnections() UsenetConnections {
+func (s *serverInfo) GetUploadConnections() UsenetConnections {
 	return UsenetConnections{
-		Total:  s.conPool.GetMaxConnections(),
-		Free:   s.conPool.GetFreeConnections(),
-		Active: s.conPool.GetMaxConnections() - s.conPool.GetFreeConnections(),
+		Total:  s.conPool.GetMaxUploadConnections(),
+		Free:   s.conPool.GetUploadFreeConnections(),
+		Active: s.conPool.GetMaxUploadConnections() - s.conPool.GetUploadFreeConnections(),
 	}
 }
 
-func (s *serverInfo) GetDownloadOnlyConnections() UsenetConnections {
+func (s *serverInfo) GetDownloadConnections() UsenetConnections {
 	return UsenetConnections{
-		Total:  s.conPool.GetMaxDownloadOnlyConnections(),
-		Free:   s.conPool.GetDownloadOnlyFreeConnections(),
-		Active: s.conPool.GetMaxDownloadOnlyConnections() - s.conPool.GetDownloadOnlyFreeConnections(),
+		Total:  s.conPool.GetMaxDownloadConnections(),
+		Free:   s.conPool.GetDownloadFreeConnections(),
+		Active: s.conPool.GetMaxDownloadConnections() - s.conPool.GetDownloadFreeConnections(),
 	}
 }
 

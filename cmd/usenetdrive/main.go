@@ -73,7 +73,8 @@ var rootCmd = &cobra.Command{
 		// download and upload connection pool
 		connPool, err := connectionpool.NewConnectionPool(
 			connectionpool.WithFakeConnections(config.Usenet.FakeConnections),
-			connectionpool.WithProviders(config.Usenet.Providers),
+			connectionpool.WithDownloadProviders(config.Usenet.Download.Providers),
+			connectionpool.WithUploadProviders(config.Usenet.Upload.Providers),
 			connectionpool.WithClient(nntpCli),
 			connectionpool.WithLogger(log),
 		)
