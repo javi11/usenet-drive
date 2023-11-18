@@ -1,8 +1,6 @@
 package filewriter
 
 import (
-	"crypto/md5"
-	"encoding/hex"
 	"fmt"
 	"strings"
 
@@ -10,10 +8,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func generateHashFromString(s string) (string, error) {
-	hash := md5.Sum([]byte(s))
-	return hex.EncodeToString(hash[:]), nil
-}
+const toolName = "UsenetDrive"
 
 func generateRandomPoster() string {
 	email := faker.Email()
@@ -28,7 +23,7 @@ func generateMessageId() (string, error) {
 		return "", err
 	}
 
-	return fmt.Sprintf("%s@usenetdrive", id.String()), nil
+	return fmt.Sprintf("%s@%s", id.String(), toolName), nil
 }
 
 func isNzbFile(name string) bool {
