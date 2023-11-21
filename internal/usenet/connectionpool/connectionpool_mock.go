@@ -5,10 +5,10 @@
 package connectionpool
 
 import (
+	context "context"
 	reflect "reflect"
 
 	gomock "github.com/golang/mock/gomock"
-	nntpcli "github.com/javi11/usenet-drive/pkg/nntpcli"
 )
 
 // MockUsenetConnectionPool is a mock of UsenetConnectionPool interface.
@@ -35,46 +35,42 @@ func (m *MockUsenetConnectionPool) EXPECT() *MockUsenetConnectionPoolMockRecorde
 }
 
 // Close mocks base method.
-func (m *MockUsenetConnectionPool) Close(c nntpcli.Connection) error {
+func (m *MockUsenetConnectionPool) Close(res Resource) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Close", c)
-	ret0, _ := ret[0].(error)
-	return ret0
+	m.ctrl.Call(m, "Close", res)
 }
 
 // Close indicates an expected call of Close.
-func (mr *MockUsenetConnectionPoolMockRecorder) Close(c interface{}) *gomock.Call {
+func (mr *MockUsenetConnectionPoolMockRecorder) Close(res interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockUsenetConnectionPool)(nil).Close), c)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockUsenetConnectionPool)(nil).Close), res)
 }
 
 // Free mocks base method.
-func (m *MockUsenetConnectionPool) Free(c nntpcli.Connection) error {
+func (m *MockUsenetConnectionPool) Free(res Resource) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Free", c)
-	ret0, _ := ret[0].(error)
-	return ret0
+	m.ctrl.Call(m, "Free", res)
 }
 
 // Free indicates an expected call of Free.
-func (mr *MockUsenetConnectionPoolMockRecorder) Free(c interface{}) *gomock.Call {
+func (mr *MockUsenetConnectionPoolMockRecorder) Free(res interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Free", reflect.TypeOf((*MockUsenetConnectionPool)(nil).Free), c)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Free", reflect.TypeOf((*MockUsenetConnectionPool)(nil).Free), res)
 }
 
 // GetDownloadConnection mocks base method.
-func (m *MockUsenetConnectionPool) GetDownloadConnection() (nntpcli.Connection, error) {
+func (m *MockUsenetConnectionPool) GetDownloadConnection(ctx context.Context) (Resource, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetDownloadConnection")
-	ret0, _ := ret[0].(nntpcli.Connection)
+	ret := m.ctrl.Call(m, "GetDownloadConnection", ctx)
+	ret0, _ := ret[0].(Resource)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetDownloadConnection indicates an expected call of GetDownloadConnection.
-func (mr *MockUsenetConnectionPoolMockRecorder) GetDownloadConnection() *gomock.Call {
+func (mr *MockUsenetConnectionPoolMockRecorder) GetDownloadConnection(ctx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDownloadConnection", reflect.TypeOf((*MockUsenetConnectionPool)(nil).GetDownloadConnection))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDownloadConnection", reflect.TypeOf((*MockUsenetConnectionPool)(nil).GetDownloadConnection), ctx)
 }
 
 // GetDownloadFreeConnections mocks base method.
@@ -120,18 +116,18 @@ func (mr *MockUsenetConnectionPoolMockRecorder) GetMaxUploadConnections() *gomoc
 }
 
 // GetUploadConnection mocks base method.
-func (m *MockUsenetConnectionPool) GetUploadConnection() (nntpcli.Connection, error) {
+func (m *MockUsenetConnectionPool) GetUploadConnection(ctx context.Context) (Resource, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetUploadConnection")
-	ret0, _ := ret[0].(nntpcli.Connection)
+	ret := m.ctrl.Call(m, "GetUploadConnection", ctx)
+	ret0, _ := ret[0].(Resource)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetUploadConnection indicates an expected call of GetUploadConnection.
-func (mr *MockUsenetConnectionPoolMockRecorder) GetUploadConnection() *gomock.Call {
+func (mr *MockUsenetConnectionPoolMockRecorder) GetUploadConnection(ctx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUploadConnection", reflect.TypeOf((*MockUsenetConnectionPool)(nil).GetUploadConnection))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUploadConnection", reflect.TypeOf((*MockUsenetConnectionPool)(nil).GetUploadConnection), ctx)
 }
 
 // GetUploadFreeConnections mocks base method.
@@ -146,4 +142,16 @@ func (m *MockUsenetConnectionPool) GetUploadFreeConnections() int {
 func (mr *MockUsenetConnectionPoolMockRecorder) GetUploadFreeConnections() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUploadFreeConnections", reflect.TypeOf((*MockUsenetConnectionPool)(nil).GetUploadFreeConnections))
+}
+
+// Quit mocks base method.
+func (m *MockUsenetConnectionPool) Quit() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Quit")
+}
+
+// Quit indicates an expected call of Quit.
+func (mr *MockUsenetConnectionPoolMockRecorder) Quit() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Quit", reflect.TypeOf((*MockUsenetConnectionPool)(nil).Quit))
 }

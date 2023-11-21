@@ -8,6 +8,7 @@ import (
 )
 
 const SegmentAlreadyExistsErrCode = 441
+const ToManyConnectionsErrCode = 502
 
 // A ProtocolError represents responses from an NNTP server
 // that seem incorrect for NNTP.
@@ -29,6 +30,7 @@ func (e NntpError) Error() string {
 
 var retirableErrors = []uint{
 	SegmentAlreadyExistsErrCode,
+	ToManyConnectionsErrCode,
 }
 
 func IsRetryableError(err error) bool {

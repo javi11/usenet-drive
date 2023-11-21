@@ -1,6 +1,7 @@
 package nntpcli
 
 import (
+	"context"
 	"net"
 	"strconv"
 	"strings"
@@ -58,7 +59,7 @@ func TestDial(t *testing.T) {
 	// create a client and dial the mock server
 	t.Run("Dial", func(t *testing.T) {
 		c := &client{timeout: 5 * time.Second}
-		conn, err := c.Dial(host, port, false, false, 1, DownloadConnection)
+		conn, err := c.Dial(context.Background(), host, port, false, false, "test")
 		assert.NoError(t, err)
 		assert.NotNil(t, conn)
 	})
@@ -66,7 +67,7 @@ func TestDial(t *testing.T) {
 	// create a client and dial a non-existent server
 	t.Run("DialFail", func(t *testing.T) {
 		c := &client{timeout: 5 * time.Second}
-		_, err = c.Dial("127.0.0.1", 12345, false, false, 1, DownloadConnection)
+		_, err = c.Dial(context.Background(), "127.0.0.1", 12345, false, false, "test")
 		assert.Error(t, err)
 	})
 }

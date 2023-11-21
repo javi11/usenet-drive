@@ -2,6 +2,7 @@
 package nntpcli
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"log/slog"
@@ -15,7 +16,7 @@ type TimeData struct {
 }
 
 type Client interface {
-	Dial(address string, port int, useTLS bool, insecureSSL bool, providerId int, connectionType ConnectionType) (Connection, error)
+	Dial(ctx context.Context, address string, port int, useTLS bool, insecureSSL bool, providerId string) (Connection, error)
 }
 
 type client struct {
@@ -36,8 +37,12 @@ func New(options ...Option) Client {
 }
 
 // Dial connects to an NNTP server
-func (c *client) Dial(host string, port int, useTLS bool, insecureSSL bool, providerId int, connectionType ConnectionType) (Connection, error) {
-	conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%d", host, port), c.timeout)
+func (c *client) Dial(ctx context.Context, host string, port int, useTLS bool, insecureSSL bool, providerId string) (Connection, error) {
+	var d net.Dialer
+	ctx, cancel := context.WithTimeout(ctx, c.timeout)
+	defer cancel()
+
+	conn, err := d.DialContext(ctx, "tcp", fmt.Sprintf("%s:%d", host, port))
 	if err != nil {
 		return nil, err
 	}
@@ -50,8 +55,8 @@ func (c *client) Dial(host string, port int, useTLS bool, insecureSSL bool, prov
 			return nil, err
 		}
 
-		return newConn(tlsConn, host, providerId, connectionType)
+		return newConn(tlsConn, host, providerId)
 	} else {
-		return newConn(conn, host, providerId, connectionType)
+		return newConn(conn, host, providerId)
 	}
 }

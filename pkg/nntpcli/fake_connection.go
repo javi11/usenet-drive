@@ -6,24 +6,17 @@ import (
 )
 
 type fakeConnection struct {
-	connectionType ConnectionType
-	providerId     int
-	isClosed       bool
+	providerId string
 }
 
-func NewFakeConnection(host string, providerId int, connectionType ConnectionType) Connection {
-	return &fakeConnection{}
+func NewFakeConnection(host string, providerId string) Connection {
+	return &fakeConnection{
+		providerId: providerId,
+	}
 }
 
-func (c *fakeConnection) IsClosed() bool {
-	return c.isClosed
-}
-
-func (c *fakeConnection) ProviderID() int {
+func (c *fakeConnection) ProviderID() string {
 	return c.providerId
-}
-func (c *fakeConnection) GetConnectionType() ConnectionType {
-	return c.connectionType
 }
 
 func (c *fakeConnection) Authenticate(username, password string) error {
@@ -43,6 +36,5 @@ func (c *fakeConnection) Post(p []byte, chunkSize int64) error {
 }
 
 func (c *fakeConnection) Quit() error {
-	c.isClosed = true
 	return nil
 }

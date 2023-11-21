@@ -3,45 +3,36 @@
 package connectionpool
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"net"
 	"sync"
 	"time"
 
+	puddle "github.com/jackc/puddle/v2"
 	"github.com/javi11/usenet-drive/internal/config"
 	"github.com/javi11/usenet-drive/pkg/nntpcli"
-	"github.com/silenceper/pool"
 )
 
 type UsenetConnectionPool interface {
-	GetDownloadConnection() (nntpcli.Connection, error)
-	GetUploadConnection() (nntpcli.Connection, error)
-	Close(c nntpcli.Connection) error
-	Free(c nntpcli.Connection) error
+	GetDownloadConnection(ctx context.Context) (Resource, error)
+	GetUploadConnection(ctx context.Context) (Resource, error)
 	GetMaxDownloadConnections() int
 	GetMaxUploadConnections() int
 	GetDownloadFreeConnections() int
 	GetUploadFreeConnections() int
-}
-
-type providerStatus struct {
-	provider             config.UsenetProvider
-	id                   int
-	availableConnections int
+	Free(res Resource)
+	Close(res Resource)
+	Quit()
 }
 
 type connectionPool struct {
-	uploadPool        pool.Pool
-	downloadPool      pool.Pool
-	log               *slog.Logger
-	freeDownloadConn  int
-	freeUploadConn    int
-	maxDownloadConn   int
-	maxUploadConn     int
-	downloadProviders []*providerStatus
-	uploadProviders   []*providerStatus
-	mx                *sync.RWMutex
+	uploadPools   []*puddle.Pool[nntpcli.Connection]
+	downloadPools []*puddle.Pool[nntpcli.Connection]
+	log           *slog.Logger
+	mx            *sync.RWMutex
+	maxIdleTime   time.Duration
 }
 
 func NewConnectionPool(options ...Option) (UsenetConnectionPool, error) {
@@ -50,219 +41,219 @@ func NewConnectionPool(options ...Option) (UsenetConnectionPool, error) {
 		option(config)
 	}
 
-	downloadProviders := make([]*providerStatus, 0)
-	uploadProviders := make([]*providerStatus, 0)
-	maxDownloadConn := 0
-	maxUploadConn := 0
-
-	for i, provider := range config.downloadProviders {
-		downloadProviders = append(downloadProviders, &providerStatus{
-			provider:             provider,
-			id:                   i,
-			availableConnections: provider.MaxConnections,
-		})
-		maxDownloadConn += provider.MaxConnections
-	}
-
-	for i, provider := range config.uploadProviders {
-		uploadProviders = append(uploadProviders, &providerStatus{
-			provider:             provider,
-			id:                   i,
-			availableConnections: provider.MaxConnections,
-		})
-		maxUploadConn += provider.MaxConnections
-	}
-
-	//factory Specify the method to create the connection
-	downloadFactory := func() (interface{}, error) {
-		return dialNNTP(config.cli, config.fakeConnections, downloadProviders, nntpcli.DownloadConnection, config.log)
-	}
-	uploadFactory := func() (interface{}, error) {
-		return dialNNTP(config.cli, config.fakeConnections, uploadProviders, nntpcli.UploadConnection, config.log)
-	}
+	downloadPools := make([]*puddle.Pool[nntpcli.Connection], 0)
+	uploadPools := make([]*puddle.Pool[nntpcli.Connection], 0)
 
 	// close Specify the method to close the connection
-	close := func(v interface{}) error { return v.(nntpcli.Connection).Quit() }
-
-	downloadInitialCap := int(float64(maxDownloadConn) * 0.2)
-	downloadPool, err := pool.NewChannelPool(&pool.Config{
-		InitialCap: downloadInitialCap,
-		MaxIdle:    maxDownloadConn,
-		MaxCap:     maxDownloadConn,
-		Factory:    downloadFactory,
-		Close:      close,
-		//Ping:       ping,
-		//The maximum idle time of the connection, the connection exceeding this time will be closed, which can avoid the problem of automatic failure when connecting to EOF when idle
-		IdleTimeout: 15 * time.Second,
-	})
-	if err != nil {
-		return nil, err
+	close := func(value nntpcli.Connection) {
+		value.Quit()
 	}
 
-	uploadInitialCap := int(float64(maxUploadConn) * 0.2)
-	uploadPool, err := pool.NewChannelPool(&pool.Config{
-		InitialCap: uploadInitialCap,
-		MaxIdle:    maxUploadConn,
-		MaxCap:     maxUploadConn,
-		Factory:    uploadFactory,
-		Close:      close,
-		//Ping:       ping,
-		//The maximum idle time of the connection, the connection exceeding this time will be closed, which can avoid the problem of automatic failure when connecting to EOF when idle
-		IdleTimeout: 15 * time.Second,
-	})
-	if err != nil {
-		return nil, err
+	for _, provider := range config.downloadProviders {
+		p := provider
+		factory := func(ctx context.Context) (nntpcli.Connection, error) {
+			return dialNNTP(ctx, config.cli, config.fakeConnections, p, config.log)
+		}
+
+		dp, err := puddle.NewPool(
+			&puddle.Config[nntpcli.Connection]{
+				Constructor: factory,
+				Destructor:  close,
+				MaxSize:     int32(provider.MaxConnections),
+			},
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		downloadPools = append(downloadPools, dp)
+	}
+
+	for _, provider := range config.uploadProviders {
+		p := provider
+		factory := func(ctx context.Context) (nntpcli.Connection, error) {
+			return dialNNTP(ctx, config.cli, config.fakeConnections, p, config.log)
+		}
+
+		up, err := puddle.NewPool(
+			&puddle.Config[nntpcli.Connection]{
+				Constructor: factory,
+				Destructor:  close,
+				MaxSize:     int32(provider.MaxConnections),
+			},
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		uploadPools = append(uploadPools, up)
 	}
 
 	return &connectionPool{
-		uploadPool:        uploadPool,
-		downloadPool:      downloadPool,
-		log:               config.log,
-		maxDownloadConn:   maxDownloadConn,
-		maxUploadConn:     maxUploadConn,
-		freeDownloadConn:  maxDownloadConn,
-		freeUploadConn:    maxUploadConn,
-		downloadProviders: downloadProviders,
-		uploadProviders:   uploadProviders,
-		mx:                &sync.RWMutex{},
+		uploadPools:   uploadPools,
+		downloadPools: downloadPools,
+		log:           config.log,
+		mx:            &sync.RWMutex{},
+		maxIdleTime:   config.maxIdleTime,
 	}, nil
 }
 
-func (p *connectionPool) GetUploadConnection() (nntpcli.Connection, error) {
-	conn, err := p.uploadPool.Get()
+func (p *connectionPool) Quit() {
+	for _, pool := range p.downloadPools {
+		pool.Close()
+	}
+
+	for _, pool := range p.uploadPools {
+		pool.Close()
+	}
+}
+
+func (p *connectionPool) GetUploadConnection(ctx context.Context) (Resource, error) {
+	pool := firstFreePool(p.uploadPools)
+
+	conn, err := p.getConnection(ctx, pool)
 	if err != nil {
 		return nil, err
 	}
 
-	p.mx.Lock()
-	defer p.mx.Unlock()
-	p.freeUploadConn--
-	return conn.(nntpcli.Connection), nil
+	if conn == nil {
+		return p.GetDownloadConnection(ctx)
+	}
+
+	return conn, nil
 }
 
-func (p *connectionPool) GetDownloadConnection() (nntpcli.Connection, error) {
-	conn, err := p.downloadPool.Get()
+func (p *connectionPool) Free(res Resource) {
+	defer func() { //catch or finally
+		if err := recover(); err != nil { //catch
+			p.log.Warn(fmt.Sprintf("can not free a connection already released: %v", err))
+		}
+	}()
+
+	res.Release()
+}
+
+func (p *connectionPool) Close(res Resource) {
+	defer func() { //catch or finally
+		if err := recover(); err != nil { //catch
+			p.log.Warn(fmt.Sprintf("can not close a connection already released: %v", err))
+		}
+	}()
+
+	res.Destroy()
+}
+
+func (p *connectionPool) GetDownloadConnection(ctx context.Context) (Resource, error) {
+	pool := firstFreePool(p.downloadPools)
+
+	conn, err := p.getConnection(ctx, pool)
 	if err != nil {
 		return nil, err
 	}
 
-	p.mx.Lock()
-	defer p.mx.Unlock()
-	p.freeDownloadConn--
-	return conn.(nntpcli.Connection), nil
-}
-
-func (p *connectionPool) Close(c nntpcli.Connection) error {
-	if c.IsClosed() {
-		return nil
+	if conn == nil {
+		return p.GetDownloadConnection(ctx)
 	}
 
-	var ps *providerStatus
-	var pool pool.Pool
-	if c.GetConnectionType() == nntpcli.DownloadConnection {
-		ps = p.downloadProviders[c.ProviderID()]
-		pool = p.downloadPool
-	} else {
-		ps = p.uploadProviders[c.ProviderID()]
-		pool = p.uploadPool
-	}
-
-	if ps == nil {
-		return fmt.Errorf("provider not found for connection %v", c.ProviderID())
-	}
-
-	err := pool.Close(c)
-	if err != nil {
-		return err
-	}
-
-	p.mx.Lock()
-	defer p.mx.Unlock()
-
-	if c.GetConnectionType() == nntpcli.DownloadConnection {
-		p.freeDownloadConn++
-	} else {
-		p.freeUploadConn++
-	}
-
-	ps.availableConnections++
-
-	return nil
-}
-
-func (p *connectionPool) Free(c nntpcli.Connection) error {
-	var pool pool.Pool
-	if c.GetConnectionType() == nntpcli.DownloadConnection {
-		pool = p.downloadPool
-	} else {
-		pool = p.uploadPool
-	}
-
-	err := pool.Put(c)
-	if err != nil {
-		return err
-	}
-
-	p.mx.Lock()
-	defer p.mx.Unlock()
-	if c.GetConnectionType() == nntpcli.DownloadConnection {
-		if p.freeDownloadConn < p.maxDownloadConn {
-			p.freeDownloadConn++
-		}
-	} else {
-		if p.freeUploadConn < p.maxUploadConn {
-			p.freeUploadConn++
-		}
-	}
-
-	return nil
+	return conn, nil
 }
 
 func (p *connectionPool) GetMaxDownloadConnections() int {
-	return p.maxDownloadConn
+	maxConnections := 0
+	for _, pool := range p.downloadPools {
+		maxConnections += int(pool.Stat().MaxResources())
+	}
+
+	return maxConnections
 }
 
 func (p *connectionPool) GetMaxUploadConnections() int {
-	return p.maxUploadConn
+	maxConnections := 0
+	for _, pool := range p.uploadPools {
+		maxConnections += int(pool.Stat().MaxResources())
+	}
+
+	return maxConnections
 }
 
 func (p *connectionPool) GetDownloadFreeConnections() int {
-	return p.freeDownloadConn
+	freeDownloadConn := 0
+	for _, pool := range p.downloadPools {
+		stat := pool.Stat()
+		freeDownloadConn += int(stat.MaxResources() -
+			(stat.ConstructingResources() + stat.AcquiredResources()))
+	}
+
+	return freeDownloadConn
 }
 
 func (p *connectionPool) GetUploadFreeConnections() int {
-	return p.freeUploadConn
+	freeUploadConn := 0
+	for _, pool := range p.uploadPools {
+		stat := pool.Stat()
+		freeUploadConn += int(stat.MaxResources() -
+			(stat.ConstructingResources() + stat.AcquiredResources()))
+	}
+
+	return freeUploadConn
 }
 
-func dialNNTP(cli nntpcli.Client, fakeConnections bool, providerConf []*providerStatus, connectionsType nntpcli.ConnectionType, log *slog.Logger) (nntpcli.Connection, error) {
+func (p *connectionPool) getConnection(
+	ctx context.Context,
+	pool *puddle.Pool[nntpcli.Connection],
+) (*puddle.Resource[nntpcli.Connection], error) {
+	conn, err := pool.Acquire(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if conn.IdleDuration() > p.maxIdleTime {
+		p.log.Debug(fmt.Sprintf("closing idle connection to %s", conn.Value().ProviderID()))
+		conn.Destroy()
+		return nil, nil
+	}
+
+	return conn, nil
+}
+
+func dialNNTP(
+	ctx context.Context,
+	cli nntpcli.Client,
+	fakeConnections bool,
+	provider config.UsenetProvider,
+	log *slog.Logger,
+) (nntpcli.Connection, error) {
 	var err error
 	var c nntpcli.Connection
+	providerId := generateProviderId(provider)
 
 	for {
-		ps := firstFreeProvider(providerConf)
-		log.Debug(fmt.Sprintf("connecting to %s:%v available connections %v", ps.provider.Host, ps.provider.Port, ps.availableConnections))
+		log.Debug(fmt.Sprintf("connecting to %s:%v", provider.Host, provider.Port))
 		if fakeConnections {
-			return nntpcli.NewFakeConnection(ps.provider.Host, ps.id, connectionsType), nil
+			return nntpcli.NewFakeConnection(provider.Host, providerId), nil
 		}
 
-		c, err = cli.Dial(ps.provider.Host, ps.provider.Port, ps.provider.TLS, ps.provider.InsecureSSL, ps.id, connectionsType)
+		c, err = cli.Dial(
+			ctx,
+			provider.Host,
+			provider.Port,
+			provider.TLS,
+			provider.InsecureSSL,
+			providerId,
+		)
 		if err != nil {
 			// if it's a timeout, ignore and try again
 			e, ok := err.(net.Error)
 			if ok && e.Timeout() {
-				log.Error(fmt.Sprintf("timeout connecting to %s:%v, retrying", ps.provider.Host, ps.provider.Port), "error", e)
+				log.Error(fmt.Sprintf("timeout connecting to %s:%v, retrying", provider.Host, provider.Port), "error", e)
 				continue
 			}
 			return nil, err
 		}
 
 		// auth
-		if err := c.Authenticate(ps.provider.Username, ps.provider.Password); err != nil {
+		if err := c.Authenticate(provider.Username, provider.Password); err != nil {
 			return nil, err
-		}
-
-		if ps.availableConnections > 0 {
-			ps.availableConnections--
 		}
 
 		break
@@ -270,13 +261,18 @@ func dialNNTP(cli nntpcli.Client, fakeConnections bool, providerConf []*provider
 	return c, nil
 }
 
-func firstFreeProvider(providers []*providerStatus) *providerStatus {
-	for _, provider := range providers {
-		if provider.availableConnections > 0 {
-			return provider
+func firstFreePool(pools []*puddle.Pool[nntpcli.Connection]) *puddle.Pool[nntpcli.Connection] {
+	for _, pool := range pools {
+		if pool.Stat().IdleResources() > 0 ||
+			(pool.Stat().ConstructingResources()+pool.Stat().AcquiredResources()) < pool.Stat().MaxResources() {
+			return pool
 		}
 	}
 
 	// In case there are no free providers choose the first one
-	return providers[0]
+	return pools[0]
+}
+
+func generateProviderId(provider config.UsenetProvider) string {
+	return fmt.Sprintf("%s:%s", provider.Host, provider.Username)
 }

@@ -82,6 +82,7 @@ var rootCmd = &cobra.Command{
 			log.ErrorContext(ctx, "Failed to init usenet connection pool: %v", err)
 			os.Exit(1)
 		}
+		defer connPool.Quit()
 
 		// Create corrupted nzb list
 		sqlLite, err := db.NewDB(config.DBPath)

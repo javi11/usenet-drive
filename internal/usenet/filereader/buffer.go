@@ -247,15 +247,13 @@ func (v *buffer) downloadSegment(ctx context.Context, segment *nzb.NzbSegment, g
 	if err == nil {
 		chunk = hit
 	} else {
-		var conn nntpcli.Connection
+		var conn connectionpool.Resource
 		retryErr := retry.Do(func() error {
-			c, err := v.cp.GetDownloadConnection()
+			c, err := v.cp.GetDownloadConnection(ctx)
 			if err != nil {
 				if conn != nil {
-					e := v.cp.Close(conn)
-					if e != nil {
-						v.log.DebugContext(ctx, "Error closing connection on downloading a file.", "error", e)
-					}
+					v.cp.Close(conn)
+					conn = nil
 				}
 				v.log.ErrorContext(ctx, "Error getting nntp connection:", "error", err, "segment", segment.Number)
 
@@ -263,13 +261,14 @@ func (v *buffer) downloadSegment(ctx context.Context, segment *nzb.NzbSegment, g
 				return syscall.ETIMEDOUT
 			}
 			conn = c
+			nntpConn := conn.Value()
 
-			err = usenet.FindGroup(conn, groups)
+			err = usenet.FindGroup(nntpConn, groups)
 			if err != nil {
 				return err
 			}
 
-			body, err := conn.Body(fmt.Sprintf("<%v>", segment.Id))
+			body, err := nntpConn.Body(fmt.Sprintf("<%v>", segment.Id))
 			if err != nil {
 				return err
 			}
@@ -281,9 +280,8 @@ func (v *buffer) downloadSegment(ctx context.Context, segment *nzb.NzbSegment, g
 
 			chunk = yread.Body
 
-			if err = v.cp.Free(conn); err != nil {
-				v.log.DebugContext(ctx, "Error freeing connection on downloading a file.", "error", err)
-			}
+			v.cp.Free(conn)
+			conn = nil
 
 			return nil
 		},
@@ -296,11 +294,9 @@ func (v *buffer) downloadSegment(ctx context.Context, segment *nzb.NzbSegment, g
 			retry.OnRetry(func(n uint, err error) {
 				v.log.InfoContext(ctx, "Retrying download", "error", err, "segment", segment.Id, "retry", n)
 
-				if conn != nil && !errors.Is(err, syscall.EPIPE) {
-					err = v.cp.Close(conn)
-					if err != nil {
-						v.log.DebugContext(ctx, "Error closing connection.", "error", err)
-					}
+				if conn != nil {
+					v.cp.Close(conn)
+					conn = nil
 				}
 			}),
 		)
@@ -308,10 +304,8 @@ func (v *buffer) downloadSegment(ctx context.Context, segment *nzb.NzbSegment, g
 			err := retryErr
 
 			if conn != nil {
-				err = v.cp.Close(conn)
-				if err != nil {
-					v.log.DebugContext(ctx, "Error closing connection.", "error", err)
-				}
+				v.cp.Close(conn)
+				conn = nil
 			}
 
 			var e retry.Error

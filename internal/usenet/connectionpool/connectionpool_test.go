@@ -1,10 +1,12 @@
 package connectionpool
 
 import (
+	"context"
 	"log/slog"
 	"net"
 	"syscall"
 	"testing"
+	"time"
 
 	gomock "github.com/golang/mock/gomock"
 	"github.com/javi11/usenet-drive/internal/config"
@@ -43,10 +45,10 @@ func TestGetDownloadConnection(t *testing.T) {
 
 	t.Run("get the first provider download connection if available", func(t *testing.T) {
 		mockCon := nntpcli.NewMockConnection(ctrl)
-		providerId := 0
+		providerId := "download:user"
 
 		mockNntpCli.EXPECT().
-			Dial("download", 1244, false, false, providerId, nntpcli.DownloadConnection).
+			Dial(gomock.Any(), "download", 1244, false, false, providerId).
 			Return(mockCon, nil)
 		mockCon.EXPECT().ProviderID().Return(providerId).Times(1)
 		mockCon.EXPECT().Authenticate("user", "pass").Return(nil)
@@ -59,25 +61,25 @@ func TestGetDownloadConnection(t *testing.T) {
 		)
 		assert.NoError(t, err)
 
-		conn, err := cp.GetDownloadConnection()
+		conn, err := cp.GetDownloadConnection(context.Background())
 		assert.NoError(t, err)
 
-		assert.Equal(t, providerId, conn.ProviderID())
+		assert.Equal(t, providerId, conn.Value().ProviderID())
 	})
 
 	t.Run("get second provider connections if there are not download available for first provider", func(t *testing.T) {
 		mockDownloadCon := nntpcli.NewMockConnection(ctrl)
-		providerOneId := 0
+		providerOneId := "download:user"
 		mockNntpCli.EXPECT().
-			Dial("download", 1244, false, false, providerOneId, nntpcli.DownloadConnection).
+			Dial(gomock.Any(), "download", 1244, false, false, providerOneId).
 			Return(mockDownloadCon, nil)
 		mockDownloadCon.EXPECT().Authenticate("user", "pass").Return(nil)
 		mockDownloadCon.EXPECT().ProviderID().Return(providerOneId).Times(1)
 
 		mockDownloadCon2 := nntpcli.NewMockConnection(ctrl)
-		providerTwoId := 1
+		providerTwoId := "download2:user"
 		mockNntpCli.EXPECT().
-			Dial("download2", 1243, false, false, providerTwoId, nntpcli.DownloadConnection).
+			Dial(gomock.Any(), "download2", 1243, false, false, providerTwoId).
 			Return(mockDownloadCon2, nil)
 		mockDownloadCon2.EXPECT().ProviderID().Return(providerTwoId).Times(1)
 		mockDownloadCon2.EXPECT().Authenticate("user", "pass").Return(nil)
@@ -91,29 +93,26 @@ func TestGetDownloadConnection(t *testing.T) {
 		assert.NoError(t, err)
 
 		// Download connection
-		dConn, err := cp.GetDownloadConnection()
+		dConn, err := cp.GetDownloadConnection(context.Background())
 		assert.NoError(t, err)
 		assert.Equal(t, 2, cp.GetDownloadFreeConnections())
-		assert.Equal(t, providerOneId, dConn.ProviderID())
+		assert.Equal(t, providerOneId, dConn.Value().ProviderID())
 
 		// Download connection from second provider
-		d2Conn, err := cp.GetDownloadConnection()
+		d2Conn, err := cp.GetDownloadConnection(context.Background())
 		assert.NoError(t, err)
 		assert.Equal(t, 1, cp.GetDownloadFreeConnections())
 
-		assert.Equal(t, providerTwoId, d2Conn.ProviderID())
+		assert.Equal(t, providerTwoId, d2Conn.Value().ProviderID())
 	})
 
 	t.Run("should free download connection if Free is called", func(t *testing.T) {
 		mockCon := nntpcli.NewMockConnection(ctrl)
-		providerOneId := 0
+		providerOneId := "download:user"
 		mockNntpCli.EXPECT().
-			Dial("download", 1244, false, false, providerOneId, nntpcli.DownloadConnection).
+			Dial(gomock.Any(), "download", 1244, false, false, providerOneId).
 			Return(mockCon, nil)
 		mockCon.EXPECT().Authenticate("user", "pass").Return(nil)
-
-		// Free + Close
-		mockCon.EXPECT().GetConnectionType().Return(nntpcli.DownloadConnection).Times(2)
 
 		cp, err := NewConnectionPool(
 			WithClient(mockNntpCli),
@@ -125,30 +124,56 @@ func TestGetDownloadConnection(t *testing.T) {
 
 		assert.Equal(t, 3, cp.GetDownloadFreeConnections())
 
-		conn, err := cp.GetDownloadConnection()
+		conn, err := cp.GetDownloadConnection(context.Background())
 		assert.NoError(t, err)
 
 		assert.Equal(t, 2, cp.GetDownloadFreeConnections())
 
-		err = cp.Free(conn)
-		assert.NoError(t, err)
+		cp.Free(conn)
 
 		assert.Equal(t, 3, cp.GetDownloadFreeConnections())
 	})
 
-	t.Run("should not close twice a connection", func(t *testing.T) {
+	t.Run("should not free download connection more that one time", func(t *testing.T) {
 		mockCon := nntpcli.NewMockConnection(ctrl)
-		providerOneId := 0
+		providerOneId := "download:user"
 		mockNntpCli.EXPECT().
-			Dial("download", 1244, false, false, providerOneId, nntpcli.DownloadConnection).
+			Dial(gomock.Any(), "download", 1244, false, false, providerOneId).
 			Return(mockCon, nil)
 		mockCon.EXPECT().Authenticate("user", "pass").Return(nil)
 
-		// Close
-		mockCon.EXPECT().IsClosed().Return(false).Times(1)
+		cp, err := NewConnectionPool(
+			WithClient(mockNntpCli),
+			WithLogger(slog.Default()),
+			WithDownloadProviders(downloadProviders),
+			WithUploadProviders(uploadProviders),
+		)
+		assert.NoError(t, err)
+
+		assert.Equal(t, 3, cp.GetDownloadFreeConnections())
+
+		conn, err := cp.GetDownloadConnection(context.Background())
+		assert.NoError(t, err)
+
+		assert.Equal(t, 2, cp.GetDownloadFreeConnections())
+
+		cp.Free(conn)
+
+		assert.Equal(t, 3, cp.GetDownloadFreeConnections())
+
+		cp.Free(conn)
+
+		assert.Equal(t, 3, cp.GetDownloadFreeConnections())
+	})
+
+	t.Run("should close download connection if Close is called", func(t *testing.T) {
+		mockCon := nntpcli.NewMockConnection(ctrl)
+		providerOneId := "download:user"
+		mockNntpCli.EXPECT().
+			Dial(gomock.Any(), "download", 1244, false, false, providerOneId).
+			Return(mockCon, nil)
+		mockCon.EXPECT().Authenticate("user", "pass").Return(nil)
 		mockCon.EXPECT().Quit().Return(nil).Times(1)
-		mockCon.EXPECT().ProviderID().Return(providerOneId).Times(1)
-		mockCon.EXPECT().GetConnectionType().Return(nntpcli.DownloadConnection).Times(2)
 
 		cp, err := NewConnectionPool(
 			WithClient(mockNntpCli),
@@ -160,70 +185,28 @@ func TestGetDownloadConnection(t *testing.T) {
 
 		assert.Equal(t, 3, cp.GetDownloadFreeConnections())
 
-		conn, err := cp.GetDownloadConnection()
+		conn, err := cp.GetDownloadConnection(context.Background())
 		assert.NoError(t, err)
 
 		assert.Equal(t, 2, cp.GetDownloadFreeConnections())
 
-		err = cp.Close(conn)
-		assert.NoError(t, err)
+		cp.Close(conn)
 
-		assert.Equal(t, 3, cp.GetDownloadFreeConnections())
-
-		mockCon.EXPECT().IsClosed().Return(true).Times(1)
-
-		err = cp.Close(conn)
-		assert.NoError(t, err)
-
-		assert.Equal(t, 3, cp.GetDownloadFreeConnections())
-	})
-
-	t.Run("should not free download connection more times that max connections", func(t *testing.T) {
-		mockCon := nntpcli.NewMockConnection(ctrl)
-		providerOneId := 0
-		mockNntpCli.EXPECT().
-			Dial("download", 1244, false, false, providerOneId, nntpcli.DownloadConnection).
-			Return(mockCon, nil)
-		mockCon.EXPECT().Authenticate("user", "pass").Return(nil)
-
-		// Free
-		mockCon.EXPECT().GetConnectionType().Return(nntpcli.DownloadConnection).Times(4)
-
-		cp, err := NewConnectionPool(
-			WithClient(mockNntpCli),
-			WithLogger(slog.Default()),
-			WithDownloadProviders(downloadProviders),
-			WithUploadProviders(uploadProviders),
-		)
-		assert.NoError(t, err)
-
-		assert.Equal(t, 3, cp.GetDownloadFreeConnections())
-
-		conn, err := cp.GetDownloadConnection()
-		assert.NoError(t, err)
-
-		assert.Equal(t, 2, cp.GetDownloadFreeConnections())
-
-		err = cp.Free(conn)
-		assert.NoError(t, err)
-
-		assert.Equal(t, 3, cp.GetDownloadFreeConnections())
-
-		err = cp.Free(conn)
-		assert.NoError(t, err)
+		// it takes some time to get the refresh status
+		time.Sleep(100 * time.Millisecond)
 
 		assert.Equal(t, 3, cp.GetDownloadFreeConnections())
 	})
 
 	t.Run("when dial returns timeout, retry", func(t *testing.T) {
-		providerOneId := 0
 		mockCon := nntpcli.NewMockConnection(ctrl)
+		providerOneId := "download:user"
 		mockNntpCli.EXPECT().
-			Dial("download", 1244, false, false, providerOneId, nntpcli.DownloadConnection).
+			Dial(gomock.Any(), "download", 1244, false, false, providerOneId).
 			Return(nil, net.Error(&net.OpError{Err: syscall.ETIMEDOUT}))
 
 		mockNntpCli.EXPECT().
-			Dial("download", 1244, false, false, providerOneId, nntpcli.DownloadConnection).
+			Dial(gomock.Any(), "download", 1244, false, false, providerOneId).
 			Return(mockCon, nil)
 		mockCon.EXPECT().Authenticate("user", "pass").Return(nil)
 		mockCon.EXPECT().ProviderID().Return(providerOneId).Times(1)
@@ -236,17 +219,17 @@ func TestGetDownloadConnection(t *testing.T) {
 		)
 		assert.NoError(t, err)
 
-		conn, err := cp.GetDownloadConnection()
+		conn, err := cp.GetDownloadConnection(context.Background())
 		assert.NoError(t, err)
 
-		assert.Equal(t, providerOneId, conn.ProviderID())
+		assert.Equal(t, providerOneId, conn.Value().ProviderID())
 	})
 
 	t.Run("get the first provider upload connections if available", func(t *testing.T) {
 		mockCon := nntpcli.NewMockConnection(ctrl)
-		providerOneId := 0
+		providerOneId := "upload:user"
 		mockNntpCli.EXPECT().
-			Dial("upload", 1244, false, false, providerOneId, nntpcli.UploadConnection).
+			Dial(gomock.Any(), "upload", 1244, false, false, providerOneId).
 			Return(mockCon, nil)
 		mockCon.EXPECT().ProviderID().Return(providerOneId).Times(1)
 		mockCon.EXPECT().Authenticate("user", "pass").Return(nil)
@@ -259,41 +242,9 @@ func TestGetDownloadConnection(t *testing.T) {
 		)
 		assert.NoError(t, err)
 
-		conn, err := cp.GetUploadConnection()
+		conn, err := cp.GetUploadConnection(context.Background())
 		assert.NoError(t, err)
 
-		assert.Equal(t, providerOneId, conn.ProviderID())
-	})
-
-	t.Run("should free upload connection if Free is called", func(t *testing.T) {
-		mockCon := nntpcli.NewMockConnection(ctrl)
-		providerOneId := 0
-		mockNntpCli.EXPECT().
-			Dial("upload", 1244, false, false, providerOneId, nntpcli.UploadConnection).
-			Return(mockCon, nil)
-		mockCon.EXPECT().Authenticate("user", "pass").Return(nil)
-
-		// Free + Close
-		mockCon.EXPECT().GetConnectionType().Return(nntpcli.UploadConnection).Times(2)
-
-		cp, err := NewConnectionPool(
-			WithClient(mockNntpCli),
-			WithLogger(slog.Default()),
-			WithDownloadProviders(downloadProviders),
-			WithUploadProviders(uploadProviders),
-		)
-		assert.NoError(t, err)
-
-		assert.Equal(t, 2, cp.GetUploadFreeConnections())
-
-		conn, err := cp.GetUploadConnection()
-		assert.NoError(t, err)
-
-		assert.Equal(t, 1, cp.GetUploadFreeConnections())
-
-		err = cp.Free(conn)
-		assert.NoError(t, err)
-
-		assert.Equal(t, 2, cp.GetUploadFreeConnections())
+		assert.Equal(t, providerOneId, conn.Value().ProviderID())
 	})
 }

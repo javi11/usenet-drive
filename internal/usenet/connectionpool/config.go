@@ -2,6 +2,7 @@ package connectionpool
 
 import (
 	"log/slog"
+	"time"
 
 	"github.com/javi11/usenet-drive/internal/config"
 	"github.com/javi11/usenet-drive/pkg/nntpcli"
@@ -13,6 +14,7 @@ type Config struct {
 	log               *slog.Logger
 	fakeConnections   bool
 	cli               nntpcli.Client
+	maxIdleTime       time.Duration
 }
 
 type Option func(*Config)
@@ -20,6 +22,7 @@ type Option func(*Config)
 func defaultConfig() *Config {
 	return &Config{
 		fakeConnections: false,
+		maxIdleTime:     300 * time.Second,
 	}
 }
 
@@ -50,5 +53,11 @@ func WithLogger(log *slog.Logger) Option {
 func WithFakeConnections(fakeConnections bool) Option {
 	return func(c *Config) {
 		c.fakeConnections = fakeConnections
+	}
+}
+
+func WithMaxIdleTime(maxIdleTime time.Duration) Option {
+	return func(c *Config) {
+		c.maxIdleTime = maxIdleTime
 	}
 }

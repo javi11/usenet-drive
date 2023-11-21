@@ -10,41 +10,30 @@ import (
 	"strings"
 )
 
-type ConnectionType int
-
-const (
-	DownloadConnection ConnectionType = 0
-	UploadConnection   ConnectionType = 1
-)
-
 type Connection interface {
-	ProviderID() int
-	GetConnectionType() ConnectionType
+	ProviderID() string
 	Authenticate(username, password string) error
 	Body(id string) (io.Reader, error)
 	SelectGroup(group string) (number int, low int, high int, err error)
 	Post(p []byte, chunkSize int64) error
 	Quit() error
-	IsClosed() bool
 }
 
 type conn struct {
-	conn           io.WriteCloser
-	r              *bufio.Reader
-	close          bool
-	br             *bodyReader
-	host           string
-	providerId     int
-	connectionType ConnectionType
+	conn       io.WriteCloser
+	r          *bufio.Reader
+	close      bool
+	br         *bodyReader
+	host       string
+	providerId string
 }
 
-func newConn(c net.Conn, host string, providerId int, connectionType ConnectionType) (Connection, error) {
+func newConn(c net.Conn, host string, providerId string) (Connection, error) {
 	res := &conn{
-		conn:           c,
-		host:           host,
-		r:              bufio.NewReaderSize(c, 4096),
-		connectionType: connectionType,
-		providerId:     providerId,
+		conn:       c,
+		host:       host,
+		r:          bufio.NewReaderSize(c, 4096),
+		providerId: providerId,
 	}
 
 	_, err := res.r.ReadString('\n')
@@ -55,12 +44,8 @@ func newConn(c net.Conn, host string, providerId int, connectionType ConnectionT
 	return res, nil
 }
 
-func (c *conn) ProviderID() int {
+func (c *conn) ProviderID() string {
 	return c.providerId
-}
-
-func (c *conn) GetConnectionType() ConnectionType {
-	return c.connectionType
 }
 
 func (c *conn) SelectGroup(group string) (number, low, high int, err error) {
@@ -142,10 +127,6 @@ func (c *conn) Quit() error {
 	c.conn.Close()
 	c.close = true
 	return err
-}
-
-func (c *conn) IsClosed() bool {
-	return c.close
 }
 
 // cmd executes an NNTP command:
