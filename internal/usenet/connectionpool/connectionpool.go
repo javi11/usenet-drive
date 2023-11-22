@@ -46,7 +46,10 @@ func NewConnectionPool(options ...Option) (UsenetConnectionPool, error) {
 
 	// close Specify the method to close the connection
 	close := func(value nntpcli.Connection) {
-		value.Quit()
+		err := value.Quit()
+		if err != nil {
+			config.log.Error(fmt.Sprintf("error closing connection: %v", err))
+		}
 	}
 
 	for _, provider := range config.downloadProviders {
