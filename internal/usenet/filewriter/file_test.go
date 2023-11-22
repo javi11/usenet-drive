@@ -317,9 +317,12 @@ func TestReadFrom(t *testing.T) {
 		src := strings.NewReader("Et dignissimos incidunt ipsam molestiae occaecati. Fugit quo autem corporis occaecati sint. lorem it")
 
 		mockConn := nntpcli.NewMockConnection(ctrl)
+		mockResource := connectionpool.NewMockResource(ctrl)
+		mockResource.EXPECT().Value().Return(mockConn).Times(10)
+
 		mockConn.EXPECT().Post(gomock.Any(), segmentSize).Return(nil).Times(10)
-		cp.EXPECT().GetUploadConnection().Return(mockConn, nil).Times(10)
-		cp.EXPECT().Free(mockConn).Return(nil).Times(10)
+		cp.EXPECT().GetUploadConnection(gomock.Any()).Return(mockResource, nil).Times(10)
+		cp.EXPECT().Free(mockResource).Times(10)
 		mockSr.EXPECT().AddTimeData(gomock.Any(), gomock.Any()).Times(10)
 		mockSr.EXPECT().FinishUpload(gomock.Any()).Times(1)
 
@@ -373,10 +376,12 @@ func TestReadFrom(t *testing.T) {
 		src := strings.NewReader("Et dignissimos incidunt ipsam molestiae occaecati. Fugit quo autem corporis occaecati sint. lorem it")
 
 		mockConn := nntpcli.NewMockConnection(ctrl)
+		mockResource := connectionpool.NewMockResource(ctrl)
+		mockResource.EXPECT().Value().Return(mockConn).AnyTimes()
 		// Due to the async nature of the upload, post can be called 1 or 0 times since the context will be canceled when the error ocurred.
 		mockConn.EXPECT().Post(gomock.Any(), segmentSize).Return(nil).AnyTimes()
-		cp.EXPECT().GetUploadConnection().Return(mockConn, nil).Times(1)
-		cp.EXPECT().Free(mockConn).Return(nil).Times(1)
+		cp.EXPECT().GetUploadConnection(gomock.Any()).Return(mockResource, nil).Times(1)
+		cp.EXPECT().Free(mockResource).Times(1)
 		mockSr.EXPECT().AddTimeData(gomock.Any(), gomock.Any()).Times(1)
 		mockSr.EXPECT().FinishUpload(gomock.Any()).Times(1)
 
@@ -420,10 +425,12 @@ func TestReadFrom(t *testing.T) {
 		src := strings.NewReader("Et dignissimos")
 
 		mockConn := nntpcli.NewMockConnection(ctrl)
+		mockResource := connectionpool.NewMockResource(ctrl)
+		mockResource.EXPECT().Value().Return(mockConn).AnyTimes()
 		// Due to the async nature of the upload, post can be called 1 or 0 times since the context will be canceled when the error ocurred.
 		mockConn.EXPECT().Post(gomock.Any(), segmentSize).Return(nil).AnyTimes()
-		cp.EXPECT().GetUploadConnection().Return(mockConn, nil).AnyTimes()
-		cp.EXPECT().Free(mockConn).Return(nil).AnyTimes()
+		cp.EXPECT().GetUploadConnection(gomock.Any()).Return(mockResource, nil).AnyTimes()
+		cp.EXPECT().Free(mockResource).AnyTimes()
 		mockSr.EXPECT().AddTimeData(gomock.Any(), gomock.Any()).AnyTimes()
 		mockSr.EXPECT().FinishUpload(gomock.Any()).Times(1)
 
@@ -466,11 +473,14 @@ func TestReadFrom(t *testing.T) {
 		src := strings.NewReader("Et dignissimos incidunt ipsam molestiae occaecati. Fugit quo autem corporis occaecati sint. lorem it")
 
 		mockConn := nntpcli.NewMockConnection(ctrl)
+		mockResource := connectionpool.NewMockResource(ctrl)
+		mockResource.EXPECT().Value().Return(mockConn).Times(10)
+
 		mockConn.EXPECT().Post(gomock.Any(), segmentSize).Return(nil).Times(10)
-		cp.EXPECT().GetUploadConnection().Return(mockConn, syscall.ETIMEDOUT).Times(1)
-		cp.EXPECT().GetUploadConnection().Return(mockConn, nil).Times(10)
-		cp.EXPECT().Close(mockConn).Return(nil).Times(1)
-		cp.EXPECT().Free(mockConn).Return(nil).Times(10)
+		cp.EXPECT().GetUploadConnection(gomock.Any()).Return(mockResource, syscall.ETIMEDOUT).Times(1)
+		cp.EXPECT().GetUploadConnection(gomock.Any()).Return(mockResource, nil).Times(10)
+		cp.EXPECT().Close(mockResource).Times(1)
+		cp.EXPECT().Free(mockResource).Times(10)
 		fs.EXPECT().WriteFile("test.nzb", gomock.Any(), os.FileMode(0644)).Return(nil)
 		mockSr.EXPECT().AddTimeData(gomock.Any(), gomock.Any()).Times(10)
 		mockSr.EXPECT().FinishUpload(gomock.Any()).Times(1)
@@ -515,8 +525,11 @@ func TestReadFrom(t *testing.T) {
 		src := strings.NewReader("Et dignissimos incidunt ipsam molestiae occaecati. Fugit quo autem corporis occaecati sint. lorem it")
 
 		mockConn := nntpcli.NewMockConnection(ctrl)
-		cp.EXPECT().GetUploadConnection().Return(mockConn, syscall.ETIMEDOUT).Times(maxUploadRetries)
-		cp.EXPECT().Close(mockConn).Return(nil).Times(maxUploadRetries)
+		mockResource := connectionpool.NewMockResource(ctrl)
+		mockResource.EXPECT().Value().Return(mockConn).Times(0)
+
+		cp.EXPECT().GetUploadConnection(gomock.Any()).Return(mockResource, syscall.ETIMEDOUT).Times(maxUploadRetries)
+		cp.EXPECT().Close(mockResource).Times(maxUploadRetries)
 		mockSr.EXPECT().FinishUpload(gomock.Any()).Times(1)
 
 		_, err := openedFile.ReadFrom(src)
@@ -559,8 +572,11 @@ func TestReadFrom(t *testing.T) {
 
 		e := errors.New("no retryable")
 		mockConn := nntpcli.NewMockConnection(ctrl)
-		cp.EXPECT().GetUploadConnection().Return(mockConn, e).Times(1)
-		cp.EXPECT().Close(mockConn).Return(nil).Times(1)
+		mockResource := connectionpool.NewMockResource(ctrl)
+		mockResource.EXPECT().Value().Return(mockConn).Times(0)
+
+		cp.EXPECT().GetUploadConnection(gomock.Any()).Return(mockResource, e).Times(1)
+		cp.EXPECT().Close(mockResource).Times(1)
 		mockSr.EXPECT().FinishUpload(gomock.Any()).Times(1)
 
 		_, err := openedFile.ReadFrom(src)
@@ -602,14 +618,20 @@ func TestReadFrom(t *testing.T) {
 		src := strings.NewReader("Et dignissimos incidunt ipsam molestiae occaecati. Fugit quo autem corporis occaecati sint. lorem it")
 
 		mockConn := nntpcli.NewMockConnection(ctrl)
+		mockResource := connectionpool.NewMockResource(ctrl)
+		mockResource.EXPECT().Value().Return(mockConn).Times(1)
+
 		mockConn2 := nntpcli.NewMockConnection(ctrl)
+		mockResource2 := connectionpool.NewMockResource(ctrl)
+		mockResource2.EXPECT().Value().Return(mockConn2).Times(10)
+
 		mockConn.EXPECT().Post(gomock.Any(), segmentSize).Return(net.ErrClosed).Times(1)
 		mockConn2.EXPECT().Post(gomock.Any(), segmentSize).Return(nil).Times(10)
 		// First connection is closed because of the retryable error
-		cp.EXPECT().GetUploadConnection().Return(mockConn, nil).Times(1)
+		cp.EXPECT().GetUploadConnection(gomock.Any()).Return(mockResource, nil).Times(1)
 		// Second connection works as expected
-		cp.EXPECT().GetUploadConnection().Return(mockConn2, nil).Times(10)
-		cp.EXPECT().Free(mockConn2).Return(nil).Times(10)
+		cp.EXPECT().GetUploadConnection(gomock.Any()).Return(mockResource2, nil).Times(10)
+		cp.EXPECT().Free(mockResource2).Times(10)
 		fs.EXPECT().WriteFile("test.nzb", gomock.Any(), os.FileMode(0644)).Return(nil)
 		mockSr.EXPECT().AddTimeData(gomock.Any(), gomock.Any()).Times(10)
 		mockSr.EXPECT().FinishUpload(gomock.Any()).Times(1)
@@ -654,15 +676,21 @@ func TestReadFrom(t *testing.T) {
 		src := strings.NewReader("Et dignissimos incidunt ipsam molestiae occaecati. Fugit quo autem corporis occaecati sint. lorem it")
 
 		mockConn := nntpcli.NewMockConnection(ctrl)
+		mockResource := connectionpool.NewMockResource(ctrl)
+		mockResource.EXPECT().Value().Return(mockConn).Times(1)
+
 		mockConn2 := nntpcli.NewMockConnection(ctrl)
+		mockResource2 := connectionpool.NewMockResource(ctrl)
+		mockResource2.EXPECT().Value().Return(mockConn2).Times(10)
+
 		mockConn.EXPECT().Post(gomock.Any(), segmentSize).Return(nntpcli.NntpError{Code: nntpcli.SegmentAlreadyExistsErrCode}).Times(1)
 		mockConn2.EXPECT().Post(gomock.Any(), segmentSize).Return(nil).Times(10)
 		// First connection is closed because of the retryable error
-		cp.EXPECT().GetUploadConnection().Return(mockConn, nil).Times(1)
+		cp.EXPECT().GetUploadConnection(gomock.Any()).Return(mockResource, nil).Times(1)
 		// Second connection works as expected
-		cp.EXPECT().GetUploadConnection().Return(mockConn2, nil).Times(10)
-		cp.EXPECT().Close(mockConn).Return(nil).Times(1)
-		cp.EXPECT().Free(mockConn2).Return(nil).Times(10)
+		cp.EXPECT().GetUploadConnection(gomock.Any()).Return(mockResource2, nil).Times(10)
+		cp.EXPECT().Close(mockResource).Times(1)
+		cp.EXPECT().Free(mockResource2).Times(10)
 		fs.EXPECT().WriteFile("test.nzb", gomock.Any(), os.FileMode(0644)).Return(nil)
 		mockSr.EXPECT().AddTimeData(gomock.Any(), gomock.Any()).Times(10)
 		mockSr.EXPECT().FinishUpload(gomock.Any()).Times(1)
@@ -707,9 +735,12 @@ func TestReadFrom(t *testing.T) {
 		src := strings.NewReader("Et dignissimos incidunt ipsam molestiae occaecati. Fugit quo autem corporis occaecati sint. lorem it")
 
 		mockConn := nntpcli.NewMockConnection(ctrl)
+		mockResource := connectionpool.NewMockResource(ctrl)
+		mockResource.EXPECT().Value().Return(mockConn).Times(10)
+
 		mockConn.EXPECT().Post(gomock.Any(), segmentSize).Return(nil).Times(10)
-		cp.EXPECT().GetUploadConnection().Return(mockConn, nil).Times(10)
-		cp.EXPECT().Free(mockConn).Return(nil).Times(10)
+		cp.EXPECT().GetUploadConnection(gomock.Any()).Return(mockResource, nil).Times(10)
+		cp.EXPECT().Free(mockResource).Times(10)
 
 		fs.EXPECT().WriteFile("test.nzb", gomock.Any(), os.FileMode(0644)).Return(errors.New("error")).Times(1)
 		mockSr.EXPECT().AddTimeData(gomock.Any(), gomock.Any()).Times(10)
@@ -756,9 +787,12 @@ func TestReadFrom(t *testing.T) {
 		src := strings.NewReader("Et dignissimos incidunt ipsam molestiae occaecati. Fugit quo autem corporis occaecati sint. lorem it")
 
 		mockConn := nntpcli.NewMockConnection(ctrl)
+		mockResource := connectionpool.NewMockResource(ctrl)
+		mockResource.EXPECT().Value().Return(mockConn).AnyTimes()
+
 		mockConn.EXPECT().Post(gomock.Any(), segmentSize).Return(nil).AnyTimes()
-		cp.EXPECT().GetUploadConnection().Return(mockConn, nil).AnyTimes()
-		cp.EXPECT().Free(mockConn).Return(nil).AnyTimes()
+		cp.EXPECT().GetUploadConnection(gomock.Any()).Return(mockResource, nil).AnyTimes()
+		cp.EXPECT().Free(mockResource).AnyTimes()
 		mockSr.EXPECT().AddTimeData(gomock.Any(), gomock.Any()).AnyTimes()
 		mockSr.EXPECT().FinishUpload(gomock.Any()).Times(1)
 		wg := &sync.WaitGroup{}
