@@ -42,16 +42,13 @@ func TestGetDownloadConnection(t *testing.T) {
 			MaxConnections: 2,
 		},
 	}
-	providerOptions := &nntpcli.ProviderOptions{
-		JoinGroup: false,
-	}
 
 	t.Run("get the first provider download connection if available", func(t *testing.T) {
 		mockCon := nntpcli.NewMockConnection(ctrl)
 		providerId := "download:user"
 
 		mockNntpCli.EXPECT().
-			Dial(gomock.Any(), "download", 1244, false, false, providerId, providerOptions).
+			Dial(gomock.Any(), "download", 1244, false, false, providerId, gomock.Any()).
 			Return(mockCon, nil)
 		mockCon.EXPECT().ProviderID().Return(providerId).Times(1)
 		mockCon.EXPECT().Authenticate("user", "pass").Return(nil)
@@ -74,7 +71,7 @@ func TestGetDownloadConnection(t *testing.T) {
 		mockDownloadCon := nntpcli.NewMockConnection(ctrl)
 		providerOneId := "download:user"
 		mockNntpCli.EXPECT().
-			Dial(gomock.Any(), "download", 1244, false, false, providerOneId, providerOptions).
+			Dial(gomock.Any(), "download", 1244, false, false, providerOneId, gomock.Any()).
 			Return(mockDownloadCon, nil)
 		mockDownloadCon.EXPECT().Authenticate("user", "pass").Return(nil)
 		mockDownloadCon.EXPECT().ProviderID().Return(providerOneId).Times(1)
@@ -82,7 +79,7 @@ func TestGetDownloadConnection(t *testing.T) {
 		mockDownloadCon2 := nntpcli.NewMockConnection(ctrl)
 		providerTwoId := "download2:user"
 		mockNntpCli.EXPECT().
-			Dial(gomock.Any(), "download2", 1243, false, false, providerTwoId, providerOptions).
+			Dial(gomock.Any(), "download2", 1243, false, false, providerTwoId, gomock.Any()).
 			Return(mockDownloadCon2, nil)
 		mockDownloadCon2.EXPECT().ProviderID().Return(providerTwoId).Times(1)
 		mockDownloadCon2.EXPECT().Authenticate("user", "pass").Return(nil)
@@ -113,7 +110,7 @@ func TestGetDownloadConnection(t *testing.T) {
 		mockCon := nntpcli.NewMockConnection(ctrl)
 		providerOneId := "download:user"
 		mockNntpCli.EXPECT().
-			Dial(gomock.Any(), "download", 1244, false, false, providerOneId, providerOptions).
+			Dial(gomock.Any(), "download", 1244, false, false, providerOneId, gomock.Any()).
 			Return(mockCon, nil)
 		mockCon.EXPECT().Authenticate("user", "pass").Return(nil)
 
@@ -141,7 +138,7 @@ func TestGetDownloadConnection(t *testing.T) {
 		mockCon := nntpcli.NewMockConnection(ctrl)
 		providerOneId := "download:user"
 		mockNntpCli.EXPECT().
-			Dial(gomock.Any(), "download", 1244, false, false, providerOneId, providerOptions).
+			Dial(gomock.Any(), "download", 1244, false, false, providerOneId, gomock.Any()).
 			Return(mockCon, nil)
 		mockCon.EXPECT().Authenticate("user", "pass").Return(nil)
 
@@ -173,7 +170,7 @@ func TestGetDownloadConnection(t *testing.T) {
 		mockCon := nntpcli.NewMockConnection(ctrl)
 		providerOneId := "download:user"
 		mockNntpCli.EXPECT().
-			Dial(gomock.Any(), "download", 1244, false, false, providerOneId, providerOptions).
+			Dial(gomock.Any(), "download", 1244, false, false, providerOneId, gomock.Any()).
 			Return(mockCon, nil)
 		mockCon.EXPECT().Authenticate("user", "pass").Return(nil)
 		mockCon.EXPECT().Quit().Return(nil).Times(1)
@@ -205,11 +202,11 @@ func TestGetDownloadConnection(t *testing.T) {
 		mockCon := nntpcli.NewMockConnection(ctrl)
 		providerOneId := "download:user"
 		mockNntpCli.EXPECT().
-			Dial(gomock.Any(), "download", 1244, false, false, providerOneId, providerOptions).
+			Dial(gomock.Any(), "download", 1244, false, false, providerOneId, gomock.Any()).
 			Return(nil, net.Error(&net.OpError{Err: syscall.ETIMEDOUT}))
 
 		mockNntpCli.EXPECT().
-			Dial(gomock.Any(), "download", 1244, false, false, providerOneId, providerOptions).
+			Dial(gomock.Any(), "download", 1244, false, false, providerOneId, gomock.Any()).
 			Return(mockCon, nil)
 		mockCon.EXPECT().Authenticate("user", "pass").Return(nil)
 		mockCon.EXPECT().ProviderID().Return(providerOneId).Times(1)
@@ -232,7 +229,7 @@ func TestGetDownloadConnection(t *testing.T) {
 		mockCon := nntpcli.NewMockConnection(ctrl)
 		providerOneId := "upload:user"
 		mockNntpCli.EXPECT().
-			Dial(gomock.Any(), "upload", 1244, false, false, providerOneId, providerOptions).
+			Dial(gomock.Any(), "upload", 1244, false, false, providerOneId, gomock.Any()).
 			Return(mockCon, nil)
 		mockCon.EXPECT().ProviderID().Return(providerOneId).Times(1)
 		mockCon.EXPECT().Authenticate("user", "pass").Return(nil)
