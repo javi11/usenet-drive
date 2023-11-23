@@ -103,6 +103,8 @@ func TestBuffer_Read(t *testing.T) {
 
 		// Test read one segment
 		mockConn := nntpcli.NewMockConnection(ctrl)
+		mockConn.EXPECT().CurrentJoinedGroup().Return("").Times(1)
+		mockConn.EXPECT().ProviderOptions().Return(&nntpcli.ProviderOptions{JoinGroup: true}).Times(1)
 		mockResource := connectionpool.NewMockResource(ctrl)
 		mockResource.EXPECT().Value().Return(mockConn).Times(1)
 
@@ -146,6 +148,8 @@ func TestBuffer_Read(t *testing.T) {
 
 		// Test read one segment
 		mockConn := nntpcli.NewMockConnection(ctrl)
+		mockConn.EXPECT().CurrentJoinedGroup().Return("").Times(3)
+		mockConn.EXPECT().ProviderOptions().Return(&nntpcli.ProviderOptions{JoinGroup: true}).Times(3)
 		mockResource := connectionpool.NewMockResource(ctrl)
 		mockResource.EXPECT().Value().Return(mockConn).Times(3)
 
@@ -226,6 +230,8 @@ func TestBuffer_Read(t *testing.T) {
 		}
 
 		mockConn := nntpcli.NewMockConnection(ctrl)
+		mockConn.EXPECT().CurrentJoinedGroup().Return("").Times(2)
+		mockConn.EXPECT().ProviderOptions().Return(&nntpcli.ProviderOptions{JoinGroup: true}).Times(2)
 		mockResource := connectionpool.NewMockResource(ctrl)
 		mockResource.EXPECT().Value().Return(mockConn).Times(2)
 
@@ -335,6 +341,8 @@ func TestBuffer_ReadAt(t *testing.T) {
 		}
 
 		mockConn := nntpcli.NewMockConnection(ctrl)
+		mockConn.EXPECT().CurrentJoinedGroup().Return("").Times(1)
+		mockConn.EXPECT().ProviderOptions().Return(&nntpcli.ProviderOptions{JoinGroup: true}).Times(1)
 		mockResource := connectionpool.NewMockResource(ctrl)
 		mockResource.EXPECT().Value().Return(mockConn).Times(1)
 
@@ -378,6 +386,8 @@ func TestBuffer_ReadAt(t *testing.T) {
 
 		// Test read one segment
 		mockConn := nntpcli.NewMockConnection(ctrl)
+		mockConn.EXPECT().CurrentJoinedGroup().Return("").Times(2)
+		mockConn.EXPECT().ProviderOptions().Return(&nntpcli.ProviderOptions{JoinGroup: true}).Times(2)
 		mockResource := connectionpool.NewMockResource(ctrl)
 		mockResource.EXPECT().Value().Return(mockConn).Times(2)
 
@@ -448,6 +458,8 @@ func TestBuffer_ReadAt(t *testing.T) {
 
 		// Test read two segments
 		mockConn := nntpcli.NewMockConnection(ctrl)
+		mockConn.EXPECT().CurrentJoinedGroup().Return("").Times(2)
+		mockConn.EXPECT().ProviderOptions().Return(&nntpcli.ProviderOptions{JoinGroup: true}).Times(2)
 		mockResource := connectionpool.NewMockResource(ctrl)
 		mockResource.EXPECT().Value().Return(mockConn).Times(2)
 
@@ -760,6 +772,8 @@ func TestBuffer_downloadSegment(t *testing.T) {
 		}
 
 		mockConn := nntpcli.NewMockConnection(ctrl)
+		mockConn.EXPECT().CurrentJoinedGroup().Return("").Times(1)
+		mockConn.EXPECT().ProviderOptions().Return(&nntpcli.ProviderOptions{JoinGroup: true}).Times(1)
 		mockResource := connectionpool.NewMockResource(ctrl)
 		mockResource.EXPECT().Value().Return(mockConn).Times(1)
 
@@ -868,6 +882,8 @@ func TestBuffer_downloadSegment(t *testing.T) {
 			log: slog.Default(),
 		}
 		mockConn := nntpcli.NewMockConnection(ctrl)
+		mockConn.EXPECT().CurrentJoinedGroup().Return("").Times(1)
+		mockConn.EXPECT().ProviderOptions().Return(&nntpcli.ProviderOptions{JoinGroup: true}).Times(1)
 		mockResource := connectionpool.NewMockResource(ctrl)
 		mockResource.EXPECT().Value().Return(mockConn).Times(1)
 
@@ -905,6 +921,8 @@ func TestBuffer_downloadSegment(t *testing.T) {
 			log: slog.Default(),
 		}
 		mockConn := nntpcli.NewMockConnection(ctrl)
+		mockConn.EXPECT().CurrentJoinedGroup().Return("").Times(1)
+		mockConn.EXPECT().ProviderOptions().Return(&nntpcli.ProviderOptions{JoinGroup: true}).Times(1)
 		mockResource := connectionpool.NewMockResource(ctrl)
 		mockResource.EXPECT().Value().Return(mockConn).Times(1)
 
@@ -940,10 +958,14 @@ func TestBuffer_downloadSegment(t *testing.T) {
 			log: slog.Default(),
 		}
 		mockConn := nntpcli.NewMockConnection(ctrl)
+		mockConn.EXPECT().CurrentJoinedGroup().Return("").Times(1)
+		mockConn.EXPECT().ProviderOptions().Return(&nntpcli.ProviderOptions{JoinGroup: true}).Times(1)
 		mockResource := connectionpool.NewMockResource(ctrl)
 		mockResource.EXPECT().Value().Return(mockConn).Times(1)
 
 		mockConn2 := nntpcli.NewMockConnection(ctrl)
+		mockConn2.EXPECT().CurrentJoinedGroup().Return("").Times(1)
+		mockConn2.EXPECT().ProviderOptions().Return(&nntpcli.ProviderOptions{JoinGroup: true}).Times(1)
 		mockResource2 := connectionpool.NewMockResource(ctrl)
 		mockResource2.EXPECT().Value().Return(mockConn2).Times(1)
 
@@ -994,10 +1016,14 @@ func TestBuffer_downloadSegment(t *testing.T) {
 			log: slog.Default(),
 		}
 		mockConn := nntpcli.NewMockConnection(ctrl)
+		mockConn.EXPECT().CurrentJoinedGroup().Return("").Times(1)
+		mockConn.EXPECT().ProviderOptions().Return(&nntpcli.ProviderOptions{JoinGroup: true}).Times(1)
 		mockResource := connectionpool.NewMockResource(ctrl)
 		mockResource.EXPECT().Value().Return(mockConn).Times(1)
 
 		mockConn2 := nntpcli.NewMockConnection(ctrl)
+		mockConn2.EXPECT().CurrentJoinedGroup().Return("").Times(1)
+		mockConn2.EXPECT().ProviderOptions().Return(&nntpcli.ProviderOptions{JoinGroup: true}).Times(1)
 		mockResource2 := connectionpool.NewMockResource(ctrl)
 		mockResource2.EXPECT().Value().Return(mockConn2).Times(1)
 

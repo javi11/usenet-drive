@@ -268,9 +268,11 @@ func (v *buffer) downloadSegment(ctx context.Context, segment *nzb.NzbSegment, g
 			conn = c
 			nntpConn := conn.Value()
 
-			err = usenet.FindGroup(nntpConn, groups)
-			if err != nil {
-				return err
+			if nntpConn.ProviderOptions().JoinGroup {
+				err = usenet.JoinGroup(nntpConn, groups)
+				if err != nil {
+					return err
+				}
 			}
 
 			body, err := nntpConn.Body(fmt.Sprintf("<%v>", segment.Id))

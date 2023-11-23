@@ -139,6 +139,7 @@ func TestConn_cmd(t *testing.T) {
 		})
 	}
 }
+
 func TestConn_Post(t *testing.T) {
 	tests := []struct {
 		name      string

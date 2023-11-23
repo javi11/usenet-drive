@@ -54,8 +54,12 @@ func NewConnectionPool(options ...Option) (UsenetConnectionPool, error) {
 
 	for _, provider := range config.downloadProviders {
 		p := provider
+		providerOptions := &nntpcli.ProviderOptions{
+			JoinGroup: true,
+		}
+
 		factory := func(ctx context.Context) (nntpcli.Connection, error) {
-			return dialNNTP(ctx, config.cli, config.fakeConnections, p, config.log)
+			return dialNNTP(ctx, config.cli, config.fakeConnections, p, providerOptions, config.log)
 		}
 
 		dp, err := puddle.NewPool(
@@ -74,8 +78,12 @@ func NewConnectionPool(options ...Option) (UsenetConnectionPool, error) {
 
 	for _, provider := range config.uploadProviders {
 		p := provider
+		providerOptions := &nntpcli.ProviderOptions{
+			JoinGroup: true,
+		}
+
 		factory := func(ctx context.Context) (nntpcli.Connection, error) {
-			return dialNNTP(ctx, config.cli, config.fakeConnections, p, config.log)
+			return dialNNTP(ctx, config.cli, config.fakeConnections, p, providerOptions, config.log)
 		}
 
 		up, err := puddle.NewPool(
@@ -224,6 +232,7 @@ func dialNNTP(
 	cli nntpcli.Client,
 	fakeConnections bool,
 	provider config.UsenetProvider,
+	providerOptions *nntpcli.ProviderOptions,
 	log *slog.Logger,
 ) (nntpcli.Connection, error) {
 	var err error
@@ -233,7 +242,7 @@ func dialNNTP(
 	for {
 		log.Debug(fmt.Sprintf("connecting to %s:%v", provider.Host, provider.Port))
 		if fakeConnections {
-			return nntpcli.NewFakeConnection(provider.Host, providerId), nil
+			return nntpcli.NewFakeConnection(provider.Host, providerId, providerOptions), nil
 		}
 
 		c, err = cli.Dial(
@@ -243,6 +252,7 @@ func dialNNTP(
 			provider.TLS,
 			provider.InsecureSSL,
 			providerId,
+			providerOptions,
 		)
 		if err != nil {
 			// if it's a timeout, ignore and try again

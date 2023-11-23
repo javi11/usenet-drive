@@ -52,6 +52,7 @@ type UsenetProvider struct {
 	TLS            bool   `yaml:"tls"`
 	MaxConnections int    `yaml:"max_connections"`
 	InsecureSSL    bool   `yaml:"insecure_ssl" default:"false"`
+	JoinGroup      bool   `yaml:"join_group" default:"false"`
 }
 
 func FromFile(path string) (*Config, error) {

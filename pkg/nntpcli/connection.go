@@ -12,6 +12,8 @@ import (
 
 type Connection interface {
 	ProviderID() string
+	ProviderOptions() *ProviderOptions
+	CurrentJoinedGroup() string
 	Authenticate(username, password string) error
 	Body(id string) (io.Reader, error)
 	SelectGroup(group string) (number int, low int, high int, err error)
@@ -19,21 +21,28 @@ type Connection interface {
 	Quit() error
 }
 
-type conn struct {
-	conn       io.WriteCloser
-	r          *bufio.Reader
-	close      bool
-	br         *bodyReader
-	host       string
-	providerId string
+type ProviderOptions struct {
+	JoinGroup bool
 }
 
-func newConn(c net.Conn, host string, providerId string) (Connection, error) {
+type conn struct {
+	conn            io.WriteCloser
+	r               *bufio.Reader
+	close           bool
+	br              *bodyReader
+	host            string
+	providerId      string
+	providerOptions *ProviderOptions
+	currentGroup    string
+}
+
+func newConn(c net.Conn, host string, providerId string, providerOptions *ProviderOptions) (Connection, error) {
 	res := &conn{
-		conn:       c,
-		host:       host,
-		r:          bufio.NewReaderSize(c, 4096),
-		providerId: providerId,
+		conn:            c,
+		host:            host,
+		r:               bufio.NewReaderSize(c, 4096),
+		providerId:      providerId,
+		providerOptions: providerOptions,
 	}
 
 	_, err := res.r.ReadString('\n')
@@ -44,8 +53,16 @@ func newConn(c net.Conn, host string, providerId string) (Connection, error) {
 	return res, nil
 }
 
+func (c *conn) CurrentJoinedGroup() string {
+	return c.currentGroup
+}
+
 func (c *conn) ProviderID() string {
 	return c.providerId
+}
+
+func (c *conn) ProviderOptions() *ProviderOptions {
+	return c.providerOptions
 }
 
 func (c *conn) SelectGroup(group string) (number, low, high int, err error) {
@@ -69,6 +86,8 @@ func (c *conn) SelectGroup(group string) (number, low, high int, err error) {
 		}
 		n[i] = c
 	}
+	c.currentGroup = group
+
 	number, low, high = n[0], n[1], n[2]
 	return
 }

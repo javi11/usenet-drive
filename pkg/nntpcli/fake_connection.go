@@ -6,13 +6,24 @@ import (
 )
 
 type fakeConnection struct {
-	providerId string
+	providerId      string
+	providerOptions *ProviderOptions
+	currentGroup    string
 }
 
-func NewFakeConnection(host string, providerId string) Connection {
+func NewFakeConnection(host string, providerId string, providerOptions *ProviderOptions) Connection {
 	return &fakeConnection{
-		providerId: providerId,
+		providerId:      providerId,
+		providerOptions: providerOptions,
 	}
+}
+
+func (c *fakeConnection) CurrentJoinedGroup() string {
+	return c.currentGroup
+}
+
+func (c *fakeConnection) ProviderOptions() *ProviderOptions {
+	return c.providerOptions
 }
 
 func (c *fakeConnection) ProviderID() string {
@@ -28,6 +39,7 @@ func (c *fakeConnection) Body(id string) (io.Reader, error) {
 }
 
 func (c *fakeConnection) SelectGroup(group string) (number int, low int, high int, err error) {
+	c.currentGroup = group
 	return 0, 0, 0, nil
 }
 

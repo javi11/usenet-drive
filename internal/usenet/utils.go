@@ -7,9 +7,13 @@ import (
 	"github.com/javi11/usenet-drive/pkg/nntpcli"
 )
 
-func FindGroup(c nntpcli.Connection, groups []string) error {
+func JoinGroup(c nntpcli.Connection, groups []string) error {
 	var err error
 	for _, g := range groups {
+		if g == c.CurrentJoinedGroup() {
+			return nil
+		}
+
 		_, _, _, err = c.SelectGroup(g)
 		if err == nil {
 			return nil

@@ -63,6 +63,20 @@ func (mr *MockConnectionMockRecorder) Body(id interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Body", reflect.TypeOf((*MockConnection)(nil).Body), id)
 }
 
+// CurrentJoinedGroup mocks base method.
+func (m *MockConnection) CurrentJoinedGroup() string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CurrentJoinedGroup")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// CurrentJoinedGroup indicates an expected call of CurrentJoinedGroup.
+func (mr *MockConnectionMockRecorder) CurrentJoinedGroup() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CurrentJoinedGroup", reflect.TypeOf((*MockConnection)(nil).CurrentJoinedGroup))
+}
+
 // Post mocks base method.
 func (m *MockConnection) Post(p []byte, chunkSize int64) error {
 	m.ctrl.T.Helper()
@@ -89,6 +103,20 @@ func (m *MockConnection) ProviderID() string {
 func (mr *MockConnectionMockRecorder) ProviderID() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ProviderID", reflect.TypeOf((*MockConnection)(nil).ProviderID))
+}
+
+// ProviderOptions mocks base method.
+func (m *MockConnection) ProviderOptions() *ProviderOptions {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ProviderOptions")
+	ret0, _ := ret[0].(*ProviderOptions)
+	return ret0
+}
+
+// ProviderOptions indicates an expected call of ProviderOptions.
+func (mr *MockConnectionMockRecorder) ProviderOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ProviderOptions", reflect.TypeOf((*MockConnection)(nil).ProviderOptions))
 }
 
 // Quit mocks base method.
