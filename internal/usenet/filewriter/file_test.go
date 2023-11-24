@@ -632,6 +632,8 @@ func TestReadFrom(t *testing.T) {
 		// Second connection works as expected
 		cp.EXPECT().GetUploadConnection(gomock.Any()).Return(mockResource2, nil).Times(10)
 		cp.EXPECT().Free(mockResource2).Times(10)
+		cp.EXPECT().Close(mockResource).Times(1)
+
 		fs.EXPECT().WriteFile("test.nzb", gomock.Any(), os.FileMode(0644)).Return(nil)
 		mockSr.EXPECT().AddTimeData(gomock.Any(), gomock.Any()).Times(10)
 		mockSr.EXPECT().FinishUpload(gomock.Any()).Times(1)

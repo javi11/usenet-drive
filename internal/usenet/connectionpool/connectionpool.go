@@ -48,7 +48,7 @@ func NewConnectionPool(options ...Option) (UsenetConnectionPool, error) {
 	close := func(value nntpcli.Connection) {
 		err := value.Quit()
 		if err != nil {
-			config.log.Error(fmt.Sprintf("error closing connection: %v", err))
+			config.log.Debug(fmt.Sprintf("error closing connection: %v", err))
 		}
 	}
 

@@ -127,7 +127,8 @@ func (f *file) ReadFrom(src io.Reader) (int64, error) {
 	for i := 0; ; i++ {
 		select {
 		case <-ctx.Done():
-			if err := wg.Wait().ErrorOrNil(); !errors.Is(err, context.Canceled) {
+			err := wg.Wait().ErrorOrNil()
+			if err != nil && !errors.Is(err, context.Canceled) {
 				f.log.Error("Error closing upload threads.", "error", err)
 			}
 
@@ -173,7 +174,7 @@ func (f *file) ReadFrom(src io.Reader) (int64, error) {
 							conn = nil
 						}
 
-						return err
+						return fmt.Errorf("error getting nntp connection: %w", err)
 					}
 
 					wg.Go(func() error {
@@ -213,7 +214,9 @@ func (f *file) ReadFrom(src io.Reader) (int64, error) {
 				})
 			}
 			if err != nil {
+				// Upload was finished
 				if err != io.EOF {
+					// Upload finished but the file was not fully written
 					f.log.Error("Error reading the file", "error", err)
 					cancel(err)
 
@@ -356,7 +359,10 @@ func (f *file) addSegment(ctx context.Context, conn connectionpool.Resource, seg
 	err := retry.Do(func() error {
 		a := f.buildArticleData(int64(segmentIndex))
 		if a == nil {
-			return ErrRetryable
+			f.cp.Free(conn)
+			conn = nil
+
+			return fmt.Errorf("error building article data %w", ErrRetryable)
 		}
 
 		articleBytes, err := ArticleToBytes(b, a)
@@ -365,7 +371,7 @@ func (f *file) addSegment(ctx context.Context, conn connectionpool.Resource, seg
 			f.cp.Free(conn)
 			conn = nil
 
-			return err
+			return fmt.Errorf("error building article %w", ErrRetryable)
 		}
 
 		segments[segmentIndex] = &nzb.NzbSegment{
@@ -377,9 +383,19 @@ func (f *file) addSegment(ctx context.Context, conn connectionpool.Resource, seg
 		// connection can be null in case OnRetry fails to get the connection
 		if conn == nil {
 			c, err := f.cp.GetUploadConnection(ctx)
-			if e, ok := err.(net.Error); ok {
-				// Retry
-				return errors.Join(err, e)
+			if err != nil {
+				if conn != nil {
+					f.cp.Close(conn)
+					conn = nil
+				}
+
+				if errors.Is(err, context.Canceled) {
+					return err
+				}
+
+				f.log.ErrorContext(ctx, "Error getting nntp connection:", "error", err, "segment", segmentIndex)
+
+				return fmt.Errorf("error getting nntp connection: %w", err)
 			}
 			conn = c
 		}
@@ -392,9 +408,10 @@ func (f *file) addSegment(ctx context.Context, conn connectionpool.Resource, seg
 			return nil
 		}
 
-		err = conn.Value().Post(articleBytes, f.metadata.ChunkSize)
+		nntpConn := conn.Value()
+		err = nntpConn.Post(articleBytes, f.metadata.ChunkSize)
 		if err != nil {
-			return err
+			return fmt.Errorf("error posting article: %w", err)
 		}
 
 		f.cp.Free(conn)
@@ -410,14 +427,19 @@ func (f *file) addSegment(ctx context.Context, conn connectionpool.Resource, seg
 			l := log.With("retry", n)
 			l.InfoContext(ctx, "Retrying upload", "error", err, "retry", n)
 
-			if conn != nil && !errors.Is(err, net.ErrClosed) {
+			if conn != nil {
 				f.cp.Close(conn)
 				conn = nil
 			}
 
 			c, e := f.cp.GetUploadConnection(ctx)
 			if e != nil {
-				l.InfoContext(ctx, "Error getting connection from pool.", "error", e)
+				if conn != nil {
+					f.cp.Close(conn)
+					conn = nil
+				}
+
+				f.log.InfoContext(ctx, "Error getting nntp connection:", "error", err, "segment", segmentIndex)
 			}
 
 			conn = c
@@ -436,7 +458,7 @@ func (f *file) addSegment(ctx context.Context, conn connectionpool.Resource, seg
 		conn = nil
 
 		log.Error("Error uploading segment.", "error", errors.Unwrap(err))
-		return err
+		return fmt.Errorf("error uploading segment, all retries exhausted. %w", err)
 	}
 
 	return nil

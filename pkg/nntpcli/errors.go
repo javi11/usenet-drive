@@ -40,17 +40,20 @@ func IsRetryableError(err error) bool {
 		return true
 	}
 
-	if _, ok := err.(net.Error); ok {
+	var netErr net.Error
+	if ok := errors.As(err, &netErr); ok {
 		return true
 	}
 
-	if _, ok := err.(ProtocolError); ok {
+	var protocolErr ProtocolError
+	if ok := errors.As(err, &protocolErr); ok {
 		return true
 	}
 
-	if e, ok := err.(NntpError); ok {
+	var nntpErr NntpError
+	if ok := errors.As(err, &nntpErr); ok {
 		for _, r := range retirableErrors {
-			if e.Code == r {
+			if nntpErr.Code == r {
 				return true
 			}
 		}

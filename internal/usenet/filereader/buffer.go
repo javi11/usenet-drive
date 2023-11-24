@@ -10,7 +10,6 @@ import (
 	"log/slog"
 	"net"
 	"sync"
-	"syscall"
 
 	"github.com/avast/retry-go"
 	"github.com/javi11/usenet-drive/internal/usenet"
@@ -174,7 +173,7 @@ func (v *buffer) Read(p []byte) (int, error) {
 		if err != nil {
 			// If nzb is corrupted stop reading
 			if errors.Is(err, ErrCorruptedNzb) {
-				return n, err
+				return n, fmt.Errorf("error downloading segment: %w", err)
 			}
 			break
 		}
@@ -228,7 +227,7 @@ func (v *buffer) ReadAt(p []byte, off int64) (int, error) {
 		if err != nil {
 			// If nzb is corrupted stop reading
 			if errors.Is(err, ErrCorruptedNzb) {
-				return n, err
+				return n, fmt.Errorf("error downloading segment: %w", err)
 			}
 			break
 		}
@@ -262,8 +261,7 @@ func (v *buffer) downloadSegment(ctx context.Context, segment *nzb.NzbSegment, g
 
 				v.log.ErrorContext(ctx, "Error getting nntp connection:", "error", err, "segment", segment.Number)
 
-				// Retry
-				return syscall.ETIMEDOUT
+				return fmt.Errorf("error getting nntp connection: %w", err)
 			}
 			conn = c
 			nntpConn := conn.Value()
@@ -271,18 +269,18 @@ func (v *buffer) downloadSegment(ctx context.Context, segment *nzb.NzbSegment, g
 			if nntpConn.ProviderOptions().JoinGroup {
 				err = usenet.JoinGroup(nntpConn, groups)
 				if err != nil {
-					return err
+					return fmt.Errorf("error joining group: %w", err)
 				}
 			}
 
 			body, err := nntpConn.Body(fmt.Sprintf("<%v>", segment.Id))
 			if err != nil {
-				return err
+				return fmt.Errorf("error getting body: %w", err)
 			}
 
 			yread, err := yenc.Decode(body)
 			if err != nil {
-				return err
+				return retry.Unrecoverable(fmt.Errorf("error decoding yenc: %w", err))
 			}
 
 			chunk = yread.Body
@@ -320,7 +318,9 @@ func (v *buffer) downloadSegment(ctx context.Context, segment *nzb.NzbSegment, g
 				err = errors.Join(e.WrappedErrors()...)
 			}
 
-			if errors.Is(err, context.Canceled) {
+			if errors.Is(err, context.Canceled) ||
+				errors.Is(err, io.EOF) ||
+				errors.Is(err, io.ErrUnexpectedEOF) {
 				return nil, err
 			}
 

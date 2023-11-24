@@ -853,7 +853,7 @@ func TestBuffer_downloadSegment(t *testing.T) {
 			log: slog.Default(),
 		}
 		cache.EXPECT().Get("1").Return(nil, errors.New("not found")).Times(1)
-		mockPool.EXPECT().GetDownloadConnection(gomock.Any()).Return(nil, errors.New("error")).Times(5)
+		mockPool.EXPECT().GetDownloadConnection(gomock.Any()).Return(nil, errors.New("error")).Times(1)
 
 		_, err := buf.downloadSegment(context.Background(), segment, groups)
 		assert.Error(t, err)
