@@ -41,8 +41,14 @@ func NewConnectionPool(options ...Option) (UsenetConnectionPool, error) {
 		option(config)
 	}
 
-	downloadPools := make([]*puddle.Pool[nntpcli.Connection], 0)
-	uploadPools := make([]*puddle.Pool[nntpcli.Connection], 0)
+	downloadPools := make(
+		[]*puddle.Pool[nntpcli.Connection],
+		len(config.downloadProviders),
+	)
+	uploadPools := make(
+		[]*puddle.Pool[nntpcli.Connection],
+		len(config.uploadProviders),
+	)
 
 	// close Specify the method to close the connection
 	close := func(value nntpcli.Connection) {
@@ -52,10 +58,10 @@ func NewConnectionPool(options ...Option) (UsenetConnectionPool, error) {
 		}
 	}
 
-	for _, provider := range config.downloadProviders {
+	for i, provider := range config.downloadProviders {
 		p := provider
 		providerOptions := &nntpcli.ProviderOptions{
-			JoinGroup: true,
+			JoinGroup: p.JoinGroup,
 		}
 
 		factory := func(ctx context.Context) (nntpcli.Connection, error) {
@@ -73,13 +79,13 @@ func NewConnectionPool(options ...Option) (UsenetConnectionPool, error) {
 			return nil, err
 		}
 
-		downloadPools = append(downloadPools, dp)
+		downloadPools[i] = dp
 	}
 
-	for _, provider := range config.uploadProviders {
+	for i, provider := range config.uploadProviders {
 		p := provider
 		providerOptions := &nntpcli.ProviderOptions{
-			JoinGroup: true,
+			JoinGroup: p.JoinGroup,
 		}
 
 		factory := func(ctx context.Context) (nntpcli.Connection, error) {
@@ -97,7 +103,7 @@ func NewConnectionPool(options ...Option) (UsenetConnectionPool, error) {
 			return nil, err
 		}
 
-		uploadPools = append(uploadPools, up)
+		uploadPools[i] = up
 	}
 
 	return &connectionPool{

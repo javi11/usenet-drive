@@ -684,7 +684,9 @@ func TestBuffer_Close(t *testing.T) {
 				maxDownloadRetries:       5,
 				maxAheadDownloadSegments: 0,
 			},
-			log: slog.Default(),
+			log:         slog.Default(),
+			closed:      make(chan bool),
+			nextSegment: make(chan *nzb.NzbSegment),
 		}
 
 		err := buf.Close()
@@ -715,9 +717,10 @@ func TestBuffer_Close(t *testing.T) {
 				maxDownloadRetries:       5,
 				maxAheadDownloadSegments: 1,
 			},
-			log:    slog.Default(),
-			closed: closed,
-			wg:     &sync.WaitGroup{},
+			log:         slog.Default(),
+			closed:      closed,
+			nextSegment: make(chan *nzb.NzbSegment),
+			wg:          &sync.WaitGroup{},
 		}
 
 		wg := &sync.WaitGroup{}

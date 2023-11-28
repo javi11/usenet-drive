@@ -83,7 +83,7 @@ func NewBuffer(
 
 	if dc.maxAheadDownloadSegments > 0 {
 		buffer.wg.Add(1)
-		go buffer.downloadBoost(ctx, buffer.nextSegment)
+		go buffer.downloadBoost(ctx)
 	}
 
 	return buffer, nil
@@ -127,6 +127,8 @@ func (v *buffer) Close() error {
 		v.wg.Wait()
 	}
 
+	close(v.closed)
+	close(v.nextSegment)
 	v.nzbReader.Close()
 
 	return nil
@@ -341,22 +343,25 @@ func (v *buffer) downloadSegment(ctx context.Context, segment *nzb.NzbSegment, g
 	return chunk, nil
 }
 
-func (v *buffer) downloadBoost(ctx context.Context, nextSegment chan *nzb.NzbSegment) {
+func (v *buffer) downloadBoost(ctx context.Context) {
 	defer v.wg.Done()
 
 	var mx sync.RWMutex
 	currentDownloading := make(map[int64]bool)
 
-	ctx, cancel := context.WithCancelCause(ctx)
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	for {
 		select {
 		case <-ctx.Done():
-			cancel(errors.New("context canceled by the client"))
 			return
 		case <-v.closed:
-			cancel(errors.New("file closed"))
 			return
-		case segment := <-nextSegment:
+		case segment, ok := <-v.nextSegment:
+			if !ok {
+				return
+			}
+
 			mx.RLock()
 			if len(currentDownloading) >= v.dc.maxAheadDownloadSegments || currentDownloading[segment.Number] {
 				mx.RUnlock()
