@@ -18,12 +18,12 @@ type TimeData struct {
 type Client interface {
 	Dial(
 		ctx context.Context,
-		address string,
-		port int,
-		useTLS bool,
+		provider Provider,
+	) (Connection, error)
+	DialTLS(
+		ctx context.Context,
+		provider Provider,
 		insecureSSL bool,
-		providerId string,
-		providerOptions *ProviderOptions,
 	) (Connection, error)
 }
 
@@ -47,32 +47,39 @@ func New(options ...Option) Client {
 // Dial connects to an NNTP server
 func (c *client) Dial(
 	ctx context.Context,
-	host string,
-	port int,
-	useTLS bool,
-	insecureSSL bool,
-	providerId string,
-	providerOptions *ProviderOptions,
+	provider Provider,
 ) (Connection, error) {
 	var d net.Dialer
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 
-	conn, err := d.DialContext(ctx, "tcp", fmt.Sprintf("%s:%d", host, port))
+	conn, err := d.DialContext(ctx, "tcp", fmt.Sprintf("%s:%d", provider.Host, provider.Port))
 	if err != nil {
 		return nil, err
 	}
 
-	if useTLS {
-		// Create and handshake a TLS connection
-		tlsConn := tls.Client(conn, &tls.Config{ServerName: host, InsecureSkipVerify: insecureSSL})
-		err = tlsConn.Handshake()
-		if err != nil {
-			return nil, err
-		}
+	return newConnection(conn, provider)
+}
 
-		return newConn(tlsConn, host, providerId, providerOptions)
-	} else {
-		return newConn(conn, host, providerId, providerOptions)
+func (c *client) DialTLS(
+	ctx context.Context,
+	provider Provider,
+	insecureSSL bool,
+) (Connection, error) {
+	var d net.Dialer
+	ctx, cancel := context.WithTimeout(ctx, c.timeout)
+	defer cancel()
+
+	conn, err := d.DialContext(ctx, "tcp", fmt.Sprintf("%s:%d", provider.Host, provider.Port))
+	if err != nil {
+		return nil, err
 	}
+
+	tlsConn := tls.Client(conn, &tls.Config{ServerName: provider.Host, InsecureSkipVerify: insecureSSL})
+	err = tlsConn.Handshake()
+	if err != nil {
+		return nil, err
+	}
+
+	return newConnection(tlsConn, provider)
 }

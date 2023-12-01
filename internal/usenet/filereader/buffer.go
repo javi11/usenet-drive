@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"net"
 	"sync"
 
 	"github.com/avast/retry-go"
@@ -268,7 +267,7 @@ func (v *buffer) downloadSegment(ctx context.Context, segment *nzb.NzbSegment, g
 			conn = c
 			nntpConn := conn.Value()
 
-			if nntpConn.ProviderOptions().JoinGroup {
+			if nntpConn.Provider().JoinGroup {
 				err = usenet.JoinGroup(nntpConn, groups)
 				if err != nil {
 					return fmt.Errorf("error joining group: %w", err)
@@ -299,7 +298,7 @@ func (v *buffer) downloadSegment(ctx context.Context, segment *nzb.NzbSegment, g
 				return nntpcli.IsRetryableError(err)
 			}),
 			retry.OnRetry(func(n uint, err error) {
-				v.log.InfoContext(ctx, "Retrying download", "error", err, "segment", segment.Id, "retry", n)
+				v.log.DebugContext(ctx, "Retrying download", "error", err, "segment", segment.Id, "retry", n)
 
 				if conn != nil {
 					v.cp.Close(conn)
@@ -320,14 +319,8 @@ func (v *buffer) downloadSegment(ctx context.Context, segment *nzb.NzbSegment, g
 				err = errors.Join(e.WrappedErrors()...)
 			}
 
-			if errors.Is(err, context.Canceled) ||
-				errors.Is(err, io.EOF) ||
-				errors.Is(err, io.ErrUnexpectedEOF) {
-				return nil, err
-			}
-
-			if _, ok := err.(net.Error); ok {
-				// Net errors are retryable
+			if nntpcli.IsRetryableError(err) || errors.Is(err, context.Canceled) {
+				// do not mark file as corrupted if it's a retryable error
 				return nil, err
 			}
 

@@ -34,33 +34,93 @@ func (m *MockConnection) EXPECT() *MockConnectionMockRecorder {
 	return m.recorder
 }
 
-// Authenticate mocks base method.
-func (m *MockConnection) Authenticate(username, password string) error {
+// Article mocks base method.
+func (m *MockConnection) Article(msgId string) (io.Reader, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Authenticate", username, password)
+	ret := m.ctrl.Call(m, "Article", msgId)
+	ret0, _ := ret[0].(io.Reader)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Article indicates an expected call of Article.
+func (mr *MockConnectionMockRecorder) Article(msgId interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Article", reflect.TypeOf((*MockConnection)(nil).Article), msgId)
+}
+
+// Authenticate mocks base method.
+func (m *MockConnection) Authenticate() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Authenticate")
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Authenticate indicates an expected call of Authenticate.
-func (mr *MockConnectionMockRecorder) Authenticate(username, password interface{}) *gomock.Call {
+func (mr *MockConnectionMockRecorder) Authenticate() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Authenticate", reflect.TypeOf((*MockConnection)(nil).Authenticate), username, password)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Authenticate", reflect.TypeOf((*MockConnection)(nil).Authenticate))
 }
 
 // Body mocks base method.
-func (m *MockConnection) Body(id string) (io.Reader, error) {
+func (m *MockConnection) Body(msgId string) (io.Reader, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Body", id)
+	ret := m.ctrl.Call(m, "Body", msgId)
 	ret0, _ := ret[0].(io.Reader)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Body indicates an expected call of Body.
-func (mr *MockConnectionMockRecorder) Body(id interface{}) *gomock.Call {
+func (mr *MockConnectionMockRecorder) Body(msgId interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Body", reflect.TypeOf((*MockConnection)(nil).Body), id)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Body", reflect.TypeOf((*MockConnection)(nil).Body), msgId)
+}
+
+// Capabilities mocks base method.
+func (m *MockConnection) Capabilities() ([]string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Capabilities")
+	ret0, _ := ret[0].([]string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Capabilities indicates an expected call of Capabilities.
+func (mr *MockConnectionMockRecorder) Capabilities() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Capabilities", reflect.TypeOf((*MockConnection)(nil).Capabilities))
+}
+
+// Close mocks base method.
+func (m *MockConnection) Close() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Close")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Close indicates an expected call of Close.
+func (mr *MockConnectionMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockConnection)(nil).Close))
+}
+
+// Command mocks base method.
+func (m *MockConnection) Command(cmd string, expectCode int) (int, string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Command", cmd, expectCode)
+	ret0, _ := ret[0].(int)
+	ret1, _ := ret[1].(string)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// Command indicates an expected call of Command.
+func (mr *MockConnectionMockRecorder) Command(cmd, expectCode interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Command", reflect.TypeOf((*MockConnection)(nil).Command), cmd, expectCode)
 }
 
 // CurrentJoinedGroup mocks base method.
@@ -77,75 +137,118 @@ func (mr *MockConnectionMockRecorder) CurrentJoinedGroup() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CurrentJoinedGroup", reflect.TypeOf((*MockConnection)(nil).CurrentJoinedGroup))
 }
 
-// Post mocks base method.
-func (m *MockConnection) Post(p []byte, chunkSize int64) error {
+// GetCapability mocks base method.
+func (m *MockConnection) GetCapability(capability string) string {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Post", p, chunkSize)
+	ret := m.ctrl.Call(m, "GetCapability", capability)
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// GetCapability indicates an expected call of GetCapability.
+func (mr *MockConnectionMockRecorder) GetCapability(capability interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCapability", reflect.TypeOf((*MockConnection)(nil).GetCapability), capability)
+}
+
+// HasCapabilityArgument mocks base method.
+func (m *MockConnection) HasCapabilityArgument(capability, argument string) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "HasCapabilityArgument", capability, argument)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// HasCapabilityArgument indicates an expected call of HasCapabilityArgument.
+func (mr *MockConnectionMockRecorder) HasCapabilityArgument(capability, argument interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasCapabilityArgument", reflect.TypeOf((*MockConnection)(nil).HasCapabilityArgument), capability, argument)
+}
+
+// HasTLS mocks base method.
+func (m *MockConnection) HasTLS() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "HasTLS")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// HasTLS indicates an expected call of HasTLS.
+func (mr *MockConnectionMockRecorder) HasTLS() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasTLS", reflect.TypeOf((*MockConnection)(nil).HasTLS))
+}
+
+// Head mocks base method.
+func (m *MockConnection) Head(msgId string) (io.Reader, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Head", msgId)
+	ret0, _ := ret[0].(io.Reader)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Head indicates an expected call of Head.
+func (mr *MockConnectionMockRecorder) Head(msgId interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Head", reflect.TypeOf((*MockConnection)(nil).Head), msgId)
+}
+
+// JoinGroup mocks base method.
+func (m *MockConnection) JoinGroup(name string) (Group, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "JoinGroup", name)
+	ret0, _ := ret[0].(Group)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// JoinGroup indicates an expected call of JoinGroup.
+func (mr *MockConnectionMockRecorder) JoinGroup(name interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "JoinGroup", reflect.TypeOf((*MockConnection)(nil).JoinGroup), name)
+}
+
+// List mocks base method.
+func (m *MockConnection) List(sub string) ([]Group, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "List", sub)
+	ret0, _ := ret[0].([]Group)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// List indicates an expected call of List.
+func (mr *MockConnectionMockRecorder) List(sub interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockConnection)(nil).List), sub)
+}
+
+// Post mocks base method.
+func (m *MockConnection) Post(r io.Reader) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Post", r)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Post indicates an expected call of Post.
-func (mr *MockConnectionMockRecorder) Post(p, chunkSize interface{}) *gomock.Call {
+func (mr *MockConnectionMockRecorder) Post(r interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Post", reflect.TypeOf((*MockConnection)(nil).Post), p, chunkSize)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Post", reflect.TypeOf((*MockConnection)(nil).Post), r)
 }
 
-// ProviderID mocks base method.
-func (m *MockConnection) ProviderID() string {
+// Provider mocks base method.
+func (m *MockConnection) Provider() Provider {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ProviderID")
-	ret0, _ := ret[0].(string)
+	ret := m.ctrl.Call(m, "Provider")
+	ret0, _ := ret[0].(Provider)
 	return ret0
 }
 
-// ProviderID indicates an expected call of ProviderID.
-func (mr *MockConnectionMockRecorder) ProviderID() *gomock.Call {
+// Provider indicates an expected call of Provider.
+func (mr *MockConnectionMockRecorder) Provider() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ProviderID", reflect.TypeOf((*MockConnection)(nil).ProviderID))
-}
-
-// ProviderOptions mocks base method.
-func (m *MockConnection) ProviderOptions() *ProviderOptions {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ProviderOptions")
-	ret0, _ := ret[0].(*ProviderOptions)
-	return ret0
-}
-
-// ProviderOptions indicates an expected call of ProviderOptions.
-func (mr *MockConnectionMockRecorder) ProviderOptions() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ProviderOptions", reflect.TypeOf((*MockConnection)(nil).ProviderOptions))
-}
-
-// Quit mocks base method.
-func (m *MockConnection) Quit() error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Quit")
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Quit indicates an expected call of Quit.
-func (mr *MockConnectionMockRecorder) Quit() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Quit", reflect.TypeOf((*MockConnection)(nil).Quit))
-}
-
-// SelectGroup mocks base method.
-func (m *MockConnection) SelectGroup(group string) (int, int, int, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SelectGroup", group)
-	ret0, _ := ret[0].(int)
-	ret1, _ := ret[1].(int)
-	ret2, _ := ret[2].(int)
-	ret3, _ := ret[3].(error)
-	return ret0, ret1, ret2, ret3
-}
-
-// SelectGroup indicates an expected call of SelectGroup.
-func (mr *MockConnectionMockRecorder) SelectGroup(group interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectGroup", reflect.TypeOf((*MockConnection)(nil).SelectGroup), group)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Provider", reflect.TypeOf((*MockConnection)(nil).Provider))
 }

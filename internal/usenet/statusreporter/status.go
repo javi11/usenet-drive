@@ -13,8 +13,9 @@ import (
 type Kind string
 
 const (
-	Upload   Kind = "upload"
-	Download Kind = "download"
+	Upload          Kind = "upload"
+	Download        Kind = "download"
+	NoReportTimeout      = 30 * time.Second
 )
 
 type reporterData struct {
@@ -33,6 +34,7 @@ type status struct {
 	tds          []*TimeData
 	TotalBytes   int64
 	CurrentSpeed float64
+	LastUpdate   time.Time
 }
 
 type StatusReporter interface {
@@ -87,6 +89,7 @@ func (s *statusReporter) Start(ctx context.Context, ticker *time.Ticker) {
 
 				status.tds = append(status.tds, td.td)
 				status.TotalBytes += int64(td.td.Bytes)
+				status.LastUpdate = time.Now()
 				s.mx.Unlock()
 			default:
 				// Nothing else in the channel, done for now
@@ -99,7 +102,12 @@ func (s *statusReporter) Start(ctx context.Context, ticker *time.Ticker) {
 		}
 
 		s.mx.Lock()
-		for _, status := range s.status {
+		for key, status := range s.status {
+			// If we haven't received any updates in a while, remove it
+			if status.LastUpdate.Before(time.Now().Add(-NoReportTimeout)) {
+				delete(s.status, key)
+				continue
+			}
 			tds := status.tds
 			if len(tds) > 0 {
 				active := float64(tds[len(tds)-1].Milliseconds-tds[0].Milliseconds) / 1000

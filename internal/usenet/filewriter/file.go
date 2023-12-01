@@ -409,7 +409,7 @@ func (f *file) addSegment(ctx context.Context, conn connectionpool.Resource, seg
 		}
 
 		nntpConn := conn.Value()
-		err = nntpConn.Post(articleBytes, f.metadata.ChunkSize)
+		err = nntpConn.Post(articleBytes)
 		if err != nil {
 			return fmt.Errorf("error posting article: %w", err)
 		}

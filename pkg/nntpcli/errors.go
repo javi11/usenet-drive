@@ -2,33 +2,21 @@ package nntpcli
 
 import (
 	"errors"
-	"fmt"
+	"io"
 	"net"
+	"net/textproto"
 	"syscall"
+)
+
+var (
+	ErrCapabilitiesUnpopulated = errors.New("capabilities unpopulated")
+	ErrNoSuchCapability        = errors.New("no such capability")
 )
 
 const SegmentAlreadyExistsErrCode = 441
 const ToManyConnectionsErrCode = 502
 
-// A ProtocolError represents responses from an NNTP server
-// that seem incorrect for NNTP.
-type ProtocolError string
-
-func (p ProtocolError) Error() string {
-	return string(p)
-}
-
-// An Error represents an error response from an NNTP server.
-type NntpError struct {
-	Code uint
-	Msg  string
-}
-
-func (e NntpError) Error() string {
-	return fmt.Sprintf("%03d %s", e.Code, e.Msg)
-}
-
-var retirableErrors = []uint{
+var retirableErrors = []int{
 	SegmentAlreadyExistsErrCode,
 	ToManyConnectionsErrCode,
 }
@@ -36,7 +24,10 @@ var retirableErrors = []uint{
 func IsRetryableError(err error) bool {
 	if errors.Is(err, syscall.EPIPE) ||
 		errors.Is(err, syscall.ECONNRESET) ||
-		errors.Is(err, syscall.ETIMEDOUT) {
+		errors.Is(err, syscall.ETIMEDOUT) ||
+		errors.Is(err, io.EOF) ||
+		errors.Is(err, net.ErrClosed) ||
+		errors.Is(err, io.ErrUnexpectedEOF) {
 		return true
 	}
 
@@ -45,12 +36,12 @@ func IsRetryableError(err error) bool {
 		return true
 	}
 
-	var protocolErr ProtocolError
+	var protocolErr textproto.ProtocolError
 	if ok := errors.As(err, &protocolErr); ok {
 		return true
 	}
 
-	var nntpErr NntpError
+	var nntpErr *textproto.Error
 	if ok := errors.As(err, &nntpErr); ok {
 		for _, r := range retirableErrors {
 			if nntpErr.Code == r {

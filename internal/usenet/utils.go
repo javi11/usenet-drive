@@ -14,7 +14,7 @@ func JoinGroup(c nntpcli.Connection, groups []string) error {
 			return nil
 		}
 
-		_, _, _, err = c.SelectGroup(g)
+		_, err = c.JoinGroup(g)
 		if err == nil {
 			return nil
 		}

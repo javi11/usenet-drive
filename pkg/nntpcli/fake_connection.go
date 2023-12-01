@@ -1,20 +1,17 @@
 package nntpcli
 
-import (
-	"bytes"
-	"io"
-)
+import "io"
 
 type fakeConnection struct {
-	providerId      string
-	providerOptions *ProviderOptions
-	currentGroup    string
+	tls          bool
+	provider     Provider
+	currentGroup string
 }
 
-func NewFakeConnection(host string, providerId string, providerOptions *ProviderOptions) Connection {
+func NewFakeConnection(provider Provider) Connection {
 	return &fakeConnection{
-		providerId:      providerId,
-		providerOptions: providerOptions,
+		tls:      false,
+		provider: provider,
 	}
 }
 
@@ -22,31 +19,58 @@ func (c *fakeConnection) CurrentJoinedGroup() string {
 	return c.currentGroup
 }
 
-func (c *fakeConnection) ProviderOptions() *ProviderOptions {
-	return c.providerOptions
+func (c *fakeConnection) Provider() Provider {
+	return c.provider
 }
-
-func (c *fakeConnection) ProviderID() string {
-	return c.providerId
-}
-
-func (c *fakeConnection) Authenticate(username, password string) error {
+func (c *fakeConnection) Authenticate() error {
 	return nil
 }
 
-func (c *fakeConnection) Body(id string) (io.Reader, error) {
-	return bytes.NewBuffer([]byte{}), nil
-}
-
-func (c *fakeConnection) SelectGroup(group string) (number int, low int, high int, err error) {
+func (c *fakeConnection) JoinGroup(group string) (Group, error) {
 	c.currentGroup = group
-	return 0, 0, 0, nil
+	return Group{}, nil
 }
 
-func (c *fakeConnection) Post(p []byte, chunkSize int64) error {
+func (c *fakeConnection) Close() error {
 	return nil
 }
 
-func (c *fakeConnection) Quit() error {
+func (c *fakeConnection) List(sub string) ([]Group, error) {
+	return []Group{}, nil
+}
+
+func (c *fakeConnection) Article(msgId string) (io.Reader, error) {
+	return nil, nil
+}
+
+func (c *fakeConnection) Head(msgId string) (io.Reader, error) {
+	return nil, nil
+}
+
+func (c *fakeConnection) Body(msgId string) (io.Reader, error) {
+	return nil, nil
+}
+
+func (c *fakeConnection) Post(r io.Reader) error {
 	return nil
+}
+
+func (c *fakeConnection) Command(cmd string, expectCode int) (int, string, error) {
+	return 0, "", nil
+}
+
+func (c *fakeConnection) Capabilities() ([]string, error) {
+	return []string{}, nil
+}
+
+func (c *fakeConnection) GetCapability(capability string) string {
+	return ""
+}
+
+func (c *fakeConnection) HasCapabilityArgument(capability, argument string) (bool, error) {
+	return false, nil
+}
+
+func (c *fakeConnection) HasTLS() bool {
+	return c.tls
 }

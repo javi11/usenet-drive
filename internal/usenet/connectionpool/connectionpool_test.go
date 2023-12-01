@@ -11,6 +11,7 @@ import (
 	gomock "github.com/golang/mock/gomock"
 	"github.com/javi11/usenet-drive/internal/config"
 	"github.com/javi11/usenet-drive/pkg/nntpcli"
+	gomockextra "github.com/oxyno-zeta/gomock-extra-matcher"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -45,13 +46,18 @@ func TestGetDownloadConnection(t *testing.T) {
 
 	t.Run("get the first provider download connection if available", func(t *testing.T) {
 		mockCon := nntpcli.NewMockConnection(ctrl)
-		providerId := "download:user"
+		provider := nntpcli.Provider{
+			Host:     "download",
+			Port:     1244,
+			Username: "user",
+			Password: "pass",
+		}
 
 		mockNntpCli.EXPECT().
-			Dial(gomock.Any(), "download", 1244, false, false, providerId, gomock.Any()).
+			Dial(gomock.Any(), gomockextra.StructMatcher().Field("Host", "download")).
 			Return(mockCon, nil)
-		mockCon.EXPECT().ProviderID().Return(providerId).Times(1)
-		mockCon.EXPECT().Authenticate("user", "pass").Return(nil)
+		mockCon.EXPECT().Provider().Return(provider).Times(1)
+		mockCon.EXPECT().Authenticate().Return(nil)
 
 		cp, err := NewConnectionPool(
 			WithClient(mockNntpCli),
@@ -64,25 +70,35 @@ func TestGetDownloadConnection(t *testing.T) {
 		conn, err := cp.GetDownloadConnection(context.Background())
 		assert.NoError(t, err)
 
-		assert.Equal(t, providerId, conn.Value().ProviderID())
+		assert.Equal(t, provider, conn.Value().Provider())
 	})
 
 	t.Run("get second provider connections if there are not download available for first provider", func(t *testing.T) {
 		mockDownloadCon := nntpcli.NewMockConnection(ctrl)
-		providerOneId := "download:user"
+		provider := nntpcli.Provider{
+			Host:     "download",
+			Port:     1244,
+			Username: "user",
+			Password: "pass",
+		}
 		mockNntpCli.EXPECT().
-			Dial(gomock.Any(), "download", 1244, false, false, providerOneId, gomock.Any()).
+			Dial(gomock.Any(), gomockextra.StructMatcher().Field("Host", "download")).
 			Return(mockDownloadCon, nil)
-		mockDownloadCon.EXPECT().Authenticate("user", "pass").Return(nil)
-		mockDownloadCon.EXPECT().ProviderID().Return(providerOneId).Times(1)
+		mockDownloadCon.EXPECT().Provider().Return(provider).Times(1)
+		mockDownloadCon.EXPECT().Authenticate().Return(nil)
 
 		mockDownloadCon2 := nntpcli.NewMockConnection(ctrl)
-		providerTwoId := "download2:user"
+		provider2 := nntpcli.Provider{
+			Host:     "download2",
+			Port:     1244,
+			Username: "user",
+			Password: "pass",
+		}
 		mockNntpCli.EXPECT().
-			Dial(gomock.Any(), "download2", 1243, false, false, providerTwoId, gomock.Any()).
+			Dial(gomock.Any(), gomockextra.StructMatcher().Field("Host", "download2")).
 			Return(mockDownloadCon2, nil)
-		mockDownloadCon2.EXPECT().ProviderID().Return(providerTwoId).Times(1)
-		mockDownloadCon2.EXPECT().Authenticate("user", "pass").Return(nil)
+		mockDownloadCon2.EXPECT().Provider().Return(provider2).Times(1)
+		mockDownloadCon2.EXPECT().Authenticate().Return(nil)
 
 		cp, err := NewConnectionPool(
 			WithClient(mockNntpCli),
@@ -96,23 +112,23 @@ func TestGetDownloadConnection(t *testing.T) {
 		dConn, err := cp.GetDownloadConnection(context.Background())
 		assert.NoError(t, err)
 		assert.Equal(t, 2, cp.GetDownloadFreeConnections())
-		assert.Equal(t, providerOneId, dConn.Value().ProviderID())
+		assert.Equal(t, provider, dConn.Value().Provider())
 
 		// Download connection from second provider
 		d2Conn, err := cp.GetDownloadConnection(context.Background())
 		assert.NoError(t, err)
 		assert.Equal(t, 1, cp.GetDownloadFreeConnections())
 
-		assert.Equal(t, providerTwoId, d2Conn.Value().ProviderID())
+		assert.Equal(t, provider2, d2Conn.Value().Provider())
 	})
 
 	t.Run("should free download connection if Free is called", func(t *testing.T) {
 		mockCon := nntpcli.NewMockConnection(ctrl)
-		providerOneId := "download:user"
+
 		mockNntpCli.EXPECT().
-			Dial(gomock.Any(), "download", 1244, false, false, providerOneId, gomock.Any()).
+			Dial(gomock.Any(), gomockextra.StructMatcher().Field("Host", "download")).
 			Return(mockCon, nil)
-		mockCon.EXPECT().Authenticate("user", "pass").Return(nil)
+		mockCon.EXPECT().Authenticate().Return(nil)
 
 		cp, err := NewConnectionPool(
 			WithClient(mockNntpCli),
@@ -136,11 +152,10 @@ func TestGetDownloadConnection(t *testing.T) {
 
 	t.Run("should not free download connection more that one time", func(t *testing.T) {
 		mockCon := nntpcli.NewMockConnection(ctrl)
-		providerOneId := "download:user"
 		mockNntpCli.EXPECT().
-			Dial(gomock.Any(), "download", 1244, false, false, providerOneId, gomock.Any()).
+			Dial(gomock.Any(), gomockextra.StructMatcher().Field("Host", "download")).
 			Return(mockCon, nil)
-		mockCon.EXPECT().Authenticate("user", "pass").Return(nil)
+		mockCon.EXPECT().Authenticate().Return(nil)
 
 		cp, err := NewConnectionPool(
 			WithClient(mockNntpCli),
@@ -168,12 +183,12 @@ func TestGetDownloadConnection(t *testing.T) {
 
 	t.Run("should close download connection if Close is called", func(t *testing.T) {
 		mockCon := nntpcli.NewMockConnection(ctrl)
-		providerOneId := "download:user"
+
 		mockNntpCli.EXPECT().
-			Dial(gomock.Any(), "download", 1244, false, false, providerOneId, gomock.Any()).
+			Dial(gomock.Any(), gomockextra.StructMatcher().Field("Host", "download")).
 			Return(mockCon, nil)
-		mockCon.EXPECT().Authenticate("user", "pass").Return(nil)
-		mockCon.EXPECT().Quit().Return(nil).Times(1)
+		mockCon.EXPECT().Authenticate().Return(nil)
+		mockCon.EXPECT().Close().Return(nil).Times(1)
 
 		cp, err := NewConnectionPool(
 			WithClient(mockNntpCli),
@@ -200,16 +215,22 @@ func TestGetDownloadConnection(t *testing.T) {
 
 	t.Run("when dial returns timeout, retry", func(t *testing.T) {
 		mockCon := nntpcli.NewMockConnection(ctrl)
-		providerOneId := "download:user"
+		provider := nntpcli.Provider{
+			Host:     "download",
+			Port:     1244,
+			Username: "user",
+			Password: "pass",
+		}
+
 		mockNntpCli.EXPECT().
-			Dial(gomock.Any(), "download", 1244, false, false, providerOneId, gomock.Any()).
+			Dial(gomock.Any(), gomockextra.StructMatcher().Field("Host", "download")).
 			Return(nil, net.Error(&net.OpError{Err: syscall.ETIMEDOUT}))
 
 		mockNntpCli.EXPECT().
-			Dial(gomock.Any(), "download", 1244, false, false, providerOneId, gomock.Any()).
+			Dial(gomock.Any(), gomockextra.StructMatcher().Field("Host", "download")).
 			Return(mockCon, nil)
-		mockCon.EXPECT().Authenticate("user", "pass").Return(nil)
-		mockCon.EXPECT().ProviderID().Return(providerOneId).Times(1)
+		mockCon.EXPECT().Provider().Return(provider).Times(1)
+		mockCon.EXPECT().Authenticate().Return(nil)
 
 		cp, err := NewConnectionPool(
 			WithClient(mockNntpCli),
@@ -222,17 +243,23 @@ func TestGetDownloadConnection(t *testing.T) {
 		conn, err := cp.GetDownloadConnection(context.Background())
 		assert.NoError(t, err)
 
-		assert.Equal(t, providerOneId, conn.Value().ProviderID())
+		assert.Equal(t, provider, conn.Value().Provider())
 	})
 
 	t.Run("get the first provider upload connections if available", func(t *testing.T) {
 		mockCon := nntpcli.NewMockConnection(ctrl)
-		providerOneId := "upload:user"
+		provider := nntpcli.Provider{
+			Host:     "upload",
+			Port:     1244,
+			Username: "user",
+			Password: "pass",
+		}
+
 		mockNntpCli.EXPECT().
-			Dial(gomock.Any(), "upload", 1244, false, false, providerOneId, gomock.Any()).
+			Dial(gomock.Any(), gomockextra.StructMatcher().Field("Host", "upload")).
 			Return(mockCon, nil)
-		mockCon.EXPECT().ProviderID().Return(providerOneId).Times(1)
-		mockCon.EXPECT().Authenticate("user", "pass").Return(nil)
+		mockCon.EXPECT().Provider().Return(provider).Times(1)
+		mockCon.EXPECT().Authenticate().Return(nil)
 
 		cp, err := NewConnectionPool(
 			WithClient(mockNntpCli),
@@ -245,6 +272,6 @@ func TestGetDownloadConnection(t *testing.T) {
 		conn, err := cp.GetUploadConnection(context.Background())
 		assert.NoError(t, err)
 
-		assert.Equal(t, providerOneId, conn.Value().ProviderID())
+		assert.Equal(t, provider, conn.Value().Provider())
 	})
 }

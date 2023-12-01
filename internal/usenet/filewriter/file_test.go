@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"net/textproto"
 	"os"
 	"path/filepath"
 	"strings"
@@ -320,7 +321,7 @@ func TestReadFrom(t *testing.T) {
 		mockResource := connectionpool.NewMockResource(ctrl)
 		mockResource.EXPECT().Value().Return(mockConn).Times(10)
 
-		mockConn.EXPECT().Post(gomock.Any(), segmentSize).Return(nil).Times(10)
+		mockConn.EXPECT().Post(gomock.Any()).Return(nil).Times(10)
 		cp.EXPECT().GetUploadConnection(gomock.Any()).Return(mockResource, nil).Times(10)
 		cp.EXPECT().Free(mockResource).Times(10)
 		mockSr.EXPECT().AddTimeData(gomock.Any(), gomock.Any()).Times(10)
@@ -379,7 +380,7 @@ func TestReadFrom(t *testing.T) {
 		mockResource := connectionpool.NewMockResource(ctrl)
 		mockResource.EXPECT().Value().Return(mockConn).AnyTimes()
 		// Due to the async nature of the upload, post can be called 1 or 0 times since the context will be canceled when the error ocurred.
-		mockConn.EXPECT().Post(gomock.Any(), segmentSize).Return(nil).AnyTimes()
+		mockConn.EXPECT().Post(gomock.Any()).Return(nil).AnyTimes()
 		cp.EXPECT().GetUploadConnection(gomock.Any()).Return(mockResource, nil).Times(1)
 		cp.EXPECT().Free(mockResource).Times(1)
 		mockSr.EXPECT().AddTimeData(gomock.Any(), gomock.Any()).Times(1)
@@ -428,7 +429,7 @@ func TestReadFrom(t *testing.T) {
 		mockResource := connectionpool.NewMockResource(ctrl)
 		mockResource.EXPECT().Value().Return(mockConn).AnyTimes()
 		// Due to the async nature of the upload, post can be called 1 or 0 times since the context will be canceled when the error ocurred.
-		mockConn.EXPECT().Post(gomock.Any(), segmentSize).Return(nil).AnyTimes()
+		mockConn.EXPECT().Post(gomock.Any()).Return(nil).AnyTimes()
 		cp.EXPECT().GetUploadConnection(gomock.Any()).Return(mockResource, nil).AnyTimes()
 		cp.EXPECT().Free(mockResource).AnyTimes()
 		mockSr.EXPECT().AddTimeData(gomock.Any(), gomock.Any()).AnyTimes()
@@ -476,7 +477,7 @@ func TestReadFrom(t *testing.T) {
 		mockResource := connectionpool.NewMockResource(ctrl)
 		mockResource.EXPECT().Value().Return(mockConn).Times(10)
 
-		mockConn.EXPECT().Post(gomock.Any(), segmentSize).Return(nil).Times(10)
+		mockConn.EXPECT().Post(gomock.Any()).Return(nil).Times(10)
 		cp.EXPECT().GetUploadConnection(gomock.Any()).Return(mockResource, syscall.ETIMEDOUT).Times(1)
 		cp.EXPECT().GetUploadConnection(gomock.Any()).Return(mockResource, nil).Times(10)
 		cp.EXPECT().Close(mockResource).Times(1)
@@ -625,8 +626,8 @@ func TestReadFrom(t *testing.T) {
 		mockResource2 := connectionpool.NewMockResource(ctrl)
 		mockResource2.EXPECT().Value().Return(mockConn2).Times(10)
 
-		mockConn.EXPECT().Post(gomock.Any(), segmentSize).Return(net.ErrClosed).Times(1)
-		mockConn2.EXPECT().Post(gomock.Any(), segmentSize).Return(nil).Times(10)
+		mockConn.EXPECT().Post(gomock.Any()).Return(net.ErrClosed).Times(1)
+		mockConn2.EXPECT().Post(gomock.Any()).Return(nil).Times(10)
 		// First connection is closed because of the retryable error
 		cp.EXPECT().GetUploadConnection(gomock.Any()).Return(mockResource, nil).Times(1)
 		// Second connection works as expected
@@ -685,8 +686,8 @@ func TestReadFrom(t *testing.T) {
 		mockResource2 := connectionpool.NewMockResource(ctrl)
 		mockResource2.EXPECT().Value().Return(mockConn2).Times(10)
 
-		mockConn.EXPECT().Post(gomock.Any(), segmentSize).Return(nntpcli.NntpError{Code: nntpcli.SegmentAlreadyExistsErrCode}).Times(1)
-		mockConn2.EXPECT().Post(gomock.Any(), segmentSize).Return(nil).Times(10)
+		mockConn.EXPECT().Post(gomock.Any()).Return(&textproto.Error{Code: nntpcli.SegmentAlreadyExistsErrCode}).Times(1)
+		mockConn2.EXPECT().Post(gomock.Any()).Return(nil).Times(10)
 		// First connection is closed because of the retryable error
 		cp.EXPECT().GetUploadConnection(gomock.Any()).Return(mockResource, nil).Times(1)
 		// Second connection works as expected
@@ -740,7 +741,7 @@ func TestReadFrom(t *testing.T) {
 		mockResource := connectionpool.NewMockResource(ctrl)
 		mockResource.EXPECT().Value().Return(mockConn).Times(10)
 
-		mockConn.EXPECT().Post(gomock.Any(), segmentSize).Return(nil).Times(10)
+		mockConn.EXPECT().Post(gomock.Any()).Return(nil).Times(10)
 		cp.EXPECT().GetUploadConnection(gomock.Any()).Return(mockResource, nil).Times(10)
 		cp.EXPECT().Free(mockResource).Times(10)
 
@@ -792,7 +793,7 @@ func TestReadFrom(t *testing.T) {
 		mockResource := connectionpool.NewMockResource(ctrl)
 		mockResource.EXPECT().Value().Return(mockConn).AnyTimes()
 
-		mockConn.EXPECT().Post(gomock.Any(), segmentSize).Return(nil).AnyTimes()
+		mockConn.EXPECT().Post(gomock.Any()).Return(nil).AnyTimes()
 		cp.EXPECT().GetUploadConnection(gomock.Any()).Return(mockResource, nil).AnyTimes()
 		cp.EXPECT().Free(mockResource).AnyTimes()
 		mockSr.EXPECT().AddTimeData(gomock.Any(), gomock.Any()).AnyTimes()

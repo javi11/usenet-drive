@@ -2,195 +2,326 @@
 package nntpcli
 
 import (
-	"bufio"
 	"fmt"
 	"io"
 	"net"
+	"net/textproto"
 	"strconv"
 	"strings"
 )
 
+type Provider struct {
+	Host           string
+	Port           int
+	Username       string
+	Password       string
+	JoinGroup      bool
+	MaxConnections int
+}
+
 type Connection interface {
-	ProviderID() string
-	ProviderOptions() *ProviderOptions
+	io.Closer
+	Authenticate() (err error)
+	List(sub string) (rv []Group, err error)
+	JoinGroup(name string) (rv Group, err error)
+	Article(msgId string) (io.Reader, error)
+	Head(msgId string) (io.Reader, error)
+	Body(msgId string) (io.Reader, error)
+	Post(r io.Reader) error
+	Command(cmd string, expectCode int) (int, string, error)
+	Capabilities() ([]string, error)
+	GetCapability(capability string) string
+	HasCapabilityArgument(capability, argument string) (bool, error)
+	HasTLS() bool
+	Provider() Provider
 	CurrentJoinedGroup() string
-	Authenticate(username, password string) error
-	Body(id string) (io.Reader, error)
-	SelectGroup(group string) (number int, low int, high int, err error)
-	Post(p []byte, chunkSize int64) error
-	Quit() error
 }
 
-type ProviderOptions struct {
-	JoinGroup bool
+type connection struct {
+	conn               *textproto.Conn
+	netconn            net.Conn
+	tls                bool
+	Banner             string
+	capabilities       []string
+	provider           Provider
+	currentJoinedGroup string
 }
 
-type conn struct {
-	conn            io.WriteCloser
-	r               *bufio.Reader
-	close           bool
-	br              *bodyReader
-	host            string
-	providerId      string
-	providerOptions *ProviderOptions
-	currentGroup    string
-}
+func newConnection(netconn net.Conn, provider Provider) (Connection, error) {
+	conn := textproto.NewConn(netconn)
 
-func newConn(c net.Conn, host string, providerId string, providerOptions *ProviderOptions) (Connection, error) {
-	res := &conn{
-		conn:            c,
-		host:            host,
-		r:               bufio.NewReaderSize(c, 4096),
-		providerId:      providerId,
-		providerOptions: providerOptions,
-	}
-
-	_, err := res.r.ReadString('\n')
+	_, msg, err := conn.ReadCodeLine(200)
 	if err != nil {
+		// Download only server
+		_, msg, err = conn.ReadCodeLine(201)
+		if err == nil {
+			return &connection{
+				conn:     conn,
+				netconn:  netconn,
+				Banner:   msg,
+				provider: provider,
+			}, nil
+		}
 		return nil, err
 	}
 
-	return res, nil
+	return &connection{
+		conn:     conn,
+		netconn:  netconn,
+		Banner:   msg,
+		provider: provider,
+	}, nil
 }
 
-func (c *conn) CurrentJoinedGroup() string {
-	return c.currentGroup
+// Close this client.
+func (c *connection) Close() error {
+	return c.conn.Close()
 }
 
-func (c *conn) ProviderID() string {
-	return c.providerId
-}
-
-func (c *conn) ProviderOptions() *ProviderOptions {
-	return c.providerOptions
-}
-
-func (c *conn) SelectGroup(group string) (number, low, high int, err error) {
-	_, line, err := c.cmd(211, "GROUP %s", group)
+// Authenticate against an NNTP server using authinfo user/pass
+func (c *connection) Authenticate() (err error) {
+	err = c.conn.PrintfLine("authinfo user %s", c.provider.Username)
+	if err != nil {
+		return
+	}
+	_, _, err = c.conn.ReadCodeLine(381)
 	if err != nil {
 		return
 	}
 
-	ss := strings.SplitN(line, " ", 4) // intentional -- we ignore optional message
-	if len(ss) < 3 {
-		err = ProtocolError("bad group response: " + line)
+	err = c.conn.PrintfLine("authinfo pass %s", c.provider.Password)
+	if err != nil {
 		return
 	}
-
-	var n [3]int
-	for i := range n {
-		c, e := strconv.Atoi(ss[i])
-		if e != nil {
-			err = ProtocolError("bad group response: " + line)
-			return
-		}
-		n[i] = c
-	}
-	c.currentGroup = group
-
-	number, low, high = n[0], n[1], n[2]
-	return
-}
-
-// Authenticate logs in to the NNTP server.
-// It only sends the password if the server requires one.
-func (c *conn) Authenticate(username, password string) error {
-	code, _, err := c.cmd(2, "AUTHINFO USER %s", username)
-	if code/100 == 3 {
-		_, _, err = c.cmd(2, "AUTHINFO PASS %s", password)
-	}
-
+	_, _, err = c.conn.ReadCodeLine(281)
 	return err
 }
 
-// Post posts an article
-func (c *conn) Post(p []byte, chunkSize int64) error {
-	if _, _, err := c.cmd(3, "POST"); err != nil {
-		return err
+func parsePosting(p string) PostingStatus {
+	switch p {
+	case "y":
+		return PostingPermitted
+	case "m":
+		return PostingModerated
 	}
-
-	plen := int64(len(p))
-	start := int64(0)
-	end := min(plen, chunkSize)
-
-	for {
-		n, err := c.conn.Write(p[start:end])
-		if err != nil {
-			return err
-		}
-
-		// Calculate the next indexes
-		start += int64(n)
-		end = min(plen, start+chunkSize)
-		if start == plen {
-			break
-		}
-	}
-
-	if _, _, err := c.cmd(240, "."); err != nil {
-		return err
-	}
-	return nil
+	return PostingNotPermitted
 }
 
-func (c *conn) Body(id string) (io.Reader, error) {
-	if _, _, err := c.cmd(222, maybeId("BODY", id)); err != nil {
+// List groups
+func (c *connection) List(sub string) (rv []Group, err error) {
+	_, _, err = c.Command("LIST "+sub, 215)
+	if err != nil {
+		return
+	}
+	var groupLines []string
+	groupLines, err = c.conn.ReadDotLines()
+	if err != nil {
+		return
+	}
+	rv = make([]Group, 0, len(groupLines))
+	for _, l := range groupLines {
+		parts := strings.Split(l, " ")
+		high, errh := strconv.ParseInt(parts[1], 10, 64)
+		low, errl := strconv.ParseInt(parts[2], 10, 64)
+		if errh == nil && errl == nil {
+			rv = append(rv, Group{
+				Name:    parts[0],
+				High:    high,
+				Low:     low,
+				Posting: parsePosting(parts[3]),
+			})
+		}
+	}
+	return
+}
+
+func (c *connection) JoinGroup(name string) (rv Group, err error) {
+	var msg string
+	_, msg, err = c.Command("GROUP "+name, 211)
+	if err != nil {
+		return Group{}, err
+	}
+	// count first last name
+	parts := strings.Split(msg, " ")
+	if len(parts) != 4 {
+		return Group{}, fmt.Errorf("unparsable result: %s", msg)
+	}
+	rv.Count, err = strconv.ParseInt(parts[0], 10, 64)
+	if err != nil {
+		return Group{}, err
+	}
+	rv.Low, err = strconv.ParseInt(parts[1], 10, 64)
+	if err != nil {
+		return Group{}, err
+	}
+	rv.High, err = strconv.ParseInt(parts[2], 10, 64)
+	if err != nil {
+		return Group{}, err
+	}
+	rv.Name = parts[3]
+
+	c.currentJoinedGroup = name
+
+	return
+}
+
+func (c *connection) CurrentJoinedGroup() string {
+	return c.currentJoinedGroup
+}
+
+// Article grabs an article
+func (c *connection) Article(msgId string) (io.Reader, error) {
+	err := c.conn.PrintfLine("ARTICLE %s", msgId)
+	if err != nil {
 		return nil, err
 	}
-	return c.body(), nil
+	return c.getArticlePart(220)
 }
 
-// Quit sends the QUIT command and closes the connection to the server.
-func (c *conn) Quit() error {
-	_, _, err := c.cmd(0, "QUIT")
-	c.conn.Close()
-	c.close = true
+// Head gets the headers for an article
+func (c *connection) Head(msgId string) (io.Reader, error) {
+	err := c.conn.PrintfLine("HEAD %s", msgId)
+	if err != nil {
+		return nil, err
+	}
+	return c.getArticlePart(221)
+}
+
+// Body gets the body of an article
+func (c *connection) Body(msgId string) (io.Reader, error) {
+	err := c.conn.PrintfLine("BODY %s", msgId)
+	if err != nil {
+		return nil, err
+	}
+	return c.getArticlePart(222)
+}
+
+// Post a new article
+//
+// The reader should contain the entire article, headers and body in
+// RFC822ish format.
+func (c *connection) Post(r io.Reader) error {
+	err := c.conn.PrintfLine("POST")
+	if err != nil {
+		return err
+	}
+	_, _, err = c.conn.ReadCodeLine(340)
+	if err != nil {
+		return err
+	}
+	w := c.conn.DotWriter()
+	_, err = io.Copy(w, r)
+	if err != nil {
+		// This seems really bad
+		return err
+	}
+	w.Close()
+	_, _, err = c.conn.ReadCodeLine(240)
 	return err
 }
 
-// cmd executes an NNTP command:
-// It sends the command given by the format and arguments, and then
-// reads the response line. If expectCode > 0, the status code on the
-// response line must match it. 1 digit expectCodes only check the first
-// digit of the status code, etc.
-func (c *conn) cmd(expectCode uint, format string, args ...interface{}) (code uint, line string, err error) {
-	if c.close {
-		return 0, "", ProtocolError("connection closed")
-	}
-
-	if c.br != nil {
-		if err := c.br.discard(); err != nil {
-			return 0, "", err
-		}
-		c.br = nil
-	}
-
-	if _, err := fmt.Fprintf(c.conn, format+"\r\n", args...); err != nil {
-		return 0, "", err
-	}
-	line, err = c.r.ReadString('\n')
+// Command sends a low-level command and get a response.
+//
+// This will return an error if the code doesn't match the expectCode
+// prefix.  For example, if you specify "200", the response code MUST
+// be 200 or you'll get an error.  If you specify "2", any code from
+// 200 (inclusive) to 300 (exclusive) will be success.  An expectCode
+// of -1 disables this behavior.
+func (c *connection) Command(cmd string, expectCode int) (int, string, error) {
+	err := c.conn.PrintfLine(cmd)
 	if err != nil {
 		return 0, "", err
 	}
-	line = strings.TrimSpace(line)
-	if len(line) < 4 || line[3] != ' ' {
-		return 0, "", ProtocolError("short response: " + line)
-	}
-	i, err := strconv.ParseUint(line[0:3], 10, 0)
-	if err != nil {
-		return 0, "", ProtocolError("invalid response code: " + line)
-	}
-	code = uint(i)
-	line = line[4:]
-	if 1 <= expectCode && expectCode < 10 && code/100 != expectCode ||
-		10 <= expectCode && expectCode < 100 && code/10 != expectCode ||
-		100 <= expectCode && expectCode < 1000 && code != expectCode {
-		err = NntpError{code, line}
-	}
-	return
+	return c.conn.ReadCodeLine(expectCode)
 }
 
-func (c *conn) body() io.Reader {
-	c.br = &bodyReader{c: c}
-	return c.br
+// Capabilities retrieves a list of supported capabilities.
+//
+// See https://datatracker.ietf.org/doc/html/rfc3977#section-5.2.2
+func (c *connection) Capabilities() ([]string, error) {
+	caps, err := c.asLines("CAPABILITIES", 101)
+	if err != nil {
+		return nil, err
+	}
+	for i, line := range caps {
+		caps[i] = strings.ToUpper(line)
+	}
+	c.capabilities = caps
+	return caps, nil
+}
+
+// GetCapability returns a complete capability line.
+//
+// "Each capability line consists of one or more tokens, which MUST be
+// separated by one or more space or TAB characters."
+//
+// From https://datatracker.ietf.org/doc/html/rfc3977#section-3.3.1
+func (c *connection) GetCapability(capability string) string {
+	capability = strings.ToUpper(capability)
+	for _, capa := range c.capabilities {
+		i := strings.IndexAny(capa, "\t ")
+		if i != -1 && capa[:i] == capability {
+			return capa
+		}
+		if capa == capability {
+			return capa
+		}
+	}
+	return ""
+}
+
+// HasCapabilityArgument indicates whether a capability arg is supported.
+//
+// Here, "argument" means any token after the label in a capabilities response
+// line. Some, like "ACTIVE" in "LIST ACTIVE", are not command arguments but
+// rather "keyword" components of compound commands called "variants."
+//
+// See https://datatracker.ietf.org/doc/html/rfc3977#section-9.5
+func (c *connection) HasCapabilityArgument(
+	capability, argument string,
+) (bool, error) {
+	if c.capabilities == nil {
+		return false, ErrCapabilitiesUnpopulated
+	}
+	capLine := c.GetCapability(capability)
+	if capLine == "" {
+		return false, ErrNoSuchCapability
+	}
+	argument = strings.ToUpper(argument)
+	for _, capArg := range strings.Fields(capLine)[1:] {
+		if capArg == argument {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (c *connection) HasTLS() bool {
+	return c.tls
+}
+
+func (c *connection) Provider() Provider {
+	return c.provider
+}
+
+// asLines issues a command and returns the response's data block as lines.
+func (c *connection) asLines(cmd string, expectCode int) ([]string, error) {
+	_, _, err := c.Command(cmd, expectCode)
+	if err != nil {
+		return nil, err
+	}
+	return c.conn.ReadDotLines()
+}
+
+func (c *connection) getArticlePart(expected int) (io.Reader, error) {
+	_, msg, err := c.conn.ReadCodeLine(expected)
+	if err != nil {
+		return nil, err
+	}
+	parts := strings.SplitN(msg, " ", 2)
+	_, err = strconv.ParseInt(parts[0], 10, 64)
+	if err != nil {
+		return nil, err
+	}
+	return c.conn.DotReader(), nil
 }

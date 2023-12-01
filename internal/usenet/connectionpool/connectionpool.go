@@ -52,7 +52,7 @@ func NewConnectionPool(options ...Option) (UsenetConnectionPool, error) {
 
 	// close Specify the method to close the connection
 	close := func(value nntpcli.Connection) {
-		err := value.Quit()
+		err := value.Close()
 		if err != nil {
 			config.log.Debug(fmt.Sprintf("error closing connection: %v", err))
 		}
@@ -60,12 +60,9 @@ func NewConnectionPool(options ...Option) (UsenetConnectionPool, error) {
 
 	for i, provider := range config.downloadProviders {
 		p := provider
-		providerOptions := &nntpcli.ProviderOptions{
-			JoinGroup: p.JoinGroup,
-		}
 
 		factory := func(ctx context.Context) (nntpcli.Connection, error) {
-			return dialNNTP(ctx, config.cli, config.fakeConnections, p, providerOptions, config.log)
+			return dialNNTP(ctx, config.cli, config.fakeConnections, p, config.log)
 		}
 
 		dp, err := puddle.NewPool(
@@ -84,12 +81,9 @@ func NewConnectionPool(options ...Option) (UsenetConnectionPool, error) {
 
 	for i, provider := range config.uploadProviders {
 		p := provider
-		providerOptions := &nntpcli.ProviderOptions{
-			JoinGroup: p.JoinGroup,
-		}
 
 		factory := func(ctx context.Context) (nntpcli.Connection, error) {
-			return dialNNTP(ctx, config.cli, config.fakeConnections, p, providerOptions, config.log)
+			return dialNNTP(ctx, config.cli, config.fakeConnections, p, config.log)
 		}
 
 		up, err := puddle.NewPool(
@@ -225,7 +219,7 @@ func (p *connectionPool) getConnection(
 	}
 
 	if conn.IdleDuration() > p.maxIdleTime {
-		p.log.Debug(fmt.Sprintf("closing idle connection to %s", conn.Value().ProviderID()))
+		p.log.Debug(fmt.Sprintf("closing idle connection to %s", conn.Value().Provider().Host))
 		conn.Destroy()
 		return nil, nil
 	}
@@ -237,41 +231,60 @@ func dialNNTP(
 	ctx context.Context,
 	cli nntpcli.Client,
 	fakeConnections bool,
-	provider config.UsenetProvider,
-	providerOptions *nntpcli.ProviderOptions,
+	usenetProvider config.UsenetProvider,
 	log *slog.Logger,
 ) (nntpcli.Connection, error) {
 	var err error
 	var c nntpcli.Connection
-	providerId := generateProviderId(provider)
 
 	for {
-		log.Debug(fmt.Sprintf("connecting to %s:%v", provider.Host, provider.Port))
-		if fakeConnections {
-			return nntpcli.NewFakeConnection(provider.Host, providerId, providerOptions), nil
+		log.Debug(fmt.Sprintf("connecting to %s:%v", usenetProvider.Host, usenetProvider.Port))
+
+		provider := nntpcli.Provider{
+			Host:           usenetProvider.Host,
+			Port:           usenetProvider.Port,
+			Username:       usenetProvider.Username,
+			Password:       usenetProvider.Password,
+			JoinGroup:      usenetProvider.JoinGroup,
+			MaxConnections: usenetProvider.MaxConnections,
 		}
 
-		c, err = cli.Dial(
-			ctx,
-			provider.Host,
-			provider.Port,
-			provider.TLS,
-			provider.InsecureSSL,
-			providerId,
-			providerOptions,
-		)
-		if err != nil {
-			// if it's a timeout, ignore and try again
-			e, ok := err.(net.Error)
-			if ok && e.Timeout() {
-				log.Error(fmt.Sprintf("timeout connecting to %s:%v, retrying", provider.Host, provider.Port), "error", e)
-				continue
+		if fakeConnections {
+			return nntpcli.NewFakeConnection(provider), nil
+		}
+
+		if usenetProvider.TLS {
+			c, err = cli.DialTLS(
+				ctx,
+				provider,
+				usenetProvider.InsecureSSL,
+			)
+			if err != nil {
+				e, ok := err.(net.Error)
+				if ok && e.Timeout() {
+					log.Error(fmt.Sprintf("timeout connecting to %s:%v, retrying", provider.Host, provider.Port), "error", e)
+					continue
+				}
+				return nil, err
 			}
-			return nil, err
+		} else {
+			c, err = cli.Dial(
+				ctx,
+				provider,
+			)
+			if err != nil {
+				// if it's a timeout, ignore and try again
+				e, ok := err.(net.Error)
+				if ok && e.Timeout() {
+					log.Error(fmt.Sprintf("timeout connecting to %s:%v, retrying", provider.Host, provider.Port), "error", e)
+					continue
+				}
+				return nil, err
+			}
 		}
 
 		// auth
-		if err := c.Authenticate(provider.Username, provider.Password); err != nil {
+		if err := c.Authenticate(); err != nil {
 			return nil, err
 		}
 
@@ -290,8 +303,4 @@ func firstFreePool(pools []*puddle.Pool[nntpcli.Connection]) *puddle.Pool[nntpcl
 
 	// In case there are no free providers choose the first one
 	return pools[0]
-}
-
-func generateProviderId(provider config.UsenetProvider) string {
-	return fmt.Sprintf("%s:%s", provider.Host, provider.Username)
 }

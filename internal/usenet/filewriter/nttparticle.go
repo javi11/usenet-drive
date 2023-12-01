@@ -23,7 +23,7 @@ type ArticleData struct {
 	msgId     string
 }
 
-func ArticleToBytes(p []byte, data *ArticleData) ([]byte, error) {
+func ArticleToBytes(p []byte, data *ArticleData) (*bytes.Buffer, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteString(fmt.Sprintf("From: %s\r\n", data.poster))
 	buf.WriteString(fmt.Sprintf("Newsgroups: %s\r\n", data.group))
@@ -63,5 +63,5 @@ func ArticleToBytes(p []byte, data *ArticleData) ([]byte, error) {
 	h.Write(p)
 	buf.WriteString(fmt.Sprintf("=yend size=%d part=%d pcrc32=%08X\r\n", data.partSize, data.partNum, h.Sum32()))
 
-	return buf.Bytes(), nil
+	return buf, nil
 }
