@@ -51,6 +51,7 @@ func NewFileInfoWithStat(
 		log.Error(fmt.Sprintf("Error getting file %s, this file will be ignored", path), "error", err)
 		return nil, err
 	}
+	defer f.Close()
 
 	reader := nzbloader.NewNzbReader(f)
 	defer func() {
@@ -58,6 +59,7 @@ func NewFileInfoWithStat(
 		if err := f.Close(); err != nil {
 			log.Error(fmt.Sprintf("Error closing file %s", path), "error", err)
 		}
+		reader = nil
 	}()
 
 	metadata, err = reader.GetMetadata()

@@ -24,7 +24,7 @@ type ArticleData struct {
 }
 
 func ArticleToBytes(p []byte, data *ArticleData) (*bytes.Buffer, error) {
-	buf := new(bytes.Buffer)
+	buf := &bytes.Buffer{}
 	buf.WriteString(fmt.Sprintf("From: %s\r\n", data.poster))
 	buf.WriteString(fmt.Sprintf("Newsgroups: %s\r\n", data.group))
 	buf.WriteString(fmt.Sprintf("Message-ID: <%s>\r\n", data.msgId))

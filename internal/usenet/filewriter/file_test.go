@@ -90,7 +90,7 @@ func TestCloseFile(t *testing.T) {
 		log:              log,
 		flag:             os.O_WRONLY,
 		perm:             os.FileMode(0644),
-		nzbMetadata: &nzbMetadata{
+		nzbMetadata: nzbMetadata{
 			fileNameHash:     fileNameHash,
 			filePath:         filePath,
 			parts:            parts,
@@ -152,7 +152,7 @@ func TestSystemFileMethods(t *testing.T) {
 		log:              log,
 		flag:             os.O_WRONLY,
 		perm:             os.FileMode(0644),
-		nzbMetadata: &nzbMetadata{
+		nzbMetadata: nzbMetadata{
 			fileNameHash:     fileNameHash,
 			filePath:         filePath,
 			parts:            parts,
@@ -302,7 +302,7 @@ func TestReadFrom(t *testing.T) {
 			log:              log,
 			flag:             os.O_WRONLY,
 			perm:             os.FileMode(0644),
-			nzbMetadata: &nzbMetadata{
+			nzbMetadata: nzbMetadata{
 				fileNameHash:     fileNameHash,
 				filePath:         filePath,
 				parts:            parts,
@@ -356,7 +356,7 @@ func TestReadFrom(t *testing.T) {
 			log:              log,
 			flag:             os.O_WRONLY,
 			perm:             os.FileMode(0644),
-			nzbMetadata: &nzbMetadata{
+			nzbMetadata: nzbMetadata{
 				fileNameHash:     fileNameHash,
 				filePath:         filePath,
 				parts:            1,
@@ -404,7 +404,7 @@ func TestReadFrom(t *testing.T) {
 			log:              log,
 			flag:             os.O_WRONLY,
 			perm:             os.FileMode(0644),
-			nzbMetadata: &nzbMetadata{
+			nzbMetadata: nzbMetadata{
 				fileNameHash:     fileNameHash,
 				filePath:         filePath,
 				parts:            parts,
@@ -452,7 +452,7 @@ func TestReadFrom(t *testing.T) {
 			log:              log,
 			flag:             os.O_WRONLY,
 			perm:             os.FileMode(0644),
-			nzbMetadata: &nzbMetadata{
+			nzbMetadata: nzbMetadata{
 				fileNameHash:     fileNameHash,
 				filePath:         filePath,
 				parts:            parts,
@@ -504,7 +504,7 @@ func TestReadFrom(t *testing.T) {
 			log:              log,
 			flag:             os.O_WRONLY,
 			perm:             os.FileMode(0644),
-			nzbMetadata: &nzbMetadata{
+			nzbMetadata: nzbMetadata{
 				fileNameHash:     fileNameHash,
 				filePath:         filePath,
 				parts:            parts,
@@ -550,7 +550,7 @@ func TestReadFrom(t *testing.T) {
 			log:              log,
 			flag:             os.O_WRONLY,
 			perm:             os.FileMode(0644),
-			nzbMetadata: &nzbMetadata{
+			nzbMetadata: nzbMetadata{
 				fileNameHash:     fileNameHash,
 				filePath:         filePath,
 				parts:            parts,
@@ -597,7 +597,7 @@ func TestReadFrom(t *testing.T) {
 			log:              log,
 			flag:             os.O_WRONLY,
 			perm:             os.FileMode(0644),
-			nzbMetadata: &nzbMetadata{
+			nzbMetadata: nzbMetadata{
 				fileNameHash:     fileNameHash,
 				filePath:         filePath,
 				parts:            parts,
@@ -657,7 +657,7 @@ func TestReadFrom(t *testing.T) {
 			log:              log,
 			flag:             os.O_WRONLY,
 			perm:             os.FileMode(0644),
-			nzbMetadata: &nzbMetadata{
+			nzbMetadata: nzbMetadata{
 				fileNameHash:     fileNameHash,
 				filePath:         filePath,
 				parts:            parts,
@@ -716,7 +716,7 @@ func TestReadFrom(t *testing.T) {
 			log:              log,
 			flag:             os.O_WRONLY,
 			perm:             os.FileMode(0644),
-			nzbMetadata: &nzbMetadata{
+			nzbMetadata: nzbMetadata{
 				fileNameHash:     fileNameHash,
 				filePath:         filePath,
 				parts:            parts,
@@ -768,7 +768,7 @@ func TestReadFrom(t *testing.T) {
 			log:              log,
 			flag:             os.O_WRONLY,
 			perm:             os.FileMode(0644),
-			nzbMetadata: &nzbMetadata{
+			nzbMetadata: nzbMetadata{
 				fileNameHash:     fileNameHash,
 				filePath:         filePath,
 				parts:            parts,

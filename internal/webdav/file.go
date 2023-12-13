@@ -53,6 +53,10 @@ func (f *file) Chown(uid, gid int) error {
 }
 
 func (f *file) Close() error {
+	defer func() {
+		f.innerFile = nil
+	}()
+
 	err := f.innerFile.Close()
 	if err != nil {
 		return err

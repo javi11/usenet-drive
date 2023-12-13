@@ -15,7 +15,7 @@ import (
 type NzbReader interface {
 	GetMetadata() (usenet.Metadata, error)
 	GetGroups() ([]string, error)
-	GetSegment(segmentIndex int) (*nzb.NzbSegment, bool)
+	GetSegment(segmentIndex int) (nzb.NzbSegment, bool)
 	Close()
 }
 
@@ -36,6 +36,9 @@ func NewNzbReader(reader io.Reader) NzbReader {
 
 func (r *nzbReader) Close() {
 	clear(r.segments)
+	r.segments = nil
+	r.metadata = nil
+	r.groups = nil
 }
 
 func (r *nzbReader) GetMetadata() (usenet.Metadata, error) {
@@ -160,21 +163,21 @@ func (r *nzbReader) GetGroups() ([]string, error) {
 	return r.groups, nil
 }
 
-func (r *nzbReader) GetSegment(segmentIndex int) (*nzb.NzbSegment, bool) {
+func (r *nzbReader) GetSegment(segmentIndex int) (nzb.NzbSegment, bool) {
 	r.mx.RLock()
 	defer r.mx.RLocker()
 
 	segmentNumber := int64(segmentIndex + 1)
 	// Check if the segment is already in the cache
 	if r.segments[segmentNumber] != nil {
-		return r.segments[segmentNumber], true
+		return *r.segments[segmentNumber], true
 	}
 
 	// Check if there are more segments to read from the XML stream
 	for {
 		token, err := r.decoder.Token()
 		if err != nil {
-			return nil, false
+			return nzb.NzbSegment{}, false
 		}
 
 		if se, ok := token.(xml.StartElement); ok && se.Name.Local == "segment" {
@@ -182,13 +185,13 @@ func (r *nzbReader) GetSegment(segmentIndex int) (*nzb.NzbSegment, bool) {
 			var segment nzb.NzbSegment
 			err := r.decoder.DecodeElement(&segment, &se)
 			if err != nil {
-				return nil, false
+				return nzb.NzbSegment{}, false
 			}
 
 			r.segments[segmentNumber] = &segment
 
 			if segment.Number == segmentNumber {
-				return &segment, true
+				return segment, true
 			}
 
 			continue

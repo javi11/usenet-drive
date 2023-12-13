@@ -33,19 +33,19 @@ type Buffer interface {
 
 // Buf is a Buffer working on a slice of bytes.
 type buffer struct {
-	ctx         context.Context
-	size        int
-	nzbReader   nzbloader.NzbReader
-	nzbGroups   []string
-	ptr         int64
-	cache       Cache
-	cp          connectionpool.UsenetConnectionPool
-	chunkSize   int
-	dc          downloadConfig
-	log         *slog.Logger
-	closed      chan bool
-	nextSegment chan *nzb.NzbSegment
-	wg          *sync.WaitGroup
+	ctx                context.Context
+	size               int
+	nzbReader          nzbloader.NzbReader
+	nzbGroups          []string
+	ptr                int64
+	cache              Cache
+	cp                 connectionpool.UsenetConnectionPool
+	chunkSize          int
+	dc                 downloadConfig
+	log                *slog.Logger
+	nextSegment        chan nzb.NzbSegment
+	wg                 *sync.WaitGroup
+	currentDownloading *sync.Map
 }
 
 // NewBuffer creates a new data volume based on a buffer
@@ -66,23 +66,28 @@ func NewBuffer(
 	}
 
 	buffer := &buffer{
-		ctx:         ctx,
-		chunkSize:   chunkSize,
-		size:        size,
-		nzbReader:   nzbReader,
-		nzbGroups:   nzbGroups,
-		cache:       cache,
-		cp:          cp,
-		dc:          dc,
-		log:         log,
-		nextSegment: make(chan *nzb.NzbSegment),
-		closed:      make(chan bool),
-		wg:          &sync.WaitGroup{},
+		ctx:                ctx,
+		chunkSize:          chunkSize,
+		size:               size,
+		nzbReader:          nzbReader,
+		nzbGroups:          nzbGroups,
+		cache:              cache,
+		cp:                 cp,
+		dc:                 dc,
+		log:                log,
+		nextSegment:        make(chan nzb.NzbSegment),
+		wg:                 &sync.WaitGroup{},
+		currentDownloading: &sync.Map{},
 	}
 
 	if dc.maxAheadDownloadSegments > 0 {
-		buffer.wg.Add(1)
-		go buffer.downloadBoost(ctx)
+		for i := 0; i < dc.maxAheadDownloadSegments; i++ {
+			buffer.wg.Add(1)
+			go func() {
+				defer buffer.wg.Done()
+				buffer.downloadBoost(ctx)
+			}()
+		}
 	}
 
 	return buffer, nil
@@ -121,14 +126,16 @@ func (v *buffer) Seek(offset int64, whence int) (int64, error) {
 
 // Close the buffer. Currently no effect.
 func (v *buffer) Close() error {
+	close(v.nextSegment)
+
 	if v.dc.maxAheadDownloadSegments > 0 {
-		v.closed <- true
 		v.wg.Wait()
 	}
 
-	close(v.closed)
-	close(v.nextSegment)
 	v.nzbReader.Close()
+	v.nzbReader = nil
+	v.currentDownloading = nil
+	v.cache = nil
 
 	return nil
 }
@@ -165,7 +172,6 @@ func (v *buffer) Read(p []byte) (int, error) {
 			nextSegmentIndex := nextSegmentIndex + j
 			// Preload next segments
 			if nextSegment, hasMore := v.nzbReader.GetSegment(nextSegmentIndex); hasMore && !v.cache.Has(nextSegment.Id) {
-
 				v.nextSegment <- nextSegment
 			}
 		}
@@ -180,6 +186,7 @@ func (v *buffer) Read(p []byte) (int, error) {
 		}
 		beginWriteAt := n
 		n += copy(p[beginWriteAt:], chunk[beginReadAt:])
+		chunk = nil
 		beginReadAt = 0
 	}
 	v.ptr += int64(n)
@@ -234,13 +241,14 @@ func (v *buffer) ReadAt(p []byte, off int64) (int, error) {
 		}
 		beginWriteAt := n
 		n += copy(p[beginWriteAt:], chunk[beginReadAt:])
+		chunk = nil
 		beginReadAt = 0
 	}
 
 	return n, nil
 }
 
-func (v *buffer) downloadSegment(ctx context.Context, segment *nzb.NzbSegment, groups []string) ([]byte, error) {
+func (v *buffer) downloadSegment(ctx context.Context, segment nzb.NzbSegment, groups []string) ([]byte, error) {
 	hit, err := v.cache.Get(segment.Id)
 
 	var chunk []byte
@@ -337,47 +345,25 @@ func (v *buffer) downloadSegment(ctx context.Context, segment *nzb.NzbSegment, g
 }
 
 func (v *buffer) downloadBoost(ctx context.Context) {
-	defer v.wg.Done()
-
-	var mx sync.RWMutex
-	currentDownloading := make(map[int64]bool)
-
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
 	for {
 		select {
 		case <-ctx.Done():
-			return
-		case <-v.closed:
 			return
 		case segment, ok := <-v.nextSegment:
 			if !ok {
 				return
 			}
 
-			mx.RLock()
-			if len(currentDownloading) >= v.dc.maxAheadDownloadSegments || currentDownloading[segment.Number] {
-				mx.RUnlock()
+			if _, loaded := v.currentDownloading.LoadOrStore(segment.Number, true); loaded {
 				continue
 			}
-			mx.RUnlock()
 
-			mx.Lock()
-			currentDownloading[segment.Number] = true
-			mx.Unlock()
+			_, err := v.downloadSegment(ctx, segment, v.nzbGroups)
+			if err != nil && !errors.Is(err, context.Canceled) {
+				v.log.Error("Error downloading segment.", "error", err, "segment", segment.Number)
+			}
 
-			v.wg.Add(1)
-			go func() {
-				defer v.wg.Done()
-				_, err := v.downloadSegment(ctx, segment, v.nzbGroups)
-				if err != nil && !errors.Is(err, context.Canceled) {
-					v.log.Error("Error downloading segment.", "error", err, "segment", segment.Number)
-				}
-
-				mx.Lock()
-				delete(currentDownloading, segment.Number)
-				mx.Unlock()
-			}()
+			v.currentDownloading.Delete(segment.Number)
 		}
 	}
 }

@@ -78,10 +78,10 @@ func (mr *MockNzbReaderMockRecorder) GetMetadata() *gomock.Call {
 }
 
 // GetSegment mocks base method.
-func (m *MockNzbReader) GetSegment(segmentIndex int) (*nzb.NzbSegment, bool) {
+func (m *MockNzbReader) GetSegment(segmentIndex int) (nzb.NzbSegment, bool) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetSegment", segmentIndex)
-	ret0, _ := ret[0].(*nzb.NzbSegment)
+	ret0, _ := ret[0].(nzb.NzbSegment)
 	ret1, _ := ret[1].(bool)
 	return ret0, ret1
 }

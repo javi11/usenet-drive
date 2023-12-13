@@ -38,7 +38,7 @@ type nzbMetadata struct {
 type file struct {
 	io.ReaderFrom
 	dryRun           bool
-	nzbMetadata      *nzbMetadata
+	nzbMetadata      nzbMetadata
 	metadata         *usenet.Metadata
 	cp               connectionpool.UsenetConnectionPool
 	maxUploadRetries int
@@ -98,7 +98,7 @@ func openFile(
 		onClose:          onClose,
 		flag:             flag,
 		perm:             perm,
-		nzbMetadata: &nzbMetadata{
+		nzbMetadata: nzbMetadata{
 			fileNameHash:     fileNameHash,
 			filePath:         filePath,
 			parts:            parts,
@@ -349,8 +349,8 @@ func (f *file) WriteString(s string) (int, error) {
 	return 0, os.ErrPermission
 }
 
-func (f *file) getMetadata() *usenet.Metadata {
-	return f.metadata
+func (f *file) getMetadata() usenet.Metadata {
+	return *f.metadata
 }
 
 func (f *file) addSegment(ctx context.Context, conn connectionpool.Resource, segments []*nzb.NzbSegment, b []byte, segmentIndex int) error {

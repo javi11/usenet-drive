@@ -235,23 +235,22 @@ func TestCloseFile(t *testing.T) {
 	mockBuffer := NewMockBuffer(ctrl)
 	onClosedCalled := false
 	mockSr := status.NewMockStatusReporter(ctrl)
-
-	f := &file{
-		path:      "test.nzb",
-		buffer:    mockBuffer,
-		innerFile: mockFile,
-		fsMutex:   sync.RWMutex{},
-		log:       log,
-		metadata:  usenet.Metadata{},
-		onClose: func() error {
-			onClosedCalled = true
-			return nil
-		},
-		cNzb: mockCNzb,
-		fs:   fs,
-		sr:   mockSr,
-	}
 	t.Run("Error", func(t *testing.T) {
+		f := &file{
+			path:      "test.nzb",
+			buffer:    mockBuffer,
+			innerFile: mockFile,
+			fsMutex:   sync.RWMutex{},
+			log:       log,
+			metadata:  usenet.Metadata{},
+			onClose: func() error {
+				onClosedCalled = true
+				return nil
+			},
+			cNzb: mockCNzb,
+			fs:   fs,
+			sr:   mockSr,
+		}
 		mockFile.EXPECT().Close().Return(os.ErrPermission).Times(1)
 		mockBuffer.EXPECT().Close().Return(nil).Times(1)
 		mockSr.EXPECT().FinishDownload(gomock.Any()).Times(1)
@@ -263,6 +262,21 @@ func TestCloseFile(t *testing.T) {
 	})
 
 	t.Run("Success", func(t *testing.T) {
+		f := &file{
+			path:      "test.nzb",
+			buffer:    mockBuffer,
+			innerFile: mockFile,
+			fsMutex:   sync.RWMutex{},
+			log:       log,
+			metadata:  usenet.Metadata{},
+			onClose: func() error {
+				onClosedCalled = true
+				return nil
+			},
+			cNzb: mockCNzb,
+			fs:   fs,
+			sr:   mockSr,
+		}
 		mockFile.EXPECT().Close().Return(nil).Times(1)
 		mockBuffer.EXPECT().Close().Return(nil).Times(1)
 		mockSr.EXPECT().FinishDownload(gomock.Any()).Times(1)
@@ -274,6 +288,21 @@ func TestCloseFile(t *testing.T) {
 	})
 
 	t.Run("NoOnCloseFunction", func(t *testing.T) {
+		f := &file{
+			path:      "test.nzb",
+			buffer:    mockBuffer,
+			innerFile: mockFile,
+			fsMutex:   sync.RWMutex{},
+			log:       log,
+			metadata:  usenet.Metadata{},
+			onClose: func() error {
+				onClosedCalled = true
+				return nil
+			},
+			cNzb: mockCNzb,
+			fs:   fs,
+			sr:   mockSr,
+		}
 		f.onClose = nil
 		mockFile.EXPECT().Close().Return(nil).Times(1)
 		mockBuffer.EXPECT().Close().Return(nil).Times(1)

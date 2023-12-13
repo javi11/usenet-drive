@@ -123,6 +123,9 @@ func (f *file) Close() error {
 	err := f.innerFile.Close()
 	err2 := f.buffer.Close()
 
+	f.buffer = nil
+	f.innerFile = nil
+
 	err = errors.Join(err, err2)
 	if err != nil {
 		return err
