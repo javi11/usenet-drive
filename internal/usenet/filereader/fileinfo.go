@@ -1,7 +1,6 @@
 package filereader
 
 import (
-	"errors"
 	"fmt"
 	"io/fs"
 	"log/slog"
@@ -9,6 +8,7 @@ import (
 	"time"
 
 	"github.com/javi11/usenet-drive/internal/usenet"
+	"github.com/javi11/usenet-drive/internal/usenet/corruptednzbsmanager"
 	"github.com/javi11/usenet-drive/internal/usenet/nzbloader"
 	"github.com/javi11/usenet-drive/pkg/osfs"
 )
@@ -65,7 +65,7 @@ func NewFileInfoWithStat(
 	metadata, err = reader.GetMetadata()
 	if err != nil {
 		log.Error(fmt.Sprintf("Error getting metadata for file %s, this file will be ignored", path), "error", err)
-		return nil, errors.Join(err, ErrCorruptedNzb)
+		return nil, corruptednzbsmanager.NewCorruptedNzbError(err, nil)
 	}
 	name := nzbFileStat.Name()
 

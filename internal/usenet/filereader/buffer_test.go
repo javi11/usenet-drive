@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/javi11/usenet-drive/internal/usenet/connectionpool"
+	"github.com/javi11/usenet-drive/internal/usenet/corruptednzbsmanager"
 	"github.com/javi11/usenet-drive/internal/usenet/nzbloader"
 	"github.com/javi11/usenet-drive/pkg/nntpcli"
 	"github.com/javi11/usenet-drive/pkg/nzb"
@@ -952,7 +953,7 @@ func TestBuffer_downloadSegment(t *testing.T) {
 		cache.EXPECT().Get("1").Return(nil, errors.New("not found")).Times(1)
 		mockConn.EXPECT().Body("<1>").Return(nil, errors.New("some error")).Times(1)
 		_, err := buf.downloadSegment(context.Background(), segment, groups)
-		assert.ErrorIs(t, err, ErrCorruptedNzb)
+		assert.Equal(t, true, corruptednzbsmanager.IsCorruptedNzbErr(err))
 	})
 
 	t.Run("Test retrying after a body retirable error", func(t *testing.T) {

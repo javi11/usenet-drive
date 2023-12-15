@@ -36,17 +36,17 @@ func (m *MockCorruptedNzbsManager) EXPECT() *MockCorruptedNzbsManagerMockRecorde
 }
 
 // Add mocks base method.
-func (m *MockCorruptedNzbsManager) Add(ctx context.Context, path, errorMessage string) error {
+func (m *MockCorruptedNzbsManager) Add(ctx context.Context, path string, err error) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Add", ctx, path, errorMessage)
+	ret := m.ctrl.Call(m, "Add", ctx, path, err)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Add indicates an expected call of Add.
-func (mr *MockCorruptedNzbsManagerMockRecorder) Add(ctx, path, errorMessage interface{}) *gomock.Call {
+func (mr *MockCorruptedNzbsManagerMockRecorder) Add(ctx, path, err interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Add", reflect.TypeOf((*MockCorruptedNzbsManager)(nil).Add), ctx, path, errorMessage)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Add", reflect.TypeOf((*MockCorruptedNzbsManager)(nil).Add), ctx, path, err)
 }
 
 // Delete mocks base method.

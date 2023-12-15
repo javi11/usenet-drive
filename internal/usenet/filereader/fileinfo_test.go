@@ -8,6 +8,7 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/javi11/usenet-drive/internal/usenet"
+	"github.com/javi11/usenet-drive/internal/usenet/corruptednzbsmanager"
 	"github.com/javi11/usenet-drive/pkg/osfs"
 	"github.com/stretchr/testify/assert"
 )
@@ -26,7 +27,7 @@ func TestNewFileInfoWithStat(t *testing.T) {
 
 		_, err = NewFileInfoWithStat(fs, "corrupted-nzb.nzb", log, fstat)
 		assert.Error(t, err)
-		assert.ErrorIs(t, err, ErrCorruptedNzb)
+		assert.Equal(t, true, corruptednzbsmanager.IsCorruptedNzbErr(err))
 	})
 
 	// Test case when file exists

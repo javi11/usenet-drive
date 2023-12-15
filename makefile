@@ -23,7 +23,7 @@ govulncheck: | $(GOVULNCHECK)
 	@$(TOOLS)/govulncheck ./...
 
 .PHONY: tools
-tools: $(GOLANGCI_LINT) $(JUNIT) $(MOCKGEN) $(GOVULNCHECK) $(SWAG)
+tools: $(GOLANGCI_LINT) $(JUNIT) $(MOCKGEN) $(GOVULNCHECK)
 
 .PHONY: tidy go-mod-tidy
 tidy: go-mod-tidy

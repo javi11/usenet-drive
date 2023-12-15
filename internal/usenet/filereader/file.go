@@ -68,7 +68,7 @@ func openFile(
 	metadata, err := nzbReader.GetMetadata()
 	if err != nil {
 		log.ErrorContext(ctx, fmt.Sprintf("Error getting loading nzb %s", path), "err", err)
-		if e := cNzb.Add(ctx, path, err.Error()); e != nil {
+		if e := cNzb.Add(ctx, path, err); e != nil {
 			log.ErrorContext(ctx, fmt.Sprintf("Error adding corrupted nzb %s to the database", path), "err", e)
 		}
 		return true, nil, os.ErrNotExist
@@ -154,9 +154,9 @@ func (f *file) Read(b []byte) (int, error) {
 
 	n, err := f.buffer.Read(b)
 	if err != nil {
-		if errors.Is(err, ErrCorruptedNzb) {
+		if corruptednzbsmanager.IsCorruptedNzbErr(err) {
 			f.log.Error("Marking file as corrupted:", "error", err, "fileName", f.path)
-			err := f.cNzb.Add(context.Background(), f.path, err.Error())
+			err := f.cNzb.Add(context.Background(), f.path, err)
 			if err != nil {
 				f.log.Error("Error adding corrupted nzb to the database:", "error", err)
 			}
@@ -181,9 +181,9 @@ func (f *file) ReadAt(b []byte, off int64) (int, error) {
 
 	n, err := f.buffer.ReadAt(b, off)
 	if err != nil {
-		if errors.Is(err, ErrCorruptedNzb) {
+		if corruptednzbsmanager.IsCorruptedNzbErr(err) {
 			f.log.Error("Marking file as corrupted:", "error", err, "fileName", f.path)
-			err := f.cNzb.Add(context.Background(), f.path, err.Error())
+			err := f.cNzb.Add(context.Background(), f.path, err)
 			if err != nil {
 				f.log.Error("Error adding corrupted nzb to the database:", "error", err)
 			}
@@ -236,7 +236,7 @@ func (f *file) Stat() (os.FileInfo, error) {
 	)
 
 	if err != nil {
-		err := f.cNzb.Add(context.Background(), f.path, err.Error())
+		err := f.cNzb.Add(context.Background(), f.path, err)
 		if err != nil {
 			f.log.Error("Error adding corrupted nzb to the database:", "error", err)
 		}

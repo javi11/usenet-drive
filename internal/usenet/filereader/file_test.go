@@ -2,6 +2,7 @@ package filereader
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"os"
@@ -364,9 +365,9 @@ func TestRead(t *testing.T) {
 
 		b := []byte("test")
 		n := len(b)
-
-		mockBuffer.EXPECT().Read(b).Return(n, ErrCorruptedNzb)
-		mockCNzb.EXPECT().Add(context.Background(), "test.nzb", "corrupted nzb").Return(nil)
+		cErr := corruptednzbsmanager.NewCorruptedNzbError(errors.New("corrupted"), nil)
+		mockBuffer.EXPECT().Read(b).Return(n, cErr)
+		mockCNzb.EXPECT().Add(context.Background(), "test.nzb", cErr).Return(nil)
 
 		n2, err := f.Read(b)
 		assert.Equal(t, n, n2)
@@ -425,9 +426,9 @@ func TestReadAt(t *testing.T) {
 		b := []byte("test")
 		n := len(b)
 		offset := int64(10)
-
-		mockBuffer.EXPECT().ReadAt(b, offset).Return(n, ErrCorruptedNzb)
-		mockCNzb.EXPECT().Add(context.Background(), "test.nzb", "corrupted nzb").Return(nil)
+		cErr := corruptednzbsmanager.NewCorruptedNzbError(errors.New("corrupted"), nil)
+		mockBuffer.EXPECT().ReadAt(b, offset).Return(n, cErr)
+		mockCNzb.EXPECT().Add(context.Background(), "test.nzb", cErr).Return(nil)
 
 		n2, err := f.ReadAt(b, offset)
 		assert.Equal(t, n, n2)
