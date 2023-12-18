@@ -69,31 +69,19 @@ func New(db *sql.DB, fs osfs.FileSystem) CorruptedNzbsManager {
 	return &corruptedNzbsManager{db: db, fs: fs, mx: &sync.Mutex{}}
 }
 
-func (q *corruptedNzbsManager) Add(ctx context.Context, path string, err error) error {
+func (q *corruptedNzbsManager) Add(ctx context.Context, path string, errorToSave error) error {
 	q.mx.Lock()
 	defer q.mx.Unlock()
 
 	return utils.Transact(q.db, func(tx *sql.Tx) error {
-		stmt, err := tx.PrepareContext(ctx, "SELECT id FROM corrupted_nzbs WHERE path = ? LIMIT 1")
-		if err != nil {
-			return err
-		}
-		defer stmt.Close()
-
 		var nzbId int64
-		err = stmt.QueryRowContext(ctx, path).Scan(&nzbId)
+		err := tx.QueryRowContext(ctx, "SELECT id FROM corrupted_nzbs WHERE path = ? LIMIT 1", path).Scan(&nzbId)
 		if err != nil && err != sql.ErrNoRows {
 			return err
 		}
 
-		if nzbId != 0 {
-			stmt, err := tx.PrepareContext(ctx, "INSERT OR IGNORE INTO corrupted_nzbs (path, error) VALUES (?, ?)")
-			if err != nil {
-				return err
-			}
-			defer stmt.Close()
-
-			result, err := stmt.ExecContext(ctx, usenet.ReplaceFileExtension(path, ".nzb"), err.Error())
+		if nzbId == 0 {
+			result, err := tx.ExecContext(ctx, "INSERT OR IGNORE INTO corrupted_nzbs (path, error) VALUES (?, ?)", usenet.ReplaceFileExtension(path, ".nzb"), errorToSave.Error())
 			if err != nil {
 				return err
 			}
@@ -104,16 +92,10 @@ func (q *corruptedNzbsManager) Add(ctx context.Context, path string, err error) 
 			}
 		}
 
-		if e, ok := err.(*ErrCorruptedNzb); ok {
+		if e, ok := errorToSave.(*ErrCorruptedNzb); ok {
 			segment := e.Segment
-			if segment == nil {
-				stmt, err := tx.PrepareContext(ctx, "INSERT OR IGNORE INTO corrupted_nzbs_segments (number, uuid, nzbId) VALUES (?, ?, ?)")
-				if err != nil {
-					return err
-				}
-				defer stmt.Close()
-
-				_, err = stmt.ExecContext(ctx, segment.Number, segment.Id, nzbId)
+			if segment != nil {
+				_, err = tx.ExecContext(ctx, "INSERT OR IGNORE INTO corrupted_nzbs_segments (number, uuid, nzbId) VALUES (?, ?, ?)", segment.Number, segment.Id, nzbId)
 				if err != nil {
 					return err
 				}
@@ -142,7 +124,7 @@ func (q *corruptedNzbsManager) DiscardByPath(ctx context.Context, path string) (
 
 	var j cNzb
 	err := utils.Transact(q.db, func(tx *sql.Tx) error {
-		row := tx.QueryRowContext(ctx, "SELECT id, path, created_at FROM corrupted_nzbs WHERE id = ?", path)
+		row := tx.QueryRowContext(ctx, "SELECT id, path, created_at FROM corrupted_nzbs WHERE path = ?", path)
 
 		err := row.Scan(&j.ID, &j.Path, &j.CreatedAt)
 		if err != nil {
@@ -251,7 +233,7 @@ func (q *corruptedNzbsManager) List(ctx context.Context, limit, offset int, filt
 
 	rows, err := q.db.QueryContext(
 		ctx,
-		fmt.Sprintf("SELECT id, path, created_at, error FROM corrupted_nzbs JOIN corrupted_nzbs_segments ON corrupted_nzbs.id = corrupted_nzbs_segments.nzbId %s LIMIT ? OFFSET ?", filter),
+		fmt.Sprintf("SELECT n.id as nId, n.path as nPath, n.created_at as nCreatedAt, n.error as nError, s.id as sId, s.number as sNumber, s.uuid as sUuid FROM corrupted_nzbs as n JOIN corrupted_nzbs_segments as s ON n.id = s.nzbId %s", filter),
 		queryParams...,
 	)
 	if err != nil {
@@ -267,7 +249,7 @@ func (q *corruptedNzbsManager) List(ctx context.Context, limit, offset int, filt
 		var error string
 		var segment Segment
 
-		err := rows.Scan(&id, &path, &createdAt, &error, &segment.Number, &segment.ID, &segment.UUID, &segment.CreatedAt)
+		err := rows.Scan(&id, &path, &createdAt, &error, &segment.ID, &segment.Number, &segment.UUID)
 		if err != nil {
 			return Result{}, err
 		}

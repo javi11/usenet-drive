@@ -171,7 +171,7 @@ func TestOpenFile(t *testing.T) {
 		f, err := os.Open("../../test/corruptednzbmock.xml")
 		assert.NoError(t, err)
 		fs.EXPECT().OpenFile("test.nzb", flag, perm).Return(f, nil).Times(1)
-		mockCNzb.EXPECT().Add(context.Background(), "test.nzb", "corrupted nzb file, missing required metadata").Return(nil).Times(1)
+		mockCNzb.EXPECT().Add(context.Background(), "test.nzb", errors.New("corrupted nzb file, missing required metadata")).Return(nil).Times(1)
 
 		ok, _, err := openFile(
 			context.Background(),
