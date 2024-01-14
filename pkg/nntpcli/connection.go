@@ -193,7 +193,7 @@ func (c *connection) Body(msgId string) (io.Reader, error) {
 	if err != nil {
 		return nil, err
 	}
-	return c.getArticlePart(222)
+	return c.getArticleBodyPart(222)
 }
 
 // Post a new article
@@ -324,4 +324,17 @@ func (c *connection) getArticlePart(expected int) (io.Reader, error) {
 		return nil, err
 	}
 	return c.conn.DotReader(), nil
+}
+
+func (c *connection) getArticleBodyPart(expected int) (io.Reader, error) {
+	_, msg, err := c.conn.ReadCodeLine(expected)
+	if err != nil {
+		return nil, err
+	}
+	parts := strings.SplitN(msg, " ", 2)
+	_, err = strconv.ParseInt(parts[0], 10, 64)
+	if err != nil {
+		return nil, err
+	}
+	return c.conn.R, nil
 }
