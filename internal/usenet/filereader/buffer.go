@@ -3,7 +3,6 @@ package filereader
 //go:generate mockgen -source=./buffer.go -destination=./buffer_mock.go -package=filereader Buffer
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -289,18 +288,15 @@ func (v *buffer) downloadSegment(ctx context.Context, segment nzb.NzbSegment, gr
 			}
 
 			decoder := rapidyenc.AcquireDecoder()
-
-			defer decoder.Reset()
 			defer rapidyenc.ReleaseDecoder(decoder)
-
 			decoder.SetReader(body)
-			b := bytes.NewBuffer(nil)
-			_, err = io.Copy(b, decoder)
+
+			b, err := io.ReadAll(decoder)
 			if err != nil {
 				return fmt.Errorf("error copying body: %w", err)
 			}
 
-			chunk = b.Bytes()
+			chunk = b
 
 			v.cp.Free(conn)
 			conn = nil
