@@ -293,7 +293,7 @@ func (v *buffer) downloadSegment(ctx context.Context, segment nzb.NzbSegment, gr
 
 			b, err := io.ReadAll(decoder)
 			if err != nil {
-				return fmt.Errorf("error copying body: %w", err)
+				return fmt.Errorf("error decoding the body: %w", err)
 			}
 
 			chunk = b

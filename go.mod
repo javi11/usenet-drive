@@ -15,6 +15,7 @@ require (
 	github.com/labstack/echo-contrib v0.15.0
 	github.com/labstack/echo/v4 v4.11.2
 	github.com/mattn/go-sqlite3 v1.14.17
+	github.com/mnightingale/rapidyenc v0.0.0-20240115132642-f007bf27e863
 	github.com/natefinch/lumberjack v2.0.0+incompatible
 	github.com/oxyno-zeta/gomock-extra-matcher v1.2.0
 	github.com/pressly/goose/v3 v3.15.0
@@ -30,7 +31,6 @@ require (
 
 require (
 	github.com/BurntSushi/toml v1.3.2 // indirect
-	github.com/GJRTimmer/yenc v0.0.0-20160728145911-9e354c91c9f4 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
 	github.com/hashicorp/errwrap v1.0.0 // indirect
@@ -39,7 +39,6 @@ require (
 	github.com/labstack/gommon v0.4.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
-	github.com/mnightingale/rapidyenc v0.0.0-20231127201145-8792729266a1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rogpeppe/go-internal v1.9.0 // indirect
 	github.com/samber/lo v1.38.1 // indirect
