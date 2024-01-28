@@ -34,21 +34,6 @@ func (m *MockConnection) EXPECT() *MockConnectionMockRecorder {
 	return m.recorder
 }
 
-// Article mocks base method.
-func (m *MockConnection) Article(msgId string) (io.Reader, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Article", msgId)
-	ret0, _ := ret[0].(io.Reader)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Article indicates an expected call of Article.
-func (mr *MockConnectionMockRecorder) Article(msgId interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Article", reflect.TypeOf((*MockConnection)(nil).Article), msgId)
-}
-
 // Authenticate mocks base method.
 func (m *MockConnection) Authenticate() error {
 	m.ctrl.T.Helper()
@@ -78,21 +63,6 @@ func (mr *MockConnectionMockRecorder) Body(msgId interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Body", reflect.TypeOf((*MockConnection)(nil).Body), msgId)
 }
 
-// Capabilities mocks base method.
-func (m *MockConnection) Capabilities() ([]string, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Capabilities")
-	ret0, _ := ret[0].([]string)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Capabilities indicates an expected call of Capabilities.
-func (mr *MockConnectionMockRecorder) Capabilities() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Capabilities", reflect.TypeOf((*MockConnection)(nil).Capabilities))
-}
-
 // Close mocks base method.
 func (m *MockConnection) Close() error {
 	m.ctrl.T.Helper()
@@ -105,22 +75,6 @@ func (m *MockConnection) Close() error {
 func (mr *MockConnectionMockRecorder) Close() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockConnection)(nil).Close))
-}
-
-// Command mocks base method.
-func (m *MockConnection) Command(cmd string, expectCode int) (int, string, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Command", cmd, expectCode)
-	ret0, _ := ret[0].(int)
-	ret1, _ := ret[1].(string)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
-}
-
-// Command indicates an expected call of Command.
-func (mr *MockConnectionMockRecorder) Command(cmd, expectCode interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Command", reflect.TypeOf((*MockConnection)(nil).Command), cmd, expectCode)
 }
 
 // CurrentJoinedGroup mocks base method.
@@ -137,92 +91,18 @@ func (mr *MockConnectionMockRecorder) CurrentJoinedGroup() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CurrentJoinedGroup", reflect.TypeOf((*MockConnection)(nil).CurrentJoinedGroup))
 }
 
-// GetCapability mocks base method.
-func (m *MockConnection) GetCapability(capability string) string {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetCapability", capability)
-	ret0, _ := ret[0].(string)
-	return ret0
-}
-
-// GetCapability indicates an expected call of GetCapability.
-func (mr *MockConnectionMockRecorder) GetCapability(capability interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCapability", reflect.TypeOf((*MockConnection)(nil).GetCapability), capability)
-}
-
-// HasCapabilityArgument mocks base method.
-func (m *MockConnection) HasCapabilityArgument(capability, argument string) (bool, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "HasCapabilityArgument", capability, argument)
-	ret0, _ := ret[0].(bool)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// HasCapabilityArgument indicates an expected call of HasCapabilityArgument.
-func (mr *MockConnectionMockRecorder) HasCapabilityArgument(capability, argument interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasCapabilityArgument", reflect.TypeOf((*MockConnection)(nil).HasCapabilityArgument), capability, argument)
-}
-
-// HasTLS mocks base method.
-func (m *MockConnection) HasTLS() bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "HasTLS")
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// HasTLS indicates an expected call of HasTLS.
-func (mr *MockConnectionMockRecorder) HasTLS() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasTLS", reflect.TypeOf((*MockConnection)(nil).HasTLS))
-}
-
-// Head mocks base method.
-func (m *MockConnection) Head(msgId string) (io.Reader, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Head", msgId)
-	ret0, _ := ret[0].(io.Reader)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Head indicates an expected call of Head.
-func (mr *MockConnectionMockRecorder) Head(msgId interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Head", reflect.TypeOf((*MockConnection)(nil).Head), msgId)
-}
-
 // JoinGroup mocks base method.
-func (m *MockConnection) JoinGroup(name string) (Group, error) {
+func (m *MockConnection) JoinGroup(name string) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "JoinGroup", name)
-	ret0, _ := ret[0].(Group)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // JoinGroup indicates an expected call of JoinGroup.
 func (mr *MockConnectionMockRecorder) JoinGroup(name interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "JoinGroup", reflect.TypeOf((*MockConnection)(nil).JoinGroup), name)
-}
-
-// List mocks base method.
-func (m *MockConnection) List(sub string) ([]Group, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "List", sub)
-	ret0, _ := ret[0].([]Group)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// List indicates an expected call of List.
-func (mr *MockConnectionMockRecorder) List(sub interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockConnection)(nil).List), sub)
 }
 
 // Post mocks base method.

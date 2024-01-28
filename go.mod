@@ -1,11 +1,11 @@
 module github.com/javi11/usenet-drive
 
-go 1.21
+go 1.21.6
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.0
-	github.com/allegro/bigcache/v3 v3.1.0
 	github.com/avast/retry-go v3.0.0+incompatible
+	github.com/bool64/cache v0.4.7
 	github.com/creasty/defaults v1.7.0
 	github.com/go-faker/faker/v4 v4.1.1
 	github.com/golang/mock v1.6.0
@@ -14,23 +14,24 @@ require (
 	github.com/jackc/puddle/v2 v2.2.1
 	github.com/labstack/echo-contrib v0.15.0
 	github.com/labstack/echo/v4 v4.11.2
-	github.com/mattn/go-sqlite3 v1.14.17
+	github.com/mattn/go-sqlite3 v1.14.20
 	github.com/mnightingale/rapidyenc v0.0.0-20240115171133-54849213f6c6
 	github.com/natefinch/lumberjack v2.0.0+incompatible
 	github.com/oxyno-zeta/gomock-extra-matcher v1.2.0
 	github.com/pressly/goose/v3 v3.15.0
 	github.com/ricochet2200/go-disk-usage/du v0.0.0-20210707232629-ac9918953285
 	github.com/samber/slog-echo v1.2.1
-	github.com/spf13/cobra v1.7.0
+	github.com/spf13/cobra v1.8.0
 	github.com/steinfletcher/apitest v1.5.15
 	github.com/stretchr/testify v1.8.4
-	golang.org/x/exp v0.0.0-20230817173708-d852ddb80c63
-	golang.org/x/net v0.17.0
+	golang.org/x/exp v0.0.0-20240119083558-1b970713d09a
+	golang.org/x/net v0.19.0
 	gopkg.in/yaml.v2 v2.4.0
 )
 
 require (
 	github.com/BurntSushi/toml v1.3.2 // indirect
+	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
 	github.com/hashicorp/errwrap v1.0.0 // indirect
@@ -46,7 +47,7 @@ require (
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
 	go.uber.org/mock v0.3.0 // indirect
-	golang.org/x/crypto v0.14.0 // indirect
+	golang.org/x/crypto v0.16.0 // indirect
 	golang.org/x/sync v0.5.0 // indirect
 	golang.org/x/sys v0.16.0 // indirect
 	golang.org/x/text v0.14.0 // indirect

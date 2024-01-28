@@ -10,27 +10,29 @@ import (
 )
 
 type downloadConfig struct {
-	maxDownloadRetries       int
-	maxAheadDownloadSegments int
+	maxDownloadRetries int
+	maxDownloadWorkers int
+	maxBufferSizeInMb  int
 }
 
 type Config struct {
-	cp                       connectionpool.UsenetConnectionPool
-	log                      *slog.Logger
-	cNzb                     corruptednzbsmanager.CorruptedNzbsManager
-	fs                       osfs.FileSystem
-	maxDownloadRetries       int
-	maxAheadDownloadSegments int
-	segmentSize              int64
-	cacheSizeInMB            int
-	debug                    bool
-	sr                       status.StatusReporter
+	cp                 connectionpool.UsenetConnectionPool
+	log                *slog.Logger
+	cNzb               corruptednzbsmanager.CorruptedNzbsManager
+	fs                 osfs.FileSystem
+	maxDownloadRetries int
+	maxDownloadWorkers int
+	maxBufferSizeInMb  int
+	segmentSize        int64
+	debug              bool
+	sr                 status.StatusReporter
 }
 
 func (c *Config) getDownloadConfig() downloadConfig {
 	return downloadConfig{
-		maxDownloadRetries:       c.maxDownloadRetries,
-		maxAheadDownloadSegments: c.maxAheadDownloadSegments,
+		maxDownloadRetries: c.maxDownloadRetries,
+		maxDownloadWorkers: c.maxDownloadWorkers,
+		maxBufferSizeInMb:  c.maxBufferSizeInMb,
 	}
 }
 
@@ -38,23 +40,17 @@ type Option func(*Config)
 
 func defaultConfig() *Config {
 	return &Config{
-		debug:                    false,
-		fs:                       osfs.New(),
-		maxDownloadRetries:       8,
-		maxAheadDownloadSegments: 1,
-		cacheSizeInMB:            1000,
+		debug:              false,
+		fs:                 osfs.New(),
+		maxDownloadRetries: 8,
+		maxDownloadWorkers: 3,
+		maxBufferSizeInMb:  30,
 	}
 }
 
 func WithDebug(debug bool) Option {
 	return func(c *Config) {
 		c.debug = debug
-	}
-}
-
-func WithCacheSize(cacheSize int) Option {
-	return func(c *Config) {
-		c.cacheSizeInMB = cacheSize
 	}
 }
 
@@ -70,9 +66,15 @@ func WithMaxDownloadRetries(maxDownloadRetries int) Option {
 	}
 }
 
-func WithMaxAheadDownloadSegments(maxAheadDownloadSegments int) Option {
+func WithMaxDownloadWorkers(maxDownloadWorkers int) Option {
 	return func(c *Config) {
-		c.maxAheadDownloadSegments = maxAheadDownloadSegments
+		c.maxDownloadWorkers = maxDownloadWorkers
+	}
+}
+
+func WithMaxBufferSizeInMb(maxBufferSizeInMb int) Option {
+	return func(c *Config) {
+		c.maxBufferSizeInMb = maxBufferSizeInMb
 	}
 }
 

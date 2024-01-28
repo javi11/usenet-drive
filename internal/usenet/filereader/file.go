@@ -46,7 +46,6 @@ func openFile(
 	cNzb corruptednzbsmanager.CorruptedNzbsManager,
 	fs osfs.FileSystem,
 	dc downloadConfig,
-	cache Cache,
 	sr status.StatusReporter,
 ) (bool, *file, error) {
 	if !isNzbFile(path) {
@@ -82,7 +81,8 @@ func openFile(
 		int(metadata.ChunkSize),
 		dc,
 		cp,
-		cache,
+		cNzb,
+		path,
 		log,
 	)
 	if err != nil {

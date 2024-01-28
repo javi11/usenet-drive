@@ -1,4 +1,4 @@
-FROM golang:1.21-bullseye AS builder
+FROM golang:1.21.6-bullseye AS builder
 ENV NODE_VERSION=18.12.0
 
 RUN apt install -y curl

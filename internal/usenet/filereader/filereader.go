@@ -15,13 +15,12 @@ import (
 )
 
 type fileReader struct {
-	cp    connectionpool.UsenetConnectionPool
-	log   *slog.Logger
-	cNzb  corruptednzbsmanager.CorruptedNzbsManager
-	fs    osfs.FileSystem
-	dc    downloadConfig
-	cache Cache
-	sr    status.StatusReporter
+	cp   connectionpool.UsenetConnectionPool
+	log  *slog.Logger
+	cNzb corruptednzbsmanager.CorruptedNzbsManager
+	fs   osfs.FileSystem
+	dc   downloadConfig
+	sr   status.StatusReporter
 }
 
 func NewFileReader(options ...Option) (*fileReader, error) {
@@ -30,19 +29,13 @@ func NewFileReader(options ...Option) (*fileReader, error) {
 		option(config)
 	}
 
-	cache, err := NewCache(int(config.segmentSize), config.cacheSizeInMB, config.debug, config.log)
-	if err != nil {
-		return nil, err
-	}
-
 	return &fileReader{
-		cp:    config.cp,
-		log:   config.log,
-		cNzb:  config.cNzb,
-		fs:    config.fs,
-		dc:    config.getDownloadConfig(),
-		cache: cache,
-		sr:    config.sr,
+		cp:   config.cp,
+		log:  config.log,
+		cNzb: config.cNzb,
+		fs:   config.fs,
+		dc:   config.getDownloadConfig(),
+		sr:   config.sr,
 	}, nil
 }
 
@@ -58,7 +51,6 @@ func (fr *fileReader) OpenFile(ctx context.Context, path string, flag int, perm 
 		fr.cNzb,
 		fr.fs,
 		fr.dc,
-		fr.cache,
 		fr.sr,
 	)
 }

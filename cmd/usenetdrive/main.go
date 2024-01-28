@@ -127,9 +127,9 @@ var rootCmd = &cobra.Command{
 			filereader.WithCorruptedNzbsManager(cNzbs),
 			filereader.WithFileSystem(osFs),
 			filereader.WithMaxDownloadRetries(config.Usenet.Download.MaxRetries),
-			filereader.WithMaxAheadDownloadSegments(config.Usenet.Download.MaxAheadDownloadSegments),
+			filereader.WithMaxDownloadWorkers(config.Usenet.Download.MaxDownloadWorkers),
 			filereader.WithSegmentSize(config.Usenet.ArticleSizeInBytes),
-			filereader.WithCacheSize(config.Usenet.Download.MaxCacheSizeInMB),
+			filereader.WithMaxBufferSizeInMb(config.Usenet.Download.MaxBufferSizeInMb),
 			filereader.WithDebug(config.Debug),
 			filereader.WithStatusReporter(sr),
 		)
