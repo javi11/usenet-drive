@@ -228,7 +228,10 @@ func (b *buffer) read(p []byte, currentSegmentIndex, beginReadAt int) (int, erro
 				nextSegment := int(float64(b.ptr) / float64(b.chunkSize))
 
 				if nextSegment > currentSegmentIndex {
-					b.segmentsBuffer.Delete(b.ctx, []byte(fmt.Sprint(currentSegmentIndex)))
+					err := b.segmentsBuffer.Delete(b.ctx, []byte(fmt.Sprint(currentSegmentIndex)))
+					if err != nil {
+						b.log.DebugContext(b.ctx, "Error deleting segment from cache:", "error", err, "segment", currentSegmentIndex)
+					}
 				}
 
 				return n, nil

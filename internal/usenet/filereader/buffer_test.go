@@ -896,7 +896,10 @@ func (d *decoderMock) Reset() {
 }
 
 func (d *decoderMock) SetReader(r io.Reader) {
-	d.buf.ReadFrom(r)
+	_, err := d.buf.ReadFrom(r)
+	if err != nil {
+		panic(err)
+	}
 }
 
 func (d *decoderMock) Read(p []byte) (n int, err error) {
