@@ -23,6 +23,7 @@ import (
 	"github.com/javi11/usenet-drive/pkg/nntpcli"
 	"github.com/javi11/usenet-drive/pkg/nzb"
 	"github.com/javi11/usenet-drive/pkg/osfs"
+	"github.com/mnightingale/rapidyenc"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -105,7 +106,8 @@ func TestCloseFile(t *testing.T) {
 			FileExtension: filepath.Ext(fileName),
 			ChunkSize:     segmentSize,
 		},
-		sr: mockSr,
+		sr:      mockSr,
+		encoder: rapidyenc.NewEncoder(),
 	}
 
 	onClosedCalled := false
@@ -167,7 +169,8 @@ func TestSystemFileMethods(t *testing.T) {
 			FileExtension: filepath.Ext(fileName),
 			ChunkSize:     segmentSize,
 		},
-		sr: mockSr,
+		sr:      mockSr,
+		encoder: rapidyenc.NewEncoder(),
 	}
 
 	t.Run("Chown", func(t *testing.T) {
@@ -312,6 +315,7 @@ func TestReadFrom(t *testing.T) {
 			},
 			metadata: metadata,
 			sr:       mockSr,
+			encoder:  rapidyenc.NewEncoder(),
 		}
 
 		// 100 bytes
@@ -371,7 +375,8 @@ func TestReadFrom(t *testing.T) {
 				FileExtension: filepath.Ext(fileName),
 				ChunkSize:     segmentSize,
 			},
-			sr: mockSr,
+			sr:      mockSr,
+			encoder: rapidyenc.NewEncoder(),
 		}
 
 		src := strings.NewReader("Et dignissimos incidunt ipsam molestiae occaecati. Fugit quo autem corporis occaecati sint. lorem it")
@@ -419,7 +424,8 @@ func TestReadFrom(t *testing.T) {
 				FileExtension: filepath.Ext(fileName),
 				ChunkSize:     segmentSize,
 			},
-			sr: mockSr,
+			sr:      mockSr,
+			encoder: rapidyenc.NewEncoder(),
 		}
 
 		// Less than 100 bytes
@@ -467,7 +473,8 @@ func TestReadFrom(t *testing.T) {
 				FileExtension: filepath.Ext(fileName),
 				ChunkSize:     segmentSize,
 			},
-			sr: mockSr,
+			sr:      mockSr,
+			encoder: rapidyenc.NewEncoder(),
 		}
 
 		// 100 bytes
@@ -519,7 +526,8 @@ func TestReadFrom(t *testing.T) {
 				FileExtension: filepath.Ext(fileName),
 				ChunkSize:     segmentSize,
 			},
-			sr: mockSr,
+			sr:      mockSr,
+			encoder: rapidyenc.NewEncoder(),
 		}
 
 		// 100 bytes
@@ -565,7 +573,8 @@ func TestReadFrom(t *testing.T) {
 				FileExtension: filepath.Ext(fileName),
 				ChunkSize:     segmentSize,
 			},
-			sr: mockSr,
+			sr:      mockSr,
+			encoder: rapidyenc.NewEncoder(),
 		}
 
 		// 100 bytes
@@ -612,7 +621,8 @@ func TestReadFrom(t *testing.T) {
 				FileExtension: filepath.Ext(fileName),
 				ChunkSize:     segmentSize,
 			},
-			sr: mockSr,
+			sr:      mockSr,
+			encoder: rapidyenc.NewEncoder(),
 		}
 
 		// 100 bytes
@@ -672,7 +682,8 @@ func TestReadFrom(t *testing.T) {
 				FileExtension: filepath.Ext(fileName),
 				ChunkSize:     segmentSize,
 			},
-			sr: mockSr,
+			sr:      mockSr,
+			encoder: rapidyenc.NewEncoder(),
 		}
 
 		// 100 bytes
@@ -731,7 +742,8 @@ func TestReadFrom(t *testing.T) {
 				FileExtension: filepath.Ext(fileName),
 				ChunkSize:     segmentSize,
 			},
-			sr: mockSr,
+			sr:      mockSr,
+			encoder: rapidyenc.NewEncoder(),
 		}
 
 		// 100 bytes
@@ -783,7 +795,8 @@ func TestReadFrom(t *testing.T) {
 				FileExtension: filepath.Ext(fileName),
 				ChunkSize:     segmentSize,
 			},
-			sr: mockSr,
+			sr:      mockSr,
+			encoder: rapidyenc.NewEncoder(),
 		}
 
 		// 100 bytes
