@@ -232,7 +232,6 @@ func (b *buffer) read(p []byte, currentSegmentIndex, beginReadAt int) (int, erro
 					}
 
 					segment = s
-					retries = 0
 				} else {
 					b.log.WarnContext(b.ctx, "Timeout waiting for chunk", "segment", currentSegmentIndex+i)
 					return n, io.ErrNoProgress
