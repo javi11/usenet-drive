@@ -37,20 +37,21 @@ type Buffer interface {
 
 // Buf is a Buffer working on a slice of bytes.
 type buffer struct {
-	ctx                context.Context
-	fileSize           int
-	nzbReader          nzbloader.NzbReader
-	nzbGroups          []string
-	ptr                int64
-	segmentsBuffer     *cache.ShardedMapOf[[]byte]
-	cp                 connectionpool.UsenetConnectionPool
-	chunkSize          int
-	dc                 downloadConfig
-	log                *slog.Logger
-	nextSegment        chan nzb.NzbSegment
-	wg                 *sync.WaitGroup
-	currentDownloading *sync.Map
-	filePath           string
+	ctx                    context.Context
+	fileSize               int
+	nzbReader              nzbloader.NzbReader
+	nzbGroups              []string
+	ptr                    int64
+	segmentsBuffer         *cache.ShardedMapOf[[]byte]
+	cp                     connectionpool.UsenetConnectionPool
+	chunkSize              int
+	dc                     downloadConfig
+	log                    *slog.Logger
+	nextSegment            chan nzb.NzbSegment
+	wg                     *sync.WaitGroup
+	currentDownloading     *sync.Map
+	filePath               string
+	downloadRetryTimeoutMs int
 }
 
 // NewBuffer creates a new data volume based on a buffer
@@ -80,24 +81,26 @@ func NewBuffer(
 		cfg.DeleteExpiredAfter = 1 * time.Minute
 		cfg.DeleteExpiredJobInterval = 10 * time.Minute
 		cfg.HeapInUseSoftLimit = bufferLimit
-		cfg.EvictFraction = 0.2
+		cfg.EvictFraction = 0.1
 		cfg.SysMemSoftLimit = bufferLimit
 	})
 
+	retyTimeout := time.Duration(dc.maxDownloadRetries) * time.Second
 	buffer := &buffer{
-		ctx:                ctx,
-		chunkSize:          chunkSize,
-		fileSize:           fileSize,
-		nzbReader:          nzbReader,
-		nzbGroups:          nzbGroups,
-		segmentsBuffer:     c,
-		cp:                 cp,
-		dc:                 dc,
-		log:                log,
-		nextSegment:        make(chan nzb.NzbSegment, 200),
-		wg:                 &sync.WaitGroup{},
-		currentDownloading: &sync.Map{},
-		filePath:           filePath,
+		ctx:                    ctx,
+		chunkSize:              chunkSize,
+		fileSize:               fileSize,
+		nzbReader:              nzbReader,
+		nzbGroups:              nzbGroups,
+		segmentsBuffer:         c,
+		cp:                     cp,
+		dc:                     dc,
+		log:                    log,
+		nextSegment:            make(chan nzb.NzbSegment, 200),
+		wg:                     &sync.WaitGroup{},
+		currentDownloading:     &sync.Map{},
+		filePath:               filePath,
+		downloadRetryTimeoutMs: int(retyTimeout.Milliseconds()),
 	}
 
 	if dc.maxDownloadWorkers > 0 {
@@ -153,7 +156,6 @@ func (b *buffer) Close() error {
 	}
 
 	b.segmentsBuffer = nil
-
 	b.nzbReader = nil
 	b.currentDownloading = nil
 
@@ -220,15 +222,26 @@ func (b *buffer) read(p []byte, currentSegmentIndex, beginReadAt int) (int, erro
 
 		segment, ok := b.segmentsBuffer.Load([]byte(fmt.Sprint(currentSegmentIndex + i)))
 		if !ok {
-			retryTimeout := time.Duration(b.dc.maxDownloadRetries) * time.Second
 
-			if retries >= int(retryTimeout.Milliseconds()) {
-				b.log.ErrorContext(b.ctx, "Timeout waiting for chunk", "segment", currentSegmentIndex+i)
-				return n, io.ErrNoProgress
+			if retries >= b.downloadRetryTimeoutMs {
+				// Last try to direct download a segment
+				if nextSegment, hasMore := b.nzbReader.GetSegment(currentSegmentIndex + i); hasMore {
+					s, err := b.downloadSegment(b.ctx, nextSegment, b.nzbGroups)
+					if err != nil {
+						return n, fmt.Errorf("error downloading segment: %w", err)
+					}
+
+					segment = s
+					retries = 0
+				} else {
+					b.log.WarnContext(b.ctx, "Timeout waiting for chunk", "segment", currentSegmentIndex+i)
+					return n, io.ErrNoProgress
+				}
+			} else {
+				time.Sleep(1 * time.Millisecond)
+				retries++
+				continue
 			}
-			time.Sleep(1 * time.Millisecond)
-			retries++
-			continue
 		}
 		i++
 		chunk := segment

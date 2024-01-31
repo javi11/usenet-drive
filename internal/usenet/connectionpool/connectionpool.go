@@ -220,7 +220,7 @@ func (p *connectionPool) getConnection(
 		return nil, err
 	}
 
-	if conn.IdleDuration() > p.maxIdleTime && conn.CreationTime().After(time.Now().Add(-p.maxConnectionLive)) {
+	if conn.IdleDuration() > p.maxIdleTime && time.Now().After(conn.CreationTime().Add(p.maxConnectionLive)) {
 		p.log.Debug(fmt.Sprintf("closing idle connection to %s", conn.Value().Provider().Host))
 		conn.Destroy()
 		return nil, nil

@@ -1,7 +1,6 @@
 package filereader
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -43,8 +42,9 @@ func TestBuffer_Read(t *testing.T) {
 				maxDownloadWorkers: 0,
 				maxBufferSizeInMb:  30,
 			},
-			log:                slog.Default(),
-			currentDownloading: &sync.Map{},
+			log:                    slog.Default(),
+			currentDownloading:     &sync.Map{},
+			downloadRetryTimeoutMs: 1000,
 		}
 
 		// Test empty read
@@ -71,7 +71,8 @@ func TestBuffer_Read(t *testing.T) {
 				maxDownloadWorkers: 0,
 				maxBufferSizeInMb:  30,
 			},
-			log: slog.Default(),
+			log:                    slog.Default(),
+			downloadRetryTimeoutMs: 1000,
 		}
 
 		// Test read past end of buffer
@@ -103,8 +104,9 @@ func TestBuffer_Read(t *testing.T) {
 				maxDownloadWorkers: 0,
 				maxBufferSizeInMb:  30,
 			},
-			log:                slog.Default(),
-			currentDownloading: &sync.Map{},
+			log:                    slog.Default(),
+			currentDownloading:     &sync.Map{},
+			downloadRetryTimeoutMs: 1000,
 		}
 
 		expectedBody := "body1"
@@ -139,13 +141,31 @@ func TestBuffer_Read(t *testing.T) {
 				maxDownloadWorkers: 0,
 				maxBufferSizeInMb:  30,
 			},
-			log:                slog.Default(),
-			currentDownloading: &sync.Map{},
+			log:                    slog.Default(),
+			currentDownloading:     &sync.Map{},
+			downloadRetryTimeoutMs: 1000,
 		}
 
+		nzbReader.EXPECT().GetSegment(0).Return(nzb.NzbSegment{Id: "1", Bytes: 5}, true).Times(1)
+		mockConn := nntpcli.NewMockConnection(ctrl)
+		mockConn.EXPECT().CurrentJoinedGroup().Return("").Times(1)
+		mockConn.EXPECT().Provider().Return(nntpcli.Provider{JoinGroup: true}).Times(1)
+		mockResource := connectionpool.NewMockResource(ctrl)
+		mockResource.EXPECT().Value().Return(mockConn).Times(1)
+
+		mockPool.EXPECT().GetDownloadConnection(gomock.Any()).Return(mockResource, nil).Times(1)
+		mockPool.EXPECT().Free(mockResource).Times(1)
+		expectedBody := "body1"
+
+		mockConn.EXPECT().JoinGroup("group1").Return(nil).Times(1)
+		mockConn.EXPECT().Body("<1>").Return([]byte(expectedBody), nil).Times(1)
+
 		p := make([]byte, 5)
-		_, err := buf.Read(p)
-		assert.ErrorIs(t, err, io.ErrNoProgress)
+		n, err := buf.Read(p)
+		assert.NoError(t, err)
+		assert.Equal(t, 5, n)
+		assert.Equal(t, []byte(expectedBody), p[:n])
+		assert.Equal(t, int64(5), buf.ptr)
 	})
 
 	t.Run("TestBuffer_Read_TwoSegments", func(t *testing.T) {
@@ -169,8 +189,9 @@ func TestBuffer_Read(t *testing.T) {
 				maxDownloadWorkers: 0,
 				maxBufferSizeInMb:  30,
 			},
-			log:                slog.Default(),
-			currentDownloading: &sync.Map{},
+			log:                    slog.Default(),
+			currentDownloading:     &sync.Map{},
+			downloadRetryTimeoutMs: 1000,
 		}
 
 		expectedBody1 := "body1"
@@ -211,8 +232,9 @@ func TestBuffer_ReadAt(t *testing.T) {
 				maxDownloadWorkers: 1,
 				maxBufferSizeInMb:  30,
 			},
-			log:                slog.Default(),
-			currentDownloading: &sync.Map{},
+			log:                    slog.Default(),
+			currentDownloading:     &sync.Map{},
+			downloadRetryTimeoutMs: 1000,
 		}
 
 		// Test empty read
@@ -238,7 +260,8 @@ func TestBuffer_ReadAt(t *testing.T) {
 				maxDownloadWorkers: 1,
 				maxBufferSizeInMb:  30,
 			},
-			log: slog.Default(),
+			log:                    slog.Default(),
+			downloadRetryTimeoutMs: 1000,
 		}
 
 		// Test read past end of buffer
@@ -295,8 +318,9 @@ func TestBuffer_ReadAt(t *testing.T) {
 				maxDownloadWorkers: 1,
 				maxBufferSizeInMb:  30,
 			},
-			log:                slog.Default(),
-			currentDownloading: &sync.Map{},
+			log:                    slog.Default(),
+			currentDownloading:     &sync.Map{},
+			downloadRetryTimeoutMs: 1000,
 		}
 
 		expectedBody1 := "body2"
@@ -343,8 +367,9 @@ func TestBuffer_Seek(t *testing.T) {
 				maxDownloadWorkers: 1,
 				maxBufferSizeInMb:  30,
 			},
-			log:                slog.Default(),
-			currentDownloading: &sync.Map{},
+			log:                    slog.Default(),
+			currentDownloading:     &sync.Map{},
+			downloadRetryTimeoutMs: 1000,
 		}
 
 		// Test seek start
@@ -372,8 +397,9 @@ func TestBuffer_Seek(t *testing.T) {
 				maxDownloadWorkers: 1,
 				maxBufferSizeInMb:  30,
 			},
-			log:                slog.Default(),
-			currentDownloading: &sync.Map{},
+			log:                    slog.Default(),
+			currentDownloading:     &sync.Map{},
+			downloadRetryTimeoutMs: 1000,
 		}
 
 		// Test seek current
@@ -401,8 +427,9 @@ func TestBuffer_Seek(t *testing.T) {
 				maxDownloadWorkers: 1,
 				maxBufferSizeInMb:  30,
 			},
-			log:                slog.Default(),
-			currentDownloading: &sync.Map{},
+			log:                    slog.Default(),
+			currentDownloading:     &sync.Map{},
+			downloadRetryTimeoutMs: 1000,
 		}
 
 		// Test seek end
@@ -430,8 +457,9 @@ func TestBuffer_Seek(t *testing.T) {
 				maxDownloadWorkers: 1,
 				maxBufferSizeInMb:  30,
 			},
-			log:                slog.Default(),
-			currentDownloading: &sync.Map{},
+			log:                    slog.Default(),
+			currentDownloading:     &sync.Map{},
+			downloadRetryTimeoutMs: 1000,
 		}
 
 		// Test invalid whence
@@ -457,8 +485,9 @@ func TestBuffer_Seek(t *testing.T) {
 				maxDownloadWorkers: 1,
 				maxBufferSizeInMb:  30,
 			},
-			log:                slog.Default(),
-			currentDownloading: &sync.Map{},
+			log:                    slog.Default(),
+			currentDownloading:     &sync.Map{},
+			downloadRetryTimeoutMs: 1000,
 		}
 
 		// Test negative position
@@ -480,8 +509,9 @@ func TestBuffer_Seek(t *testing.T) {
 				maxDownloadWorkers: 1,
 				maxBufferSizeInMb:  30,
 			},
-			log:                slog.Default(),
-			currentDownloading: &sync.Map{},
+			log:                    slog.Default(),
+			currentDownloading:     &sync.Map{},
+			downloadRetryTimeoutMs: 1000,
 		}
 
 		// Test too far
@@ -520,9 +550,10 @@ func TestBuffer_Close(t *testing.T) {
 				maxDownloadWorkers: 0,
 				maxBufferSizeInMb:  30,
 			},
-			log:                slog.Default(),
-			nextSegment:        make(chan nzb.NzbSegment),
-			currentDownloading: &sync.Map{},
+			log:                    slog.Default(),
+			nextSegment:            make(chan nzb.NzbSegment),
+			currentDownloading:     &sync.Map{},
+			downloadRetryTimeoutMs: 1000,
 		}
 
 		err := buf.Close()
@@ -551,10 +582,11 @@ func TestBuffer_Close(t *testing.T) {
 				maxDownloadWorkers: 1,
 				maxBufferSizeInMb:  30,
 			},
-			log:                slog.Default(),
-			nextSegment:        make(chan nzb.NzbSegment),
-			wg:                 &sync.WaitGroup{},
-			currentDownloading: &sync.Map{},
+			log:                    slog.Default(),
+			nextSegment:            make(chan nzb.NzbSegment),
+			wg:                     &sync.WaitGroup{},
+			currentDownloading:     &sync.Map{},
+			downloadRetryTimeoutMs: 1000,
 		}
 
 		wg := &sync.WaitGroup{}
@@ -606,8 +638,9 @@ func TestBuffer_downloadSegment(t *testing.T) {
 				maxDownloadWorkers: 0,
 				maxBufferSizeInMb:  30,
 			},
-			log:                slog.Default(),
-			currentDownloading: &sync.Map{},
+			log:                    slog.Default(),
+			currentDownloading:     &sync.Map{},
+			downloadRetryTimeoutMs: 1000,
 		}
 
 		mockConn := nntpcli.NewMockConnection(ctrl)
@@ -622,13 +655,6 @@ func TestBuffer_downloadSegment(t *testing.T) {
 
 		mockConn.EXPECT().JoinGroup("group1").Return(nil).Times(1)
 		mockConn.EXPECT().Body("<1>").Return([]byte(expectedBody1), nil).Times(1)
-
-		decoder := &decoderMock{
-			buf: &bytes.Buffer{},
-		}
-		t.Cleanup(func() {
-			decoder.Reset()
-		})
 
 		part, err := buf.downloadSegment(context.Background(), segment, groups)
 		assert.NoError(t, err)
@@ -657,16 +683,11 @@ func TestBuffer_downloadSegment(t *testing.T) {
 				maxDownloadWorkers: 0,
 				maxBufferSizeInMb:  30,
 			},
-			log:                slog.Default(),
-			currentDownloading: &sync.Map{},
+			log:                    slog.Default(),
+			currentDownloading:     &sync.Map{},
+			downloadRetryTimeoutMs: 1000,
 		}
 		mockPool.EXPECT().GetDownloadConnection(gomock.Any()).Return(nil, errors.New("error")).Times(1)
-		decoder := &decoderMock{
-			buf: &bytes.Buffer{},
-		}
-		t.Cleanup(func() {
-			decoder.Reset()
-		})
 
 		_, err := buf.downloadSegment(context.Background(), segment, groups)
 		assert.Error(t, err)
@@ -693,8 +714,9 @@ func TestBuffer_downloadSegment(t *testing.T) {
 				maxDownloadWorkers: 0,
 				maxBufferSizeInMb:  30,
 			},
-			log:                slog.Default(),
-			currentDownloading: &sync.Map{},
+			log:                    slog.Default(),
+			currentDownloading:     &sync.Map{},
+			downloadRetryTimeoutMs: 1000,
 		}
 		mockConn := nntpcli.NewMockConnection(ctrl)
 		mockConn.EXPECT().CurrentJoinedGroup().Return("").Times(1)
@@ -705,12 +727,6 @@ func TestBuffer_downloadSegment(t *testing.T) {
 		mockPool.EXPECT().GetDownloadConnection(gomock.Any()).Return(mockResource, nil).Times(1)
 		mockPool.EXPECT().Close(mockResource).Times(1)
 		mockConn.EXPECT().JoinGroup("group1").Return(errors.New("error")).Times(1)
-		decoder := &decoderMock{
-			buf: &bytes.Buffer{},
-		}
-		t.Cleanup(func() {
-			decoder.Reset()
-		})
 
 		_, err := buf.downloadSegment(context.Background(), segment, groups)
 		assert.Error(t, err)
@@ -738,8 +754,9 @@ func TestBuffer_downloadSegment(t *testing.T) {
 				maxDownloadWorkers: 0,
 				maxBufferSizeInMb:  30,
 			},
-			log:                slog.Default(),
-			currentDownloading: &sync.Map{},
+			log:                    slog.Default(),
+			currentDownloading:     &sync.Map{},
+			downloadRetryTimeoutMs: 1000,
 		}
 		mockConn := nntpcli.NewMockConnection(ctrl)
 		mockConn.EXPECT().CurrentJoinedGroup().Return("").Times(1)
@@ -752,12 +769,6 @@ func TestBuffer_downloadSegment(t *testing.T) {
 		mockConn.EXPECT().JoinGroup("group1").Return(nil).Times(1)
 
 		mockConn.EXPECT().Body("<1>").Return(nil, errors.New("some error")).Times(1)
-		decoder := &decoderMock{
-			buf: &bytes.Buffer{},
-		}
-		t.Cleanup(func() {
-			decoder.Reset()
-		})
 
 		_, err := buf.downloadSegment(context.Background(), segment, groups)
 		assert.ErrorIs(t, err, ErrCorruptedNzb)
@@ -783,8 +794,9 @@ func TestBuffer_downloadSegment(t *testing.T) {
 				maxDownloadWorkers: 0,
 				maxBufferSizeInMb:  30,
 			},
-			log:                slog.Default(),
-			currentDownloading: &sync.Map{},
+			log:                    slog.Default(),
+			currentDownloading:     &sync.Map{},
+			downloadRetryTimeoutMs: 1000,
 		}
 		mockConn := nntpcli.NewMockConnection(ctrl)
 		mockConn.EXPECT().CurrentJoinedGroup().Return("").Times(1)
@@ -813,13 +825,6 @@ func TestBuffer_downloadSegment(t *testing.T) {
 
 		mockConn2.EXPECT().Body("<1>").Return([]byte(expectedBody1), nil).Times(1)
 
-		decoder := &decoderMock{
-			buf: &bytes.Buffer{},
-		}
-		t.Cleanup(func() {
-			decoder.Reset()
-		})
-
 		part, err := buf.downloadSegment(context.Background(), segment, groups)
 		assert.NoError(t, err)
 		assert.NotNil(t, part)
@@ -847,8 +852,9 @@ func TestBuffer_downloadSegment(t *testing.T) {
 				maxDownloadWorkers: 0,
 				maxBufferSizeInMb:  30,
 			},
-			log:                slog.Default(),
-			currentDownloading: &sync.Map{},
+			log:                    slog.Default(),
+			currentDownloading:     &sync.Map{},
+			downloadRetryTimeoutMs: 1000,
 		}
 		mockConn := nntpcli.NewMockConnection(ctrl)
 		mockConn.EXPECT().CurrentJoinedGroup().Return("").Times(1)
@@ -875,40 +881,10 @@ func TestBuffer_downloadSegment(t *testing.T) {
 
 		mockConn2.EXPECT().Body("<1>").Return([]byte(expectedBody1), nil).Times(1)
 
-		decoder := &decoderMock{
-			buf: &bytes.Buffer{},
-		}
-		t.Cleanup(func() {
-			decoder.Reset()
-		})
-
 		part, err := buf.downloadSegment(context.Background(), segment, groups)
 
 		assert.NoError(t, err)
 		assert.NotNil(t, part)
 		assert.Equal(t, []byte("body1"), part)
 	})
-}
-
-type decoderMock struct {
-	buf *bytes.Buffer
-}
-
-func (d *decoderMock) Reset() {
-	d.buf.Reset()
-}
-
-func (d *decoderMock) SetReader(r io.Reader) {
-	_, err := d.buf.ReadFrom(r)
-	if err != nil {
-		panic(err)
-	}
-}
-
-func (d *decoderMock) Read(p []byte) (n int, err error) {
-	return d.buf.Read(p)
-}
-
-func (d *decoderMock) Transform(dst []byte, src []byte, atEOF bool) (nDst int, nSrc int, err error) {
-	return 0, 0, nil
 }
