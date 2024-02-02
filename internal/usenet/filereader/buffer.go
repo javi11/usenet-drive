@@ -26,8 +26,6 @@ var (
 	ErrSeekTooFar    = errors.New("seek: too far")
 )
 
-const toMb = 1024 * 1024
-
 type Buffer interface {
 	io.ReaderAt
 	io.ReadSeeker
@@ -129,10 +127,19 @@ func (b *buffer) Seek(offset int64, whence int) (int64, error) {
 	if abs > int64(b.fileSize) {
 		return 0, ErrSeekTooFar
 	}
+	previousSegmentIndex := int(float64(b.ptr) / float64(b.chunkSize))
 	b.ptr = abs
-
 	currentSegmentIndex := int(float64(b.ptr) / float64(b.chunkSize))
-	b.deleteSegmentsBeforeCurrentSegment(currentSegmentIndex)
+
+	if previousSegmentIndex > currentSegmentIndex {
+		// When seek to previous file, delete all segments after the current segment
+		// leaving the maxDownload workers number as buffer
+		b.deleteSegmentsAfter(previousSegmentIndex)
+	} else {
+		// When seek to next file, delete all segments before the current segment
+		// We won't need them anymore
+		b.deleteSegmentsBefore(currentSegmentIndex)
+	}
 
 	return abs, nil
 }
@@ -192,9 +199,18 @@ func (b *buffer) ReadAt(p []byte, off int64) (int, error) {
 	return b.read(p, currentSegmentIndex, beginReadAt)
 }
 
-func (b *buffer) deleteSegmentsBeforeCurrentSegment(currentSegmentIndex int) {
+func (b *buffer) deleteSegmentsBefore(index int) {
 	b.segmentsBuffer.Range(func(key, _ interface{}) bool {
-		if key.(int) < currentSegmentIndex {
+		if key.(int) < index {
+			b.segmentsBuffer.Delete(key)
+		}
+		return true
+	})
+}
+
+func (b *buffer) deleteSegmentsAfter(index int) {
+	b.segmentsBuffer.Range(func(key, _ interface{}) bool {
+		if key.(int) < index+b.dc.maxDownloadWorkers {
 			b.segmentsBuffer.Delete(key)
 		}
 		return true
