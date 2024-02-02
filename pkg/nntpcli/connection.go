@@ -133,7 +133,7 @@ func (c *connection) CurrentJoinedGroup() string {
 
 // Body gets the decoded body of an article
 func (c *connection) Body(msgId string, chunk []byte) error {
-	_, _, err := c.sendCmd(fmt.Sprintf("BODY %s", msgId), 222)
+	_, _, err := c.sendCmd(fmt.Sprintf("BODY <%s>", msgId), 222)
 	if err != nil {
 		return err
 	}

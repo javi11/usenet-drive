@@ -129,7 +129,6 @@ var rootCmd = &cobra.Command{
 			filereader.WithMaxDownloadRetries(config.Usenet.Download.MaxRetries),
 			filereader.WithMaxDownloadWorkers(config.Usenet.Download.MaxDownloadWorkers),
 			filereader.WithSegmentSize(config.Usenet.ArticleSizeInBytes),
-			filereader.WithMaxBufferSizeInMb(config.Usenet.Download.MaxBufferSizeInMb),
 			filereader.WithDebug(config.Debug),
 			filereader.WithStatusReporter(sr),
 		)

@@ -4,7 +4,6 @@ api_port: 8081
 db_path: /config/usenet-drive.db
 usenet:
   download:
-    max_buffer_size_in_mb: 30
     max_download_workers: 3
     providers:
       - host: post.otherusenet.server

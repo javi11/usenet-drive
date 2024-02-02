@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bool64/cache"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 
@@ -26,7 +25,7 @@ func TestBuffer_Read(t *testing.T) {
 
 	mockPool := connectionpool.NewMockUsenetConnectionPool(ctrl)
 	t.Run("TestBuffer_Read_Empty", func(t *testing.T) {
-		segmentsBuffer := cache.NewShardedMapOf[[]byte]()
+		segmentsBuffer := &sync.Map{}
 		nzbReader := nzbloader.NewMockNzbReader(ctrl)
 		buf := &buffer{
 			ctx:            context.Background(),
@@ -55,7 +54,7 @@ func TestBuffer_Read(t *testing.T) {
 	})
 
 	t.Run("TestBuffer_Read_PastEnd", func(t *testing.T) {
-		segmentsBuffer := cache.NewShardedMapOf[[]byte]()
+		segmentsBuffer := &sync.Map{}
 		nzbReader := nzbloader.NewMockNzbReader(ctrl)
 		buf := &buffer{
 			ctx:            context.Background(),
@@ -84,9 +83,12 @@ func TestBuffer_Read(t *testing.T) {
 	})
 
 	t.Run("TestBuffer_Read_OneSegment", func(t *testing.T) {
-		segmentsBuffer := cache.NewShardedMapOf[[]byte]()
+		segmentsBuffer := &sync.Map{}
 		t.Cleanup(func() {
-			segmentsBuffer.DeleteAll(context.Background())
+			segmentsBuffer.Range(func(key, value interface{}) bool {
+				segmentsBuffer.Delete(key)
+				return true
+			})
 		})
 		nzbReader := nzbloader.NewMockNzbReader(ctrl)
 
@@ -110,7 +112,7 @@ func TestBuffer_Read(t *testing.T) {
 		}
 
 		expectedBody := "body1"
-		segmentsBuffer.Store([]byte("0"), []byte(expectedBody))
+		segmentsBuffer.Store(0, []byte(expectedBody))
 
 		p := make([]byte, 5)
 		n, err := buf.Read(p)
@@ -121,9 +123,12 @@ func TestBuffer_Read(t *testing.T) {
 	})
 
 	t.Run("TestBuffer_Timeout_Reading", func(t *testing.T) {
-		segmentsBuffer := cache.NewShardedMapOf[[]byte]()
+		segmentsBuffer := &sync.Map{}
 		t.Cleanup(func() {
-			segmentsBuffer.DeleteAll(context.Background())
+			segmentsBuffer.Range(func(key, value interface{}) bool {
+				segmentsBuffer.Delete(key)
+				return true
+			})
 		})
 		nzbReader := nzbloader.NewMockNzbReader(ctrl)
 
@@ -158,7 +163,9 @@ func TestBuffer_Read(t *testing.T) {
 		expectedBody := "body1"
 
 		mockConn.EXPECT().JoinGroup("group1").Return(nil).Times(1)
-		mockConn.EXPECT().Body("<1>").Return([]byte(expectedBody), nil).Times(1)
+		mockConn.EXPECT().Body("1", gomock.Any()).Do(func(_ any, chunk []byte) {
+			copy(chunk, []byte(expectedBody))
+		}).Return(nil).Times(1)
 
 		p := make([]byte, 5)
 		n, err := buf.Read(p)
@@ -169,9 +176,12 @@ func TestBuffer_Read(t *testing.T) {
 	})
 
 	t.Run("TestBuffer_Read_TwoSegments", func(t *testing.T) {
-		segmentsBuffer := cache.NewShardedMapOf[[]byte]()
+		segmentsBuffer := &sync.Map{}
 		t.Cleanup(func() {
-			segmentsBuffer.DeleteAll(context.Background())
+			segmentsBuffer.Range(func(key, value interface{}) bool {
+				segmentsBuffer.Delete(key)
+				return true
+			})
 		})
 		nzbReader := nzbloader.NewMockNzbReader(ctrl)
 
@@ -197,8 +207,8 @@ func TestBuffer_Read(t *testing.T) {
 		expectedBody1 := "body1"
 		expectedBody2 := "body2"
 
-		segmentsBuffer.Store([]byte("0"), []byte(expectedBody1))
-		segmentsBuffer.Store([]byte("1"), []byte(expectedBody2))
+		segmentsBuffer.Store(0, []byte(expectedBody1))
+		segmentsBuffer.Store(1, []byte(expectedBody2))
 
 		p := make([]byte, 10)
 		n, err := buf.Read(p)
@@ -214,7 +224,7 @@ func TestBuffer_ReadAt(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockPool := connectionpool.NewMockUsenetConnectionPool(ctrl)
-	segmentsBuffer := cache.NewShardedMapOf[[]byte]()
+	segmentsBuffer := &sync.Map{}
 
 	t.Run("TestBuffer_ReadAt_Empty", func(t *testing.T) {
 		nzbReader := nzbloader.NewMockNzbReader(ctrl)
@@ -292,7 +302,7 @@ func TestBuffer_ReadAt(t *testing.T) {
 		}
 
 		expectedBody1 := "body1"
-		segmentsBuffer.Store([]byte("0"), []byte(expectedBody1))
+		segmentsBuffer.Store(0, []byte(expectedBody1))
 
 		p := make([]byte, 5)
 		n, err := buf.ReadAt(p, 0)
@@ -327,8 +337,8 @@ func TestBuffer_ReadAt(t *testing.T) {
 
 		expectedBody2 := "body3"
 
-		segmentsBuffer.Store([]byte("1"), []byte(expectedBody1))
-		segmentsBuffer.Store([]byte("2"), []byte(expectedBody2))
+		segmentsBuffer.Store(1, []byte(expectedBody1))
+		segmentsBuffer.Store(2, []byte(expectedBody2))
 
 		p := make([]byte, 9)
 		// Special attention to the offset, it will start reading from the second segment since chunkSize is 5
@@ -346,7 +356,7 @@ func TestBuffer_Seek(t *testing.T) {
 	mockPool := connectionpool.NewMockUsenetConnectionPool(ctrl)
 	nzbReader := nzbloader.NewMockNzbReader(ctrl)
 
-	segmentsBuffer := cache.NewShardedMapOf[[]byte]()
+	segmentsBuffer := &sync.Map{}
 
 	t.Run("Test seek start", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
@@ -526,7 +536,7 @@ func TestBuffer_Close(t *testing.T) {
 
 	mockPool := connectionpool.NewMockUsenetConnectionPool(ctrl)
 
-	segmentsBuffer := cache.NewShardedMapOf[[]byte]()
+	segmentsBuffer := &sync.Map{}
 
 	t.Run("Test close buffer", func(t *testing.T) {
 		nzbReader := nzbloader.NewMockNzbReader(ctrl)
@@ -612,7 +622,7 @@ func TestBuffer_downloadSegment(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockPool := connectionpool.NewMockUsenetConnectionPool(ctrl)
-	segmentsBuffer := cache.NewShardedMapOf[[]byte]()
+	segmentsBuffer := &sync.Map{}
 
 	segment := nzb.NzbSegment{Id: "1", Number: 1, Bytes: 5}
 	groups := []string{"group1"}
@@ -654,7 +664,9 @@ func TestBuffer_downloadSegment(t *testing.T) {
 		expectedBody1 := "body1"
 
 		mockConn.EXPECT().JoinGroup("group1").Return(nil).Times(1)
-		mockConn.EXPECT().Body("<1>").Return([]byte(expectedBody1), nil).Times(1)
+		mockConn.EXPECT().Body("1", gomock.Any()).Do(func(_ any, chunk []byte) {
+			copy(chunk, []byte(expectedBody1))
+		}).Return(nil).Times(1)
 
 		part, err := buf.downloadSegment(context.Background(), segment, groups)
 		assert.NoError(t, err)
@@ -768,7 +780,7 @@ func TestBuffer_downloadSegment(t *testing.T) {
 		mockPool.EXPECT().Close(mockResource).Times(1)
 		mockConn.EXPECT().JoinGroup("group1").Return(nil).Times(1)
 
-		mockConn.EXPECT().Body("<1>").Return(nil, errors.New("some error")).Times(1)
+		mockConn.EXPECT().Body("1", gomock.Any()).Return(errors.New("some error")).Times(1)
 
 		_, err := buf.downloadSegment(context.Background(), segment, groups)
 		assert.ErrorIs(t, err, ErrCorruptedNzb)
@@ -815,15 +827,18 @@ func TestBuffer_downloadSegment(t *testing.T) {
 		mockPool.EXPECT().Close(mockResource).Times(1)
 
 		mockConn.EXPECT().JoinGroup("group1").Return(nil).Times(1)
-		mockConn.EXPECT().Body("<1>").Return(nil, &textproto.Error{Code: nntpcli.SegmentAlreadyExistsErrCode}).Times(1)
+		mockConn.EXPECT().Body("1", gomock.Any()).Return(&textproto.Error{Code: nntpcli.SegmentAlreadyExistsErrCode}).Times(1)
 
 		mockPool.EXPECT().GetDownloadConnection(gomock.Any()).Return(mockResource2, nil).Times(1)
 		mockPool.EXPECT().Free(mockResource2).Times(1)
 		mockConn2.EXPECT().JoinGroup("group1").Return(nil).Times(1)
 
 		expectedBody1 := "body1"
+		mockConn2.EXPECT().Body("1", gomock.Any()).DoAndReturn(func(_ any, chunk []byte) error {
+			copy(chunk, []byte(expectedBody1))
 
-		mockConn2.EXPECT().Body("<1>").Return([]byte(expectedBody1), nil).Times(1)
+			return nil
+		}).Times(1)
 
 		part, err := buf.downloadSegment(context.Background(), segment, groups)
 		assert.NoError(t, err)
@@ -878,8 +893,9 @@ func TestBuffer_downloadSegment(t *testing.T) {
 		mockConn2.EXPECT().JoinGroup("group1").Return(nil).Times(1)
 
 		expectedBody1 := "body1"
-
-		mockConn2.EXPECT().Body("<1>").Return([]byte(expectedBody1), nil).Times(1)
+		mockConn2.EXPECT().Body("1", gomock.Any()).Do(func(_ any, chunk []byte) {
+			copy(chunk, []byte(expectedBody1))
+		}).Return(nil).Times(1)
 
 		part, err := buf.downloadSegment(context.Background(), segment, groups)
 

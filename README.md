@@ -185,7 +185,6 @@ The `Download` struct defines the Usenet provider for downloading.
 
 - `max_download_workers` (int): The maximum number of download workers. Default value is `3`. WARN the tool will use 1 connections per worker. Min value is 1.
 - `max_retries` (int): The maximum number of retries to download a segment. Default value is `8`.
-- `max_buffer_size_in_mb` (int): The maximum buffer size in MB peer download session. Default value is `30`.
 - `providers` (UsenetProvider): Usenet providers to download files. (It is recommended an unlimited provider for this)
 
 ## Upload Struct

@@ -295,7 +295,7 @@ func (b *buffer) downloadSegment(ctx context.Context, segment nzb.NzbSegment, gr
 			}
 		}
 
-		err = nntpConn.Body(fmt.Sprintf("<%v>", segment.Id), chunk)
+		err = nntpConn.Body(segment.Id, chunk)
 		if err != nil {
 			// Final segments has less bytes than chunkSize. Do not error if it's the case
 			if err != io.ErrUnexpectedEOF {
