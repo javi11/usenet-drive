@@ -26,7 +26,7 @@ type Connection interface {
 	io.Closer
 	Authenticate() (err error)
 	JoinGroup(name string) error
-	Body(msgId string) ([]byte, error)
+	Body(msgId string, chunk []byte) error
 	Post(r io.Reader) error
 	Provider() Provider
 	CurrentJoinedGroup() string
@@ -132,21 +132,18 @@ func (c *connection) CurrentJoinedGroup() string {
 }
 
 // Body gets the decoded body of an article
-func (c *connection) Body(msgId string) ([]byte, error) {
+func (c *connection) Body(msgId string, chunk []byte) error {
 	_, _, err := c.sendCmd(fmt.Sprintf("BODY %s", msgId), 222)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	defer c.decoder.Reset()
 	c.decoder.SetReader(bufio.NewReader(c.conn.R))
 
-	chunk, err := io.ReadAll(c.decoder)
-	if err != nil {
-		return nil, fmt.Errorf("error decoding the body: %w", err)
-	}
+	_, err = io.ReadFull(c.decoder, chunk)
 
-	return chunk, nil
+	return err
 }
 
 // Post a new article

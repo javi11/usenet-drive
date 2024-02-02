@@ -1,6 +1,8 @@
 package nntpcli
 
-import "io"
+import (
+	"io"
+)
 
 type fakeConnection struct {
 	tls          bool
@@ -35,8 +37,8 @@ func (c *fakeConnection) Close() error {
 	return nil
 }
 
-func (c *fakeConnection) Body(msgId string) ([]byte, error) {
-	return []byte{}, nil
+func (c *fakeConnection) Body(msgId string, chunk []byte) error {
+	return nil
 }
 
 func (c *fakeConnection) Post(r io.Reader) error {
