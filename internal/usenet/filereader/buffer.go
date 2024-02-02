@@ -70,7 +70,7 @@ func NewBuffer(
 
 	c := &sync.Map{}
 
-	retyTimeout := time.Duration(dc.maxDownloadRetries) * time.Second
+	retryTimeout := time.Duration(dc.maxDownloadRetries) * time.Second
 	buffer := &buffer{
 		ctx:                    ctx,
 		chunkSize:              chunkSize,
@@ -85,7 +85,7 @@ func NewBuffer(
 		wg:                     &sync.WaitGroup{},
 		currentDownloading:     &sync.Map{},
 		filePath:               filePath,
-		downloadRetryTimeoutMs: int(retyTimeout.Milliseconds()),
+		downloadRetryTimeoutMs: int(retryTimeout.Milliseconds()),
 	}
 
 	if dc.maxDownloadWorkers > 0 {
@@ -127,9 +127,9 @@ func (b *buffer) Seek(offset int64, whence int) (int64, error) {
 	if abs > int64(b.fileSize) {
 		return 0, ErrSeekTooFar
 	}
-	previousSegmentIndex := int(float64(b.ptr) / float64(b.chunkSize))
+	previousSegmentIndex := b.calculateCurrentSegmentIndex(b.ptr)
 	b.ptr = abs
-	currentSegmentIndex := int(float64(b.ptr) / float64(b.chunkSize))
+	currentSegmentIndex := b.calculateCurrentSegmentIndex(b.ptr)
 
 	if previousSegmentIndex > currentSegmentIndex {
 		// When seek to previous file, delete all segments after the current segment
@@ -175,7 +175,7 @@ func (b *buffer) Read(p []byte) (int, error) {
 		return 0, io.EOF
 	}
 
-	currentSegmentIndex := int(float64(b.ptr) / float64(b.chunkSize))
+	currentSegmentIndex := b.calculateCurrentSegmentIndex(b.ptr)
 	beginReadAt := max((int(b.ptr) - (currentSegmentIndex * b.chunkSize)), 0)
 
 	return b.read(p, currentSegmentIndex, beginReadAt)
@@ -193,7 +193,7 @@ func (b *buffer) ReadAt(p []byte, off int64) (int, error) {
 		return 0, io.EOF
 	}
 
-	currentSegmentIndex := int(float64(off) / float64(b.chunkSize))
+	currentSegmentIndex := b.calculateCurrentSegmentIndex(off)
 	beginReadAt := max((int(off) - (currentSegmentIndex * b.chunkSize)), 0)
 
 	return b.read(p, currentSegmentIndex, beginReadAt)
@@ -217,9 +217,12 @@ func (b *buffer) deleteSegmentsAfter(index int) {
 	})
 }
 
+func (b *buffer) calculateCurrentSegmentIndex(offset int64) int {
+	return int(float64(offset) / float64(b.chunkSize))
+}
+
 func (b *buffer) read(p []byte, currentSegmentIndex, beginReadAt int) (int, error) {
 	n := 0
-	br := beginReadAt
 
 	// Preload next segments
 	for j := 0; j < b.dc.maxDownloadWorkers; j++ {
@@ -235,7 +238,6 @@ func (b *buffer) read(p []byte, currentSegmentIndex, beginReadAt int) (int, erro
 
 	i := 0
 	retries := 0
-	var chunk []byte
 	for {
 		if n >= len(p) {
 			b.ptr += int64(n)
@@ -247,43 +249,46 @@ func (b *buffer) read(p []byte, currentSegmentIndex, beginReadAt int) (int, erro
 		if !ok {
 
 			if retries >= b.downloadRetryTimeoutMs {
+				b.log.DebugContext(b.ctx, "Timeout waiting for chunk. Try direct download", "segment", currentSegmentIndex+i)
 				// Last try to direct download a segment
 				if nextSegment, hasMore := b.nzbReader.GetSegment(currentSegmentIndex + i); hasMore {
-					s, err := b.downloadSegment(b.ctx, nextSegment, b.nzbGroups)
+					chunk := make([]byte, b.chunkSize)
+					err := b.downloadSegment(b.ctx, nextSegment, b.nzbGroups, chunk)
 					if err != nil {
 						return n, fmt.Errorf("error downloading segment: %w", err)
 					}
 
-					segment = s
-				} else {
-					b.log.WarnContext(b.ctx, "Timeout waiting for chunk", "segment", currentSegmentIndex+i)
-					return n, io.ErrNoProgress
+					segment = chunk
 				}
 			} else {
+				// Try not spamming
 				time.Sleep(1 * time.Millisecond)
 				retries++
 				continue
 			}
 		}
 
-		chunk = segment.([]byte)
+		chunk := segment.([]byte)
 
 		beginWriteAt := n
-		n += copy(p[beginWriteAt:], chunk[br:])
+		n += copy(p[beginWriteAt:], chunk[beginReadAt:])
 
-		if n < len(chunk[br:]) {
+		if n < len(chunk[beginReadAt:]) {
 			b.segmentsBuffer.Store(currentSegmentIndex+i, chunk)
 		}
 
-		chunk = nil
-		br = 0
+		beginReadAt = 0
 		retries = 0
 		i++
 	}
 }
 
-func (b *buffer) downloadSegment(ctx context.Context, segment nzb.NzbSegment, groups []string) ([]byte, error) {
-	chunk := make([]byte, b.chunkSize)
+func (b *buffer) downloadSegment(
+	ctx context.Context,
+	segment nzb.NzbSegment,
+	groups []string,
+	chunk []byte,
+) error {
 	var conn connectionpool.Resource
 	retryErr := retry.Do(func() error {
 		c, err := b.cp.GetDownloadConnection(ctx)
@@ -368,7 +373,7 @@ func (b *buffer) downloadSegment(ctx context.Context, segment nzb.NzbSegment, gr
 
 		if nntpcli.IsRetryableError(err) || errors.Is(err, context.Canceled) {
 			// do not mark file as corrupted if it's a retryable error
-			return nil, err
+			return err
 		}
 
 		b.log.DebugContext(ctx,
@@ -377,13 +382,18 @@ func (b *buffer) downloadSegment(ctx context.Context, segment nzb.NzbSegment, gr
 			"segment", segment.Id,
 		)
 
-		return nil, errors.Join(ErrCorruptedNzb, err)
+		return errors.Join(ErrCorruptedNzb, err)
 	}
 
-	return chunk, nil
+	return nil
 }
 
 func (b *buffer) downloadWorker(ctx context.Context, cNzb corruptednzbsmanager.CorruptedNzbsManager) {
+	chunk := make([]byte, b.chunkSize)
+	defer func() {
+		chunk = nil
+	}()
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -396,12 +406,12 @@ func (b *buffer) downloadWorker(ctx context.Context, cNzb corruptednzbsmanager.C
 			if _, loaded := b.currentDownloading.LoadOrStore(segment.Number, true); loaded {
 				continue
 			}
-			segmentIndex := int(segment.Number - 1)
+			segmentIndex := segmentIndexFromSegmentNumber(segment.Number)
 			if _, ok := b.segmentsBuffer.Load(segmentIndex); ok {
 				continue
 			}
 
-			chunk, err := b.downloadSegment(ctx, segment, b.nzbGroups)
+			err := b.downloadSegment(ctx, segment, b.nzbGroups, chunk)
 			if err != nil && !errors.Is(err, context.Canceled) {
 				if errors.Is(err, ErrCorruptedNzb) {
 					b.log.Error("Marking file as corrupted:", "error", err, "fileName", b.filePath)

@@ -668,7 +668,8 @@ func TestBuffer_downloadSegment(t *testing.T) {
 			copy(chunk, []byte(expectedBody1))
 		}).Return(nil).Times(1)
 
-		part, err := buf.downloadSegment(context.Background(), segment, groups)
+		part := make([]byte, 5)
+		err := buf.downloadSegment(context.Background(), segment, groups, part)
 		assert.NoError(t, err)
 		assert.Equal(t, []byte("body1"), part)
 	})
@@ -701,7 +702,8 @@ func TestBuffer_downloadSegment(t *testing.T) {
 		}
 		mockPool.EXPECT().GetDownloadConnection(gomock.Any()).Return(nil, errors.New("error")).Times(1)
 
-		_, err := buf.downloadSegment(context.Background(), segment, groups)
+		part := make([]byte, 5)
+		err := buf.downloadSegment(context.Background(), segment, groups, part)
 		assert.Error(t, err)
 	})
 
@@ -740,7 +742,8 @@ func TestBuffer_downloadSegment(t *testing.T) {
 		mockPool.EXPECT().Close(mockResource).Times(1)
 		mockConn.EXPECT().JoinGroup("group1").Return(errors.New("error")).Times(1)
 
-		_, err := buf.downloadSegment(context.Background(), segment, groups)
+		part := make([]byte, 5)
+		err := buf.downloadSegment(context.Background(), segment, groups, part)
 		assert.Error(t, err)
 	})
 
@@ -782,7 +785,8 @@ func TestBuffer_downloadSegment(t *testing.T) {
 
 		mockConn.EXPECT().Body("1", gomock.Any()).Return(errors.New("some error")).Times(1)
 
-		_, err := buf.downloadSegment(context.Background(), segment, groups)
+		part := make([]byte, 5)
+		err := buf.downloadSegment(context.Background(), segment, groups, part)
 		assert.ErrorIs(t, err, ErrCorruptedNzb)
 	})
 
@@ -840,7 +844,8 @@ func TestBuffer_downloadSegment(t *testing.T) {
 			return nil
 		}).Times(1)
 
-		part, err := buf.downloadSegment(context.Background(), segment, groups)
+		part := make([]byte, 5)
+		err := buf.downloadSegment(context.Background(), segment, groups, part)
 		assert.NoError(t, err)
 		assert.NotNil(t, part)
 		assert.Equal(t, []byte("body1"), part)
@@ -897,7 +902,8 @@ func TestBuffer_downloadSegment(t *testing.T) {
 			copy(chunk, []byte(expectedBody1))
 		}).Return(nil).Times(1)
 
-		part, err := buf.downloadSegment(context.Background(), segment, groups)
+		part := make([]byte, 5)
+		err := buf.downloadSegment(context.Background(), segment, groups, part)
 
 		assert.NoError(t, err)
 		assert.NotNil(t, part)
