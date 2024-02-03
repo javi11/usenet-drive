@@ -133,7 +133,7 @@ version: "3"
 services:
   usenet-drive:
     image: laris11/usenet-drive:latest
-    command: /usenet-drive -c /config/config.yaml
+    command: /usenetdrive -c /config/config.yaml
     ports:
       - "8080:8080"
     volumes:
@@ -183,9 +183,8 @@ The `Download` struct defines the Usenet provider for downloading.
 
 ### Fields
 
-- `max_ahead_download_segments` (string): The maximum number of segments to download ahead. Default value is `1`. Be aware that increasing this value will increase the memory usage and connections usage.
+- `max_download_workers` (int): The maximum number of download workers. Default value is `5`. WARN the tool will use 1 connections per worker. Min value is 1. The number observed optimal for good speed is 5.
 - `max_retries` (int): The maximum number of retries to download a segment. Default value is `8`.
-- `max_cache_size_in_mb` (int): The maximum size of the cache in MB. Default value is `1024`. WARN the tool will fill all this cache as soon as download start.
 - `providers` (UsenetProvider): Usenet providers to download files. (It is recommended an unlimited provider for this)
 
 ## Upload Struct
@@ -209,7 +208,7 @@ The `UsenetProvider` struct defines the Usenet provider configuration.
 - `username` (string): The username for the Usenet provider. For example, `user`.
 - `password` (string): The password for the Usenet provider. For example, `pass`.
 - `groups` ([]string): The list of Usenet groups. For example, `["alt.binaries.teevee", "alt.binaries.movies"]`.
-- `ssl` (bool): Whether to use SSL for the Usenet provider. Default value is `true`.
+- `tls` (bool): Whether to use SSL for the Usenet provider. Default value is `true`.
 - `max_connections` (int): The maximum number of connections to the Usenet provider.
 - `download_only` (bool): Whether this provider only allows downloading. Default value is `false`.
 
@@ -228,5 +227,4 @@ go tool pprof -http=:8082 http://localhost:8080/debug/pprof/profile
 
 - Upload feature: https://github.com/F4n4t/GoPostStuff
 - Yenc encode: https://github.com/F4n4t/GoPostStuff
-- Yenc decode: https://github.com/chrisfarms/yenc
 - Nzb feature: https://github.com/chrisfarms/nzb

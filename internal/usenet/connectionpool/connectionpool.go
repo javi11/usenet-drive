@@ -28,11 +28,12 @@ type UsenetConnectionPool interface {
 }
 
 type connectionPool struct {
-	uploadPools   []*puddle.Pool[nntpcli.Connection]
-	downloadPools []*puddle.Pool[nntpcli.Connection]
-	log           *slog.Logger
-	mx            *sync.RWMutex
-	maxIdleTime   time.Duration
+	uploadPools       []*puddle.Pool[nntpcli.Connection]
+	downloadPools     []*puddle.Pool[nntpcli.Connection]
+	log               *slog.Logger
+	mx                *sync.RWMutex
+	maxIdleTime       time.Duration
+	maxConnectionLive time.Duration
 }
 
 func NewConnectionPool(options ...Option) (UsenetConnectionPool, error) {
@@ -101,11 +102,12 @@ func NewConnectionPool(options ...Option) (UsenetConnectionPool, error) {
 	}
 
 	return &connectionPool{
-		uploadPools:   uploadPools,
-		downloadPools: downloadPools,
-		log:           config.log,
-		mx:            &sync.RWMutex{},
-		maxIdleTime:   config.maxIdleTime,
+		uploadPools:       uploadPools,
+		downloadPools:     downloadPools,
+		log:               config.log,
+		mx:                &sync.RWMutex{},
+		maxIdleTime:       config.maxIdleTime,
+		maxConnectionLive: config.maxConnectionLive,
 	}, nil
 }
 
@@ -218,7 +220,7 @@ func (p *connectionPool) getConnection(
 		return nil, err
 	}
 
-	if conn.IdleDuration() > p.maxIdleTime {
+	if conn.IdleDuration() > p.maxIdleTime && time.Now().After(conn.CreationTime().Add(p.maxConnectionLive)) {
 		p.log.Debug(fmt.Sprintf("closing idle connection to %s", conn.Value().Provider().Host))
 		conn.Destroy()
 		return nil, nil

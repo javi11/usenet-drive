@@ -96,7 +96,7 @@ var rootCmd = &cobra.Command{
 
 		// Status reporter
 		sr := status.NewStatusReporter()
-		ticker := time.NewTicker(1 * time.Second)
+		ticker := time.NewTicker(5 * time.Second)
 		go sr.Start(ctx, ticker)
 
 		// Server info
@@ -127,9 +127,8 @@ var rootCmd = &cobra.Command{
 			filereader.WithCorruptedNzbsManager(cNzbs),
 			filereader.WithFileSystem(osFs),
 			filereader.WithMaxDownloadRetries(config.Usenet.Download.MaxRetries),
-			filereader.WithMaxAheadDownloadSegments(config.Usenet.Download.MaxAheadDownloadSegments),
+			filereader.WithMaxDownloadWorkers(config.Usenet.Download.MaxDownloadWorkers),
 			filereader.WithSegmentSize(config.Usenet.ArticleSizeInBytes),
-			filereader.WithCacheSize(config.Usenet.Download.MaxCacheSizeInMB),
 			filereader.WithDebug(config.Debug),
 			filereader.WithStatusReporter(sr),
 		)

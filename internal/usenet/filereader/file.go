@@ -32,6 +32,7 @@ type file struct {
 	fs        osfs.FileSystem
 	sr        status.StatusReporter
 	sessionId uuid.UUID
+	nzbReader nzbloader.NzbReader
 }
 
 func openFile(
@@ -45,7 +46,6 @@ func openFile(
 	cNzb corruptednzbsmanager.CorruptedNzbsManager,
 	fs osfs.FileSystem,
 	dc downloadConfig,
-	cache Cache,
 	sr status.StatusReporter,
 ) (bool, *file, error) {
 	if !isNzbFile(path) {
@@ -81,7 +81,8 @@ func openFile(
 		int(metadata.ChunkSize),
 		dc,
 		cp,
-		cache,
+		cNzb,
+		path,
 		log,
 	)
 	if err != nil {
@@ -94,6 +95,7 @@ func openFile(
 	return true, &file{
 		sessionId: sessionId,
 		innerFile: f,
+		nzbReader: nzbReader,
 		buffer:    buffer,
 		metadata:  metadata,
 		path:      usenet.ReplaceFileExtension(path, metadata.FileExtension),
@@ -122,9 +124,11 @@ func (f *file) Close() error {
 
 	err := f.innerFile.Close()
 	err2 := f.buffer.Close()
+	f.nzbReader.Close()
 
 	f.buffer = nil
 	f.innerFile = nil
+	f.nzbReader = nil
 
 	err = errors.Join(err, err2)
 	if err != nil {
