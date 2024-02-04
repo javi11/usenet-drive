@@ -360,15 +360,15 @@ func (f *file) addSegment(ctx context.Context, conn connectionpool.Resource, seg
 	log := f.log.With("segment_number", segmentIndex+1)
 
 	err := retry.Do(func() error {
-		a := f.buildArticleData(int64(segmentIndex))
-		if a == nil {
+		a, err := f.buildArticleData(int64(segmentIndex))
+		if err != nil {
 			f.cp.Free(conn)
 			conn = nil
 
 			return fmt.Errorf("error building article data %w", ErrRetryable)
 		}
 
-		articleBytes, err := ArticleToBytes(b, a, f.encoder)
+		articleReader, err := ArticleToReader(b, a, f.encoder)
 		if err != nil {
 			log.Error("Error building article.", "error", err)
 			f.cp.Free(conn)
@@ -412,7 +412,7 @@ func (f *file) addSegment(ctx context.Context, conn connectionpool.Resource, seg
 		}
 
 		nntpConn := conn.Value()
-		err = nntpConn.Post(articleBytes)
+		err = nntpConn.Post(articleReader)
 		if err != nil {
 			return fmt.Errorf("error posting article: %w", err)
 		}
@@ -467,16 +467,16 @@ func (f *file) addSegment(ctx context.Context, conn connectionpool.Resource, seg
 	return nil
 }
 
-func (f *file) buildArticleData(segmentIndex int64) *ArticleData {
+func (f *file) buildArticleData(segmentIndex int64) (ArticleData, error) {
 	start := segmentIndex * f.metadata.ChunkSize
 	end := min((segmentIndex+1)*f.metadata.ChunkSize, f.nzbMetadata.expectedFileSize)
 	msgId, err := generateMessageId()
 	if err != nil {
 		f.log.Error("Error generating message id.", "error", err)
-		return nil
+		return ArticleData{}, err
 	}
 
-	return &ArticleData{
+	return ArticleData{
 		partNum:   segmentIndex + 1,
 		partTotal: f.nzbMetadata.parts,
 		partSize:  end - start,
@@ -489,7 +489,7 @@ func (f *file) buildArticleData(segmentIndex int64) *ArticleData {
 		poster:    f.nzbMetadata.poster,
 		group:     f.nzbMetadata.group,
 		msgId:     msgId,
-	}
+	}, nil
 }
 
 func (f *file) writeFinalNzb(segments []*nzb.NzbSegment) error {
