@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"net/textproto"
+	"time"
 
 	"github.com/mnightingale/rapidyenc"
 )
@@ -14,12 +15,14 @@ import (
 const defaultBufSize = 4096
 
 type Provider struct {
-	Host           string
-	Port           int
-	Username       string
-	Password       string
-	JoinGroup      bool
-	MaxConnections int
+	Host             string
+	Port             int
+	Username         string
+	Password         string
+	JoinGroup        bool
+	MaxConnections   int
+	Id               string
+	MaxConnectionTTL time.Duration
 }
 
 type Connection interface {

@@ -8,8 +8,7 @@ import (
 
 type ServerInfo interface {
 	GetRootFolderDiskUsage() DiskUsage
-	GetUploadConnections() UsenetConnections
-	GetDownloadConnections() UsenetConnections
+	GetProvidersInfo() []connectionpool.ProviderInfo
 	GetActivity() []Activity
 	GetGlobalActivity() GlobalActivity
 }
@@ -34,12 +33,6 @@ type DiskUsage struct {
 	Folder string `json:"folder"`
 }
 
-type UsenetConnections struct {
-	Total  int `json:"total"`
-	Free   int `json:"free"`
-	Active int `json:"active"`
-}
-
 type serverInfo struct {
 	conPool  connectionpool.UsenetConnectionPool
 	rootPath string
@@ -61,20 +54,8 @@ func (s *serverInfo) GetRootFolderDiskUsage() DiskUsage {
 	}
 }
 
-func (s *serverInfo) GetUploadConnections() UsenetConnections {
-	return UsenetConnections{
-		Total:  s.conPool.GetMaxUploadConnections(),
-		Free:   s.conPool.GetUploadFreeConnections(),
-		Active: s.conPool.GetMaxUploadConnections() - s.conPool.GetUploadFreeConnections(),
-	}
-}
-
-func (s *serverInfo) GetDownloadConnections() UsenetConnections {
-	return UsenetConnections{
-		Total:  s.conPool.GetMaxDownloadConnections(),
-		Free:   s.conPool.GetDownloadFreeConnections(),
-		Active: s.conPool.GetMaxDownloadConnections() - s.conPool.GetDownloadFreeConnections(),
-	}
+func (s *serverInfo) GetProvidersInfo() []connectionpool.ProviderInfo {
+	return s.conPool.GetProvidersInfo()
 }
 
 func (s *serverInfo) GetActivity() []Activity {

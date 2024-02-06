@@ -50,11 +50,20 @@ func (c *client) Dial(
 	provider Provider,
 ) (Connection, error) {
 	var d net.Dialer
-	ctx, cancel := context.WithTimeout(ctx, c.timeout)
-	defer cancel()
 
 	conn, err := d.DialContext(ctx, "tcp", fmt.Sprintf("%s:%d", provider.Host, provider.Port))
 	if err != nil {
+		return nil, err
+	}
+
+	err = conn.(*net.TCPConn).SetKeepAlive(true)
+	if err != nil {
+		return nil, err
+	}
+
+	err = conn.(*net.TCPConn).SetKeepAlivePeriod(5 * time.Minute)
+	if err != nil {
+		fmt.Println(err)
 		return nil, err
 	}
 
@@ -67,11 +76,20 @@ func (c *client) DialTLS(
 	insecureSSL bool,
 ) (Connection, error) {
 	var d net.Dialer
-	ctx, cancel := context.WithTimeout(ctx, c.timeout)
-	defer cancel()
 
 	conn, err := d.DialContext(ctx, "tcp", fmt.Sprintf("%s:%d", provider.Host, provider.Port))
 	if err != nil {
+		return nil, err
+	}
+
+	err = conn.(*net.TCPConn).SetKeepAlive(true)
+	if err != nil {
+		return nil, err
+	}
+
+	err = conn.(*net.TCPConn).SetKeepAlivePeriod(provider.MaxConnectionTTL)
+	if err != nil {
+		fmt.Println(err)
 		return nil, err
 	}
 

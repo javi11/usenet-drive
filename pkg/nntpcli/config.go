@@ -14,7 +14,7 @@ type Option func(*Config)
 
 func defaultConfig() *Config {
 	return &Config{
-		timeout: time.Duration(20) * time.Second,
+		timeout: time.Duration(5) * time.Second,
 		log:     slog.Default(),
 	}
 }

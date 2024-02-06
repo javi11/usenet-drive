@@ -31,9 +31,10 @@ type Usenet struct {
 }
 
 type Download struct {
-	MaxDownloadWorkers int              `yaml:"max_download_workers" default:"5"`
-	MaxRetries         int              `yaml:"max_retries" default:"8"`
-	Providers          []UsenetProvider `yaml:"providers"`
+	MaxDownloadWorkers        int              `yaml:"max_download_workers" default:"5"`
+	MaxRetries                int              `yaml:"max_retries" default:"8"`
+	MaxConnectionTTLInMinutes int              `yaml:"max_connection_ttl_in_minutes" default:"10"`
+	Providers                 []UsenetProvider `yaml:"providers"`
 }
 
 type Upload struct {
@@ -53,6 +54,7 @@ type UsenetProvider struct {
 	MaxConnections int    `yaml:"max_connections"`
 	InsecureSSL    bool   `yaml:"insecure_ssl" default:"false"`
 	JoinGroup      bool   `yaml:"join_group" default:"false"`
+	Id             string `yaml:"id" default:""`
 }
 
 func FromFile(path string) (*Config, error) {

@@ -9,7 +9,7 @@ import {
     LoadingOverlay,
 } from '@mantine/core';
 import DiskUsageCard, { DiskUsage } from '../components/DiskUsageCard';
-import UsenetConnectionsCard, { UsenetConnections } from '../components/UsenetConnectionsCard';
+import UsenetConnectionsCard, { ProviderInfo } from '../components/UsenetConnectionsCard';
 import { useEffect, useState } from 'react';
 import { notifications } from '@mantine/notifications';
 import { NetworkUsageCard } from '../components/NetworkUsage';
@@ -43,8 +43,7 @@ const useStyles = createStyles((theme) => ({
 
 interface ServerInfo {
     root_folder_disk_usage: DiskUsage;
-    upload_usenet_connections: UsenetConnections;
-    download_usenet_connections: UsenetConnections;
+    providers_info: ProviderInfo[];
     global_activity: {
         download_speed: number;
         upload_speed: number;
@@ -61,16 +60,7 @@ export default function Home() {
             free: 0,
             folder: '',
         },
-        download_usenet_connections: {
-            total: 0,
-            active: 0,
-            free: 0,
-        },
-        upload_usenet_connections: {
-            total: 0,
-            active: 0,
-            free: 0,
-        },
+        providers_info: [],
         global_activity: {
             download_speed: 0,
             upload_speed: 0,
@@ -128,8 +118,9 @@ export default function Home() {
             <SimpleGrid cols={2} spacing="xl" mt={50} breakpoints={[{ maxWidth: 'md', cols: 1 }]}>
                 <NetworkUsageCard data={serverInfo.global_activity} />
                 <DiskUsageCard data={serverInfo.root_folder_disk_usage} />
-                <UsenetConnectionsCard data={serverInfo.download_usenet_connections} title="Download" />
-                <UsenetConnectionsCard data={serverInfo.upload_usenet_connections} title="Upload" />
+                {serverInfo.providers_info.map((provider, index) => (
+                    <UsenetConnectionsCard key={index} data={provider} />
+                ))}
             </SimpleGrid>
         </Container>
     );

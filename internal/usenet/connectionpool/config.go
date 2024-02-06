@@ -14,17 +14,15 @@ type Config struct {
 	log               *slog.Logger
 	fakeConnections   bool
 	cli               nntpcli.Client
-	maxIdleTime       time.Duration
-	maxConnectionLive time.Duration
+	maxConnectionTTL  time.Duration
 }
 
 type Option func(*Config)
 
 func defaultConfig() *Config {
 	return &Config{
-		fakeConnections:   false,
-		maxIdleTime:       300 * time.Second,
-		maxConnectionLive: 10 * time.Minute,
+		fakeConnections:  false,
+		maxConnectionTTL: 10 * time.Minute,
 	}
 }
 
@@ -58,8 +56,8 @@ func WithFakeConnections(fakeConnections bool) Option {
 	}
 }
 
-func WithMaxIdleTime(maxIdleTime time.Duration) Option {
+func WithMaxConnectionTTL(maxConnectionTTL time.Duration) Option {
 	return func(c *Config) {
-		c.maxIdleTime = maxIdleTime
+		c.maxConnectionTTL = maxConnectionTTL
 	}
 }

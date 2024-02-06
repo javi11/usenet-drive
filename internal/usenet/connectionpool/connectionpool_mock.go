@@ -73,46 +73,18 @@ func (mr *MockUsenetConnectionPoolMockRecorder) GetDownloadConnection(ctx interf
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDownloadConnection", reflect.TypeOf((*MockUsenetConnectionPool)(nil).GetDownloadConnection), ctx)
 }
 
-// GetDownloadFreeConnections mocks base method.
-func (m *MockUsenetConnectionPool) GetDownloadFreeConnections() int {
+// GetProvidersInfo mocks base method.
+func (m *MockUsenetConnectionPool) GetProvidersInfo() []ProviderInfo {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetDownloadFreeConnections")
-	ret0, _ := ret[0].(int)
+	ret := m.ctrl.Call(m, "GetProvidersInfo")
+	ret0, _ := ret[0].([]ProviderInfo)
 	return ret0
 }
 
-// GetDownloadFreeConnections indicates an expected call of GetDownloadFreeConnections.
-func (mr *MockUsenetConnectionPoolMockRecorder) GetDownloadFreeConnections() *gomock.Call {
+// GetProvidersInfo indicates an expected call of GetProvidersInfo.
+func (mr *MockUsenetConnectionPoolMockRecorder) GetProvidersInfo() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDownloadFreeConnections", reflect.TypeOf((*MockUsenetConnectionPool)(nil).GetDownloadFreeConnections))
-}
-
-// GetMaxDownloadConnections mocks base method.
-func (m *MockUsenetConnectionPool) GetMaxDownloadConnections() int {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetMaxDownloadConnections")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-// GetMaxDownloadConnections indicates an expected call of GetMaxDownloadConnections.
-func (mr *MockUsenetConnectionPoolMockRecorder) GetMaxDownloadConnections() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMaxDownloadConnections", reflect.TypeOf((*MockUsenetConnectionPool)(nil).GetMaxDownloadConnections))
-}
-
-// GetMaxUploadConnections mocks base method.
-func (m *MockUsenetConnectionPool) GetMaxUploadConnections() int {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetMaxUploadConnections")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-// GetMaxUploadConnections indicates an expected call of GetMaxUploadConnections.
-func (mr *MockUsenetConnectionPoolMockRecorder) GetMaxUploadConnections() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMaxUploadConnections", reflect.TypeOf((*MockUsenetConnectionPool)(nil).GetMaxUploadConnections))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProvidersInfo", reflect.TypeOf((*MockUsenetConnectionPool)(nil).GetProvidersInfo))
 }
 
 // GetUploadConnection mocks base method.
@@ -128,20 +100,6 @@ func (m *MockUsenetConnectionPool) GetUploadConnection(ctx context.Context) (Res
 func (mr *MockUsenetConnectionPoolMockRecorder) GetUploadConnection(ctx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUploadConnection", reflect.TypeOf((*MockUsenetConnectionPool)(nil).GetUploadConnection), ctx)
-}
-
-// GetUploadFreeConnections mocks base method.
-func (m *MockUsenetConnectionPool) GetUploadFreeConnections() int {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetUploadFreeConnections")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-// GetUploadFreeConnections indicates an expected call of GetUploadFreeConnections.
-func (mr *MockUsenetConnectionPoolMockRecorder) GetUploadFreeConnections() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUploadFreeConnections", reflect.TypeOf((*MockUsenetConnectionPool)(nil).GetUploadFreeConnections))
 }
 
 // Quit mocks base method.
