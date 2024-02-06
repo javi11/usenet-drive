@@ -339,7 +339,7 @@ func TestGetDownloadConnection(t *testing.T) {
 
 		cp.Free(conn)
 
-		time.Sleep(300 * time.Millisecond)
+		time.Sleep(400 * time.Millisecond)
 
 		assert.Equal(t, 2, getFreeConnections(cp, UploadProviderPool))
 	})

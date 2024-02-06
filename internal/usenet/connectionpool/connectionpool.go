@@ -31,6 +31,7 @@ type connectionPool struct {
 	log                  *slog.Logger
 	maxConnectionTTL     time.Duration
 	close                chan bool
+	wg                   sync.WaitGroup
 }
 
 func NewConnectionPool(options ...Option) (UsenetConnectionPool, error) {
@@ -112,8 +113,10 @@ func NewConnectionPool(options ...Option) (UsenetConnectionPool, error) {
 		log:                  config.log,
 		maxConnectionTTL:     config.maxConnectionTTL,
 		close:                make(chan bool),
+		wg:                   sync.WaitGroup{},
 	}
 
+	pool.wg.Add(1)
 	go pool.connectionCleaner()
 
 	return pool, nil
@@ -121,6 +124,8 @@ func NewConnectionPool(options ...Option) (UsenetConnectionPool, error) {
 
 func (p *connectionPool) Quit() {
 	close(p.close)
+
+	p.wg.Wait()
 
 	p.downloadConnPool.Close()
 	p.uploadConnPool.Close()
@@ -266,6 +271,7 @@ func dialNNTP(
 func (p *connectionPool) connectionCleaner() {
 	ticker := time.NewTicker(p.maxConnectionTTL)
 	defer ticker.Stop()
+	defer p.wg.Done()
 
 	for {
 		select {
@@ -276,6 +282,7 @@ func (p *connectionPool) connectionCleaner() {
 
 			wg.Add(1)
 			go func() {
+				defer wg.Done()
 				idle := p.uploadConnPool.AcquireAllIdle()
 				for _, conn := range idle {
 					if conn.IdleDuration() > p.maxConnectionTTL {
@@ -284,11 +291,11 @@ func (p *connectionPool) connectionCleaner() {
 						conn.ReleaseUnused()
 					}
 				}
-				wg.Done()
 			}()
 
 			wg.Add(1)
 			go func() {
+				defer wg.Done()
 				idle := p.downloadConnPool.AcquireAllIdle()
 				for _, conn := range idle {
 					if conn.IdleDuration() > p.maxConnectionTTL {
@@ -297,7 +304,6 @@ func (p *connectionPool) connectionCleaner() {
 						conn.ReleaseUnused()
 					}
 				}
-				wg.Done()
 			}()
 
 			wg.Wait()
