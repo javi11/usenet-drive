@@ -80,15 +80,29 @@ export default function UsenetConnectionsCard({ data }: UsenetConnectionsCardPro
                                     </Popover.Dropdown>
                                 </Popover>
                             </Flex>
-                            <Text size="xs" c="dimmed">
+                            {data.maxConnections === 0 ? <Text size="xs" c="dimmed">
+                                provided disabled because max connections is set to 0
+                            </Text> : <Text size="xs" c="dimmed">
                                 {data.usedConnections} of {data.maxConnections} available connections
-                            </Text>
+                            </Text>}
                         </div>
                     </Group>
                 </div>
 
                 <div className={classes.ring}>
-                    <RingProgress
+                    {data.maxConnections === 0 ? <RingProgress
+                        roundCaps
+                        thickness={6}
+                        size={150}
+                        sections={[]}
+                        label={
+                            <div>
+                                <Text ta="center" fz="lg" className={classes.label}>
+                                    Disabled
+                                </Text>
+                            </div>
+                        }
+                    /> : <RingProgress
                         roundCaps
                         thickness={6}
                         size={150}
@@ -103,7 +117,7 @@ export default function UsenetConnectionsCard({ data }: UsenetConnectionsCardPro
                                 </Text>
                             </div>
                         }
-                    />
+                    />}
                 </div>
             </div>
         </Card>
