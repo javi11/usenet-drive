@@ -60,10 +60,9 @@ func TestDial(t *testing.T) {
 	t.Run("Dial", func(t *testing.T) {
 		c := &client{timeout: 5 * time.Second}
 		conn, err := c.Dial(context.Background(), Provider{
-			Host:             host,
-			Port:             port,
-			MaxConnectionTTL: 5 * time.Minute,
-		})
+			Host: host,
+			Port: port,
+		}, time.Now().Add(5*time.Second))
 		assert.NoError(t, err)
 		assert.NotNil(t, conn)
 	})
@@ -74,7 +73,7 @@ func TestDial(t *testing.T) {
 		_, err = c.Dial(context.Background(), Provider{
 			Host: "127.0.0.1",
 			Port: 12345,
-		})
+		}, time.Now().Add(5*time.Second))
 		assert.Error(t, err)
 	})
 }

@@ -77,7 +77,8 @@ var rootCmd = &cobra.Command{
 			connectionpool.WithUploadProviders(config.Usenet.Upload.Providers),
 			connectionpool.WithClient(nntpCli),
 			connectionpool.WithLogger(log),
-			connectionpool.WithMaxConnectionTTL(time.Duration(config.Usenet.Download.MaxConnectionTTLInMinutes)*time.Minute),
+			connectionpool.WithMaxConnectionTTL(time.Duration(config.Usenet.MaxConnectionTTLInMinutes)*time.Minute),
+			connectionpool.WithMaxConnectionIdleTime(time.Duration(config.Usenet.MaxConnectionIdleTimeInMinutes)*time.Minute),
 		)
 		if err != nil {
 			log.ErrorContext(ctx, "Failed to init usenet connection pool: %v", err)

@@ -176,6 +176,8 @@ The `usenet` struct defines the Usenet configuration.
 - `upload` (Upload): Uploading configuration.
 - `providers` (UsenetProvider): Usenet providers to download/upload files
 - `fake_connections` (bool): Whether to use fake connections. Default value is `false`. This is useful for testing purposes.
+- `max_connection_ttl_in_minutes` (int): The maximum time a connection will be kept alive in minutes. Default value is `60`.
+- `max_connection_idle_time_in_minutes` (int): Idle connections will be closed after this max time `10`.
 
 ## Download Struct
 
@@ -184,7 +186,6 @@ The `Download` struct defines the Usenet provider for downloading.
 ### Fields
 
 - `max_download_workers` (int): The maximum number of download workers. Default value is `5`. WARN the tool will use 1 connections per worker. Min value is 1. The number observed optimal for good speed is 5.
-- `max_connection_ttl_in_minutes` (int): The maximum time a connection will be kept alive in minutes. Default value is `10`.
 - `max_retries` (int): The maximum number of retries to download a segment. Default value is `8`.
 - `providers` (UsenetProvider): Usenet providers to download files. (It is recommended an unlimited provider for this)
 

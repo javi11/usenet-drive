@@ -8,11 +8,14 @@ import (
 	"log/slog"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/jackc/puddle/v2"
 	"github.com/javi11/usenet-drive/pkg/nntpcli"
 )
+
+var defaultHealthCheckPeriod = time.Minute
 
 type UsenetConnectionPool interface {
 	GetDownloadConnection(ctx context.Context) (Resource, error)
@@ -24,14 +27,16 @@ type UsenetConnectionPool interface {
 }
 
 type connectionPool struct {
-	uploadConnPool       *puddle.Pool[nntpcli.Connection]
-	downloadConnPool     *puddle.Pool[nntpcli.Connection]
-	uploadProviderPool   *providerPool
-	downloadProviderPool *providerPool
-	log                  *slog.Logger
-	maxConnectionTTL     time.Duration
-	close                chan bool
-	wg                   sync.WaitGroup
+	uploadConnPool         *puddle.Pool[nntpcli.Connection]
+	downloadConnPool       *puddle.Pool[nntpcli.Connection]
+	uploadProviderPool     *providerPool
+	downloadProviderPool   *providerPool
+	log                    *slog.Logger
+	maxConnectionTTL       time.Duration
+	maxConnectionIdleTime  time.Duration
+	minDownloadConnections int
+	closeChan              chan struct{}
+	wg                     sync.WaitGroup
 }
 
 func NewConnectionPool(options ...Option) (UsenetConnectionPool, error) {
@@ -50,12 +55,13 @@ func NewConnectionPool(options ...Option) (UsenetConnectionPool, error) {
 				if provider == nil {
 					return nil, nil
 				}
+				maxAgeTime := time.Now().Add(config.maxConnectionTTL)
 
 				return dialNNTP(
 					ctx,
 					config.cli,
 					config.fakeConnections,
-					config.maxConnectionTTL,
+					maxAgeTime,
 					provider,
 					config.log,
 				)
@@ -81,12 +87,13 @@ func NewConnectionPool(options ...Option) (UsenetConnectionPool, error) {
 				if provider == nil {
 					return nil, nil
 				}
+				maxAgeTime := time.Now().Add(config.maxConnectionTTL)
 
 				return dialNNTP(
 					ctx,
 					config.cli,
 					config.fakeConnections,
-					config.maxConnectionTTL,
+					maxAgeTime,
 					provider,
 					config.log,
 				)
@@ -106,24 +113,26 @@ func NewConnectionPool(options ...Option) (UsenetConnectionPool, error) {
 	}
 
 	pool := &connectionPool{
-		uploadProviderPool:   upp,
-		downloadProviderPool: dpp,
-		uploadConnPool:       uConnPool,
-		downloadConnPool:     dConnPool,
-		log:                  config.log,
-		maxConnectionTTL:     config.maxConnectionTTL,
-		close:                make(chan bool),
-		wg:                   sync.WaitGroup{},
+		uploadProviderPool:     upp,
+		downloadProviderPool:   dpp,
+		uploadConnPool:         uConnPool,
+		downloadConnPool:       dConnPool,
+		log:                    config.log,
+		maxConnectionTTL:       config.maxConnectionTTL,
+		maxConnectionIdleTime:  config.maxConnectionIdleTime,
+		minDownloadConnections: config.minDownloadConnections,
+		closeChan:              make(chan struct{}, 1),
+		wg:                     sync.WaitGroup{},
 	}
 
 	pool.wg.Add(1)
-	go pool.connectionCleaner()
+	go pool.connectionHealCheck()
 
 	return pool, nil
 }
 
 func (p *connectionPool) Quit() {
-	close(p.close)
+	close(p.closeChan)
 
 	p.wg.Wait()
 
@@ -203,7 +212,7 @@ func dialNNTP(
 	ctx context.Context,
 	cli nntpcli.Client,
 	fakeConnections bool,
-	maxConnectionTTL time.Duration,
+	maxAgeTime time.Time,
 	p *Provider,
 	log *slog.Logger,
 ) (nntpcli.Connection, error) {
@@ -214,14 +223,13 @@ func dialNNTP(
 		log.Debug(fmt.Sprintf("connecting to %s:%v", p.UsenetProvider.Host, p.UsenetProvider.Port))
 
 		provider := nntpcli.Provider{
-			Host:             p.UsenetProvider.Host,
-			Port:             p.UsenetProvider.Port,
-			Username:         p.UsenetProvider.Username,
-			Password:         p.UsenetProvider.Password,
-			JoinGroup:        p.UsenetProvider.JoinGroup,
-			MaxConnections:   p.UsenetProvider.MaxConnections,
-			Id:               p.UsenetProvider.Id,
-			MaxConnectionTTL: maxConnectionTTL,
+			Host:           p.UsenetProvider.Host,
+			Port:           p.UsenetProvider.Port,
+			Username:       p.UsenetProvider.Username,
+			Password:       p.UsenetProvider.Password,
+			JoinGroup:      p.UsenetProvider.JoinGroup,
+			MaxConnections: p.UsenetProvider.MaxConnections,
+			Id:             p.UsenetProvider.Id,
 		}
 
 		if fakeConnections {
@@ -233,6 +241,7 @@ func dialNNTP(
 				ctx,
 				provider,
 				p.InsecureSSL,
+				maxAgeTime,
 			)
 			if err != nil {
 				e, ok := err.(net.Error)
@@ -246,6 +255,7 @@ func dialNNTP(
 			c, err = cli.Dial(
 				ctx,
 				provider,
+				maxAgeTime,
 			)
 			if err != nil {
 				// if it's a timeout, ignore and try again
@@ -268,45 +278,101 @@ func dialNNTP(
 	return c, nil
 }
 
-func (p *connectionPool) connectionCleaner() {
-	ticker := time.NewTicker(p.maxConnectionTTL)
+func (p *connectionPool) connectionHealCheck() {
+	ticker := time.NewTicker(defaultHealthCheckPeriod)
 	defer ticker.Stop()
 	defer p.wg.Done()
 
 	for {
 		select {
-		case <-p.close:
+		case <-p.closeChan:
 			return
 		case <-ticker.C:
-			wg := sync.WaitGroup{}
-
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				idle := p.uploadConnPool.AcquireAllIdle()
-				for _, conn := range idle {
-					if conn.IdleDuration() > p.maxConnectionTTL {
-						conn.Destroy()
-					} else {
-						conn.ReleaseUnused()
-					}
-				}
-			}()
-
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				idle := p.downloadConnPool.AcquireAllIdle()
-				for _, conn := range idle {
-					if conn.IdleDuration() > p.maxConnectionTTL {
-						conn.Destroy()
-					} else {
-						conn.ReleaseUnused()
-					}
-				}
-			}()
-
-			wg.Wait()
+			p.checkHealth()
 		}
 	}
+}
+
+func (p *connectionPool) checkHealth() {
+	for {
+		// If checkMinConns failed we don't destroy any connections since we couldn't
+		// even get to minConns
+		if err := p.checkMinConns(); err != nil {
+			// Should we log this error somewhere?
+			break
+		}
+		if !p.checkConnsHealth() {
+			// Since we didn't destroy any connections we can stop looping
+			break
+		}
+		// Technically Destroy is asynchronous but 500ms should be enough for it to
+		// remove it from the underlying pool
+		select {
+		case <-p.closeChan:
+			return
+		case <-time.After(500 * time.Millisecond):
+		}
+	}
+}
+
+func (p *connectionPool) checkConnsHealth() bool {
+	destroyed := atomic.Bool{}
+
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		idle := p.uploadConnPool.AcquireAllIdle()
+		for _, res := range idle {
+			if p.isExpired(res) || res.IdleDuration() > p.maxConnectionIdleTime {
+				res.Destroy()
+				destroyed.Store(true)
+			} else {
+				res.ReleaseUnused()
+			}
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		idle := p.downloadConnPool.AcquireAllIdle()
+		for _, res := range idle {
+			if p.isExpired(res) || res.IdleDuration() > p.maxConnectionIdleTime {
+				res.Destroy()
+				destroyed.Store(true)
+			} else {
+				res.ReleaseUnused()
+			}
+		}
+	}()
+
+	wg.Wait()
+
+	return destroyed.Load()
+}
+
+func (p *connectionPool) createIdleResources(ctx context.Context, toCreate int) error {
+	for i := 0; i < toCreate; i++ {
+		_, err := p.downloadConnPool.Acquire(ctx)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (p *connectionPool) checkMinConns() error {
+	// TotalConns can include ones that are being destroyed but we should have
+	// sleep(500ms) around all of the destroys to help prevent that from throwing
+	// off this check
+	toCreate := p.minDownloadConnections - int(p.downloadConnPool.Stat().TotalResources())
+	if toCreate > 0 {
+		return p.createIdleResources(context.Background(), int(toCreate))
+	}
+	return nil
+}
+
+func (p *connectionPool) isExpired(res *puddle.Resource[nntpcli.Connection]) bool {
+	return time.Now().After(res.Value().MaxAgeTime())
 }

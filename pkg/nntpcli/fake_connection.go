@@ -2,6 +2,7 @@ package nntpcli
 
 import (
 	"io"
+	"time"
 )
 
 type fakeConnection struct {
@@ -43,4 +44,8 @@ func (c *fakeConnection) Body(msgId string, chunk []byte) error {
 
 func (c *fakeConnection) Post(r io.Reader) error {
 	return nil
+}
+
+func (c *fakeConnection) MaxAgeTime() time.Time {
+	return time.Now().Add(1 * time.Hour)
 }

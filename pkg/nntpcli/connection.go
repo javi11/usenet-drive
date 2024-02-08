@@ -15,14 +15,13 @@ import (
 const defaultBufSize = 4096
 
 type Provider struct {
-	Host             string
-	Port             int
-	Username         string
-	Password         string
-	JoinGroup        bool
-	MaxConnections   int
-	Id               string
-	MaxConnectionTTL time.Duration
+	Host           string
+	Port           int
+	Username       string
+	Password       string
+	JoinGroup      bool
+	MaxConnections int
+	Id             string
 }
 
 type Connection interface {
@@ -33,6 +32,7 @@ type Connection interface {
 	Post(r io.Reader) error
 	Provider() Provider
 	CurrentJoinedGroup() string
+	MaxAgeTime() time.Time
 }
 
 type connection struct {
@@ -41,9 +41,10 @@ type connection struct {
 	provider           Provider
 	currentJoinedGroup string
 	decoder            *rapidyenc.Decoder
+	maxAgeTime         time.Time
 }
 
-func newConnection(netconn net.Conn, provider Provider) (Connection, error) {
+func newConnection(netconn net.Conn, provider Provider, maxAgeTime time.Time) (Connection, error) {
 	conn := textproto.NewConn(netconn)
 
 	_, _, err := conn.ReadCodeLine(200)
@@ -52,10 +53,11 @@ func newConnection(netconn net.Conn, provider Provider) (Connection, error) {
 		_, _, err = conn.ReadCodeLine(201)
 		if err == nil {
 			return &connection{
-				conn:     conn,
-				netconn:  netconn,
-				provider: provider,
-				decoder:  rapidyenc.NewDecoder(defaultBufSize),
+				conn:       conn,
+				netconn:    netconn,
+				provider:   provider,
+				decoder:    rapidyenc.NewDecoder(defaultBufSize),
+				maxAgeTime: maxAgeTime,
 			}, nil
 		}
 		conn.Close()
@@ -63,10 +65,11 @@ func newConnection(netconn net.Conn, provider Provider) (Connection, error) {
 	}
 
 	return &connection{
-		conn:     conn,
-		netconn:  netconn,
-		provider: provider,
-		decoder:  rapidyenc.NewDecoder(defaultBufSize),
+		conn:       conn,
+		netconn:    netconn,
+		provider:   provider,
+		decoder:    rapidyenc.NewDecoder(defaultBufSize),
+		maxAgeTime: maxAgeTime,
 	}, nil
 }
 
@@ -171,6 +174,10 @@ func (c *connection) Post(r io.Reader) error {
 
 func (c *connection) Provider() Provider {
 	return c.provider
+}
+
+func (c *connection) MaxAgeTime() time.Time {
+	return c.maxAgeTime
 }
 
 func (c *connection) sendCmd(cmd string, expectCode int) (int, string, error) {

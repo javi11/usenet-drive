@@ -19,11 +19,13 @@ type Client interface {
 	Dial(
 		ctx context.Context,
 		provider Provider,
+		maxAgeTime time.Time,
 	) (Connection, error)
 	DialTLS(
 		ctx context.Context,
 		provider Provider,
 		insecureSSL bool,
+		maxAgeTime time.Time,
 	) (Connection, error)
 }
 
@@ -48,6 +50,7 @@ func New(options ...Option) Client {
 func (c *client) Dial(
 	ctx context.Context,
 	provider Provider,
+	maxAgeTime time.Time,
 ) (Connection, error) {
 	var d net.Dialer
 
@@ -61,19 +64,22 @@ func (c *client) Dial(
 		return nil, err
 	}
 
-	err = conn.(*net.TCPConn).SetKeepAlivePeriod(5 * time.Minute)
+	duration := time.Until(maxAgeTime)
+
+	err = conn.(*net.TCPConn).SetKeepAlivePeriod(duration)
 	if err != nil {
 		fmt.Println(err)
 		return nil, err
 	}
 
-	return newConnection(conn, provider)
+	return newConnection(conn, provider, maxAgeTime)
 }
 
 func (c *client) DialTLS(
 	ctx context.Context,
 	provider Provider,
 	insecureSSL bool,
+	maxAgeTime time.Time,
 ) (Connection, error) {
 	var d net.Dialer
 
@@ -87,7 +93,9 @@ func (c *client) DialTLS(
 		return nil, err
 	}
 
-	err = conn.(*net.TCPConn).SetKeepAlivePeriod(provider.MaxConnectionTTL)
+	duration := time.Until(maxAgeTime)
+
+	err = conn.(*net.TCPConn).SetKeepAlivePeriod(duration)
 	if err != nil {
 		fmt.Println(err)
 		return nil, err
@@ -99,5 +107,5 @@ func (c *client) DialTLS(
 		return nil, err
 	}
 
-	return newConnection(tlsConn, provider)
+	return newConnection(tlsConn, provider, maxAgeTime)
 }

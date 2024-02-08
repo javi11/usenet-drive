@@ -57,7 +57,7 @@ func TestGetDownloadConnection(t *testing.T) {
 		}
 
 		mockNntpCli.EXPECT().
-			Dial(gomock.Any(), gomockextra.StructMatcher().Field("Host", "download")).
+			Dial(gomock.Any(), gomockextra.StructMatcher().Field("Host", "download"), gomock.Any()).
 			Return(mockCon, nil)
 		mockCon.EXPECT().Provider().Return(provider).Times(2)
 		mockCon.EXPECT().Authenticate().Return(nil)
@@ -91,7 +91,7 @@ func TestGetDownloadConnection(t *testing.T) {
 			Id:       "1",
 		}
 		mockNntpCli.EXPECT().
-			Dial(gomock.Any(), gomockextra.StructMatcher().Field("Host", "download")).
+			Dial(gomock.Any(), gomockextra.StructMatcher().Field("Host", "download"), gomock.Any()).
 			Return(mockDownloadCon, nil)
 		mockDownloadCon.EXPECT().Provider().Return(provider).Times(2)
 		mockDownloadCon.EXPECT().Authenticate().Return(nil)
@@ -106,7 +106,7 @@ func TestGetDownloadConnection(t *testing.T) {
 			Id:       "2",
 		}
 		mockNntpCli.EXPECT().
-			Dial(gomock.Any(), gomockextra.StructMatcher().Field("Host", "download2")).
+			Dial(gomock.Any(), gomockextra.StructMatcher().Field("Host", "download2"), gomock.Any()).
 			Return(mockDownloadCon2, nil)
 		mockDownloadCon2.EXPECT().Provider().Return(provider2).Times(1)
 		mockDownloadCon2.EXPECT().Authenticate().Return(nil)
@@ -152,7 +152,7 @@ func TestGetDownloadConnection(t *testing.T) {
 		mockCon := nntpcli.NewMockConnection(ctrl)
 
 		mockNntpCli.EXPECT().
-			Dial(gomock.Any(), gomockextra.StructMatcher().Field("Host", "download")).
+			Dial(gomock.Any(), gomockextra.StructMatcher().Field("Host", "download"), gomock.Any()).
 			Return(mockCon, nil)
 		mockCon.EXPECT().Authenticate().Return(nil)
 		mockCon.EXPECT().Provider().Return(nntpcli.Provider{
@@ -194,7 +194,7 @@ func TestGetDownloadConnection(t *testing.T) {
 		mockCon := nntpcli.NewMockConnection(ctrl)
 
 		mockNntpCli.EXPECT().
-			Dial(gomock.Any(), gomockextra.StructMatcher().Field("Host", "download")).
+			Dial(gomock.Any(), gomockextra.StructMatcher().Field("Host", "download"), gomock.Any()).
 			Return(mockCon, nil)
 		mockCon.EXPECT().Authenticate().Return(nil)
 		mockCon.EXPECT().Close().Return(nil).Times(1)
@@ -242,11 +242,11 @@ func TestGetDownloadConnection(t *testing.T) {
 		}
 
 		mockNntpCli.EXPECT().
-			Dial(gomock.Any(), gomockextra.StructMatcher().Field("Host", "download")).
+			Dial(gomock.Any(), gomockextra.StructMatcher().Field("Host", "download"), gomock.Any()).
 			Return(nil, net.Error(&net.OpError{Err: syscall.ETIMEDOUT}))
 
 		mockNntpCli.EXPECT().
-			Dial(gomock.Any(), gomockextra.StructMatcher().Field("Host", "download")).
+			Dial(gomock.Any(), gomockextra.StructMatcher().Field("Host", "download"), gomock.Any()).
 			Return(mockCon, nil)
 		mockCon.EXPECT().Provider().Return(provider).Times(2)
 		mockCon.EXPECT().Authenticate().Return(nil)
@@ -280,7 +280,7 @@ func TestGetDownloadConnection(t *testing.T) {
 		}
 
 		mockNntpCli.EXPECT().
-			Dial(gomock.Any(), gomockextra.StructMatcher().Field("Host", "upload")).
+			Dial(gomock.Any(), gomockextra.StructMatcher().Field("Host", "upload"), gomock.Any()).
 			Return(mockCon, nil)
 		mockCon.EXPECT().Provider().Return(provider).Times(2)
 		mockCon.EXPECT().Authenticate().Return(nil)
@@ -315,7 +315,7 @@ func TestGetDownloadConnection(t *testing.T) {
 		}
 
 		mockNntpCli.EXPECT().
-			Dial(gomock.Any(), gomockextra.StructMatcher().Field("Host", "upload")).
+			Dial(gomock.Any(), gomockextra.StructMatcher().Field("Host", "upload"), gomock.Any()).
 			Return(mockCon, nil)
 		mockCon.EXPECT().Provider().Return(provider).Times(1)
 		mockCon.EXPECT().Authenticate().Return(nil)

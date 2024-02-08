@@ -7,6 +7,7 @@ package nntpcli
 import (
 	io "io"
 	reflect "reflect"
+	time "time"
 
 	gomock "github.com/golang/mock/gomock"
 )
@@ -102,6 +103,20 @@ func (m *MockConnection) JoinGroup(name string) error {
 func (mr *MockConnectionMockRecorder) JoinGroup(name interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "JoinGroup", reflect.TypeOf((*MockConnection)(nil).JoinGroup), name)
+}
+
+// MaxAgeTime mocks base method.
+func (m *MockConnection) MaxAgeTime() time.Time {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MaxAgeTime")
+	ret0, _ := ret[0].(time.Time)
+	return ret0
+}
+
+// MaxAgeTime indicates an expected call of MaxAgeTime.
+func (mr *MockConnectionMockRecorder) MaxAgeTime() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MaxAgeTime", reflect.TypeOf((*MockConnection)(nil).MaxAgeTime))
 }
 
 // Post mocks base method.

@@ -81,7 +81,7 @@ func NewBuffer(
 		cp:                     cp,
 		dc:                     dc,
 		log:                    log,
-		nextSegment:            make(chan nzb.NzbSegment),
+		nextSegment:            make(chan nzb.NzbSegment, 1),
 		wg:                     &sync.WaitGroup{},
 		currentDownloading:     &sync.Map{},
 		filePath:               filePath,
@@ -328,6 +328,7 @@ func (b *buffer) downloadSegment(
 
 		b.cp.Free(conn)
 		conn = nil
+		nntpConn = nil
 
 		return nil
 	},
