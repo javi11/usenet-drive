@@ -82,7 +82,10 @@ func (s *webdavServer) Start(ctx context.Context, port string) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
 	defer cancel()
 
-	srv.Shutdown(ctx)
+	err := srv.Shutdown(ctx)
+	if err != nil {
+		s.log.ErrorContext(ctx, "Failed to shutdown WebDav server", "err", err)
+	}
 
 	log.Println("shutting down")
 	os.Exit(0)
