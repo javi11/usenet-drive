@@ -320,6 +320,7 @@ func TestGetDownloadConnection(t *testing.T) {
 		mockCon.EXPECT().Provider().Return(provider).Times(1)
 		mockCon.EXPECT().Authenticate().Return(nil)
 		mockCon.EXPECT().Close().Return(nil).Times(1)
+		mockCon.EXPECT().MaxAgeTime().Return(time.Now().Add(-time.Hour)).Times(1)
 
 		cp, err := NewConnectionPool(
 			WithClient(mockNntpCli),
@@ -327,6 +328,9 @@ func TestGetDownloadConnection(t *testing.T) {
 			WithDownloadProviders(downloadProviders),
 			WithUploadProviders(uploadProviders),
 			WithMaxConnectionTTL(100*time.Millisecond),
+			WithMaxConnectionIdleTime(100*time.Millisecond),
+			WithHealthCheckInterval(200*time.Millisecond),
+			WithMinDownloadConnections(0),
 		)
 		t.Cleanup(func() {
 			cp.Quit()

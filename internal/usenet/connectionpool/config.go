@@ -17,6 +17,7 @@ type Config struct {
 	maxConnectionTTL       time.Duration
 	maxConnectionIdleTime  time.Duration
 	minDownloadConnections int
+	healthCheckInterval    time.Duration
 }
 
 type Option func(*Config)
@@ -27,6 +28,7 @@ func defaultConfig() *Config {
 		maxConnectionTTL:       60 * time.Minute,
 		maxConnectionIdleTime:  30 * time.Minute,
 		minDownloadConnections: 5,
+		healthCheckInterval:    time.Minute,
 	}
 }
 
@@ -75,5 +77,11 @@ func WithMaxConnectionIdleTime(maxConnectionIdleTime time.Duration) Option {
 func WithMinDownloadConnections(minDownloadConnections int) Option {
 	return func(c *Config) {
 		c.minDownloadConnections = minDownloadConnections
+	}
+}
+
+func WithHealthCheckInterval(healthCheckInterval time.Duration) Option {
+	return func(c *Config) {
+		c.healthCheckInterval = healthCheckInterval
 	}
 }

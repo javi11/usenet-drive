@@ -8,14 +8,11 @@ import (
 	"log/slog"
 	"net"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/jackc/puddle/v2"
 	"github.com/javi11/usenet-drive/pkg/nntpcli"
 )
-
-var defaultHealthCheckPeriod = time.Minute
 
 type UsenetConnectionPool interface {
 	GetDownloadConnection(ctx context.Context) (Resource, error)
@@ -126,7 +123,7 @@ func NewConnectionPool(options ...Option) (UsenetConnectionPool, error) {
 	}
 
 	pool.wg.Add(1)
-	go pool.connectionHealCheck()
+	go pool.connectionHealCheck(config.healthCheckInterval)
 
 	return pool, nil
 }
@@ -278,8 +275,8 @@ func dialNNTP(
 	return c, nil
 }
 
-func (p *connectionPool) connectionHealCheck() {
-	ticker := time.NewTicker(defaultHealthCheckPeriod)
+func (p *connectionPool) connectionHealCheck(healthCheckInterval time.Duration) {
+	ticker := time.NewTicker(healthCheckInterval)
 	defer ticker.Stop()
 	defer p.wg.Done()
 
@@ -316,40 +313,23 @@ func (p *connectionPool) checkHealth() {
 }
 
 func (p *connectionPool) checkConnsHealth() bool {
-	destroyed := atomic.Bool{}
+	var destroyed bool
 
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		idle := p.uploadConnPool.AcquireAllIdle()
-		for _, res := range idle {
-			if p.isExpired(res) || res.IdleDuration() > p.maxConnectionIdleTime {
-				res.Destroy()
-				destroyed.Store(true)
-			} else {
-				res.ReleaseUnused()
-			}
+	dIdle := p.uploadConnPool.AcquireAllIdle()
+	uIdle := p.downloadConnPool.AcquireAllIdle()
+
+	idle := append(dIdle, uIdle...)
+
+	for _, res := range idle {
+		if p.isExpired(res) || res.IdleDuration() > p.maxConnectionIdleTime {
+			res.Destroy()
+			destroyed = true
+		} else {
+			res.ReleaseUnused()
 		}
-	}()
+	}
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		idle := p.downloadConnPool.AcquireAllIdle()
-		for _, res := range idle {
-			if p.isExpired(res) || res.IdleDuration() > p.maxConnectionIdleTime {
-				res.Destroy()
-				destroyed.Store(true)
-			} else {
-				res.ReleaseUnused()
-			}
-		}
-	}()
-
-	wg.Wait()
-
-	return destroyed.Load()
+	return destroyed
 }
 
 func (p *connectionPool) createIdleResources(ctx context.Context, toCreate int) error {
