@@ -435,7 +435,7 @@ func (f *file) addSegment(ctx context.Context, conn connectionpool.Resource, seg
 				conn = nil
 			}
 
-			c, e := f.cp.GetUploadConnection(ctx)
+			conn, e := f.cp.GetUploadConnection(ctx)
 			if e != nil {
 				if conn != nil {
 					f.cp.Close(conn)
@@ -445,7 +445,6 @@ func (f *file) addSegment(ctx context.Context, conn connectionpool.Resource, seg
 				f.log.InfoContext(ctx, "Error getting nntp connection:", "error", err, "segment", segmentIndex)
 			}
 
-			conn = c
 		}),
 		retry.RetryIf(func(err error) bool {
 			return nntpcli.IsRetryableError(err) || errors.Is(err, ErrRetryable)
