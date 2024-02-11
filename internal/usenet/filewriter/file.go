@@ -439,7 +439,6 @@ func (f *file) addSegment(ctx context.Context, conn connectionpool.Resource, seg
 			if e != nil {
 				if conn != nil {
 					f.cp.Close(conn)
-					conn = nil
 				}
 
 				f.log.InfoContext(ctx, "Error getting nntp connection:", "error", err, "segment", segmentIndex)
