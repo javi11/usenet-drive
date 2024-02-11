@@ -237,7 +237,7 @@ func (b *buffer) read(p []byte, currentSegmentIndex, beginReadAt int) (int, erro
 	}
 
 	i := 0
-	retries := 0
+
 	for {
 		if n >= len(p) {
 			b.ptr += int64(n)
@@ -247,26 +247,16 @@ func (b *buffer) read(p []byte, currentSegmentIndex, beginReadAt int) (int, erro
 
 		segment, ok := b.segmentsBuffer.LoadAndDelete(currentSegmentIndex + i)
 		if !ok {
-
-			if retries >= b.downloadRetryTimeoutMs {
-				b.log.DebugContext(b.ctx, "Timeout waiting for chunk. Try direct download", "segment", currentSegmentIndex+i)
-				// Last try to direct download a segment
-				if nextSegment, hasMore := b.nzbReader.GetSegment(currentSegmentIndex + i); hasMore {
-					chunk := make([]byte, b.chunkSize)
-					err := b.downloadSegment(b.ctx, nextSegment, b.nzbGroups, chunk)
-					if err != nil {
-						return n, fmt.Errorf("error downloading segment: %w", err)
-					}
-
-					segment = chunk
-				} else {
-					return n, io.EOF
+			if nextSegment, hasMore := b.nzbReader.GetSegment(currentSegmentIndex + i); hasMore {
+				chunk := make([]byte, b.chunkSize)
+				err := b.downloadSegment(b.ctx, nextSegment, b.nzbGroups, chunk)
+				if err != nil {
+					return n, fmt.Errorf("error downloading segment: %w", err)
 				}
+
+				segment = chunk
 			} else {
-				// Try not spamming
-				time.Sleep(1 * time.Millisecond)
-				retries++
-				continue
+				return n, io.EOF
 			}
 		}
 
@@ -280,7 +270,6 @@ func (b *buffer) read(p []byte, currentSegmentIndex, beginReadAt int) (int, erro
 		}
 
 		beginReadAt = 0
-		retries = 0
 		i++
 	}
 }
