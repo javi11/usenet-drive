@@ -6,7 +6,6 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
-	"sync"
 
 	"github.com/javi11/usenet-drive/internal/usenet"
 	"github.com/javi11/usenet-drive/pkg/nzb"
@@ -24,7 +23,6 @@ type nzbReader struct {
 	metadata usenet.Metadata
 	groups   []string
 	segments map[int64]nzb.NzbSegment
-	mx       sync.RWMutex
 	close    chan struct{}
 }
 
@@ -45,9 +43,6 @@ func (r *nzbReader) Close() {
 }
 
 func (r *nzbReader) GetMetadata() (usenet.Metadata, error) {
-	r.mx.Lock()
-	defer r.mx.Unlock()
-
 	if r.metadata.ChunkSize != 0 {
 		return r.metadata, nil
 	}
@@ -114,9 +109,6 @@ func (r *nzbReader) GetGroups() ([]string, error) {
 		}
 	}
 
-	r.mx.Lock()
-	defer r.mx.Unlock()
-
 	if r.groups != nil {
 		return r.groups, nil
 	}
@@ -173,9 +165,6 @@ func (r *nzbReader) GetGroups() ([]string, error) {
 }
 
 func (r *nzbReader) GetSegment(segmentIndex int) (nzb.NzbSegment, bool) {
-	r.mx.RLock()
-	defer r.mx.RLocker()
-
 	segmentNumber := int64(segmentIndex + 1)
 	// Check if the segment is already in the cache
 	if s, ok := r.segments[segmentNumber]; ok {
