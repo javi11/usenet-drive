@@ -261,10 +261,7 @@ func (b *buffer) read(p []byte, currentSegmentIndex, beginReadAt int) (int, erro
 		}
 
 		chunk := segment.([]byte)
-
-		beginWriteAt := n
-		n += copy(p[beginWriteAt:], chunk[beginReadAt:])
-
+		n += copy(p[n:], chunk[beginReadAt:])
 		if n < len(chunk[beginReadAt:]) {
 			b.segmentsBuffer.Store(currentSegmentIndex+i, chunk)
 		}

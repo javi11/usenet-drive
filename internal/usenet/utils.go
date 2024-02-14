@@ -10,10 +10,6 @@ import (
 func JoinGroup(c nntpcli.Connection, groups []string) error {
 	var err error
 	for _, g := range groups {
-		if g == c.CurrentJoinedGroup() {
-			return nil
-		}
-
 		err = c.JoinGroup(g)
 		if err == nil {
 			return nil
