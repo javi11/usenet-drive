@@ -39,12 +39,10 @@ func NewFileReader(options ...Option) (*fileReader, error) {
 	}, nil
 }
 
-func (fr *fileReader) OpenFile(ctx context.Context, path string, flag int, perm fs.FileMode, onClose func() error) (bool, webdav.File, error) {
+func (fr *fileReader) OpenFile(ctx context.Context, path string, onClose func() error) (bool, webdav.File, error) {
 	return openFile(
 		ctx,
 		path,
-		flag,
-		perm,
 		fr.cp,
 		fr.log.With("filename", path),
 		onClose,

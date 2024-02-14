@@ -15,6 +15,6 @@ type RemoteFileWriter interface {
 }
 
 type RemoteFileReader interface {
-	OpenFile(ctx context.Context, name string, flag int, perm fs.FileMode, onClose func() error) (bool, webdav.File, error)
+	OpenFile(ctx context.Context, name string, onClose func() error) (bool, webdav.File, error)
 	Stat(fileName string) (bool, fs.FileInfo, error)
 }

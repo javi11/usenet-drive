@@ -65,7 +65,7 @@ func (fs *remoteFilesystem) OpenFile(ctx context.Context, name string, flag int,
 		return nil, os.ErrNotExist
 	}
 
-	ok, f, err := fs.fileReader.OpenFile(ctx, name, flag, perm, nil)
+	ok, f, err := fs.fileReader.OpenFile(ctx, name, nil)
 	if err != nil {
 		return nil, err
 	}

@@ -1,6 +1,7 @@
 package filereader
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -17,13 +18,14 @@ import (
 	"github.com/javi11/usenet-drive/internal/usenet/corruptednzbsmanager"
 	"github.com/javi11/usenet-drive/internal/usenet/nzbloader"
 	status "github.com/javi11/usenet-drive/internal/usenet/statusreporter"
+	"github.com/javi11/usenet-drive/pkg/mmap"
 	"github.com/javi11/usenet-drive/pkg/osfs"
 )
 
 type file struct {
 	path      string
 	buffer    Buffer
-	innerFile osfs.File
+	mmapFile  mmap.MmapFileData
 	fsMutex   sync.RWMutex
 	log       *slog.Logger
 	metadata  usenet.Metadata
@@ -38,8 +40,6 @@ type file struct {
 func openFile(
 	ctx context.Context,
 	path string,
-	flag int,
-	perm os.FileMode,
 	cp connectionpool.UsenetConnectionPool,
 	log *slog.Logger,
 	onClose func() error,
@@ -48,22 +48,38 @@ func openFile(
 	dc downloadConfig,
 	sr status.StatusReporter,
 ) (bool, *file, error) {
+	var fileStat os.FileInfo
+
 	if !isNzbFile(path) {
-		originalFile := getOriginalNzb(fs, path)
-		if originalFile != nil {
+		s := getOriginalNzb(fs, path)
+		if s != nil {
 			// If the file is a masked call the original nzb file
-			path = filepath.Join(filepath.Dir(path), originalFile.Name())
+			path = filepath.Join(filepath.Dir(path), s.Name())
 		} else {
 			return false, nil, nil
 		}
+
+		fileStat = s
+	} else {
+		s, err := fs.Stat(path)
+		if err != nil {
+			return true, nil, err
+		}
+
+		fileStat = s
 	}
 
-	f, err := fs.OpenFile(path, flag, perm)
+	f, err := fs.Open(path)
 	if err != nil {
 		return true, nil, err
 	}
 
-	nzbReader := nzbloader.NewNzbReader(f)
+	m, err := mmap.MmapFileWithSize(f, int(fileStat.Size()))
+	if err != nil {
+		return true, nil, err
+	}
+
+	nzbReader := nzbloader.NewNzbReader(bytes.NewReader(m.Bytes()))
 
 	metadata, err := nzbReader.GetMetadata()
 	if err != nil {
@@ -94,7 +110,7 @@ func openFile(
 
 	return true, &file{
 		sessionId: sessionId,
-		innerFile: f,
+		mmapFile:  m,
 		nzbReader: nzbReader,
 		buffer:    buffer,
 		metadata:  metadata,
@@ -108,26 +124,26 @@ func openFile(
 }
 
 func (f *file) Chdir() error {
-	return f.innerFile.Chdir()
+	return f.mmapFile.File().Chdir()
 }
 
 func (f *file) Chmod(mode os.FileMode) error {
-	return f.innerFile.Chmod(mode)
+	return f.mmapFile.File().Chmod(mode)
 }
 
 func (f *file) Chown(uid, gid int) error {
-	return f.innerFile.Chown(uid, gid)
+	return f.mmapFile.File().Chown(uid, gid)
 }
 
 func (f *file) Close() error {
 	defer f.sr.FinishDownload(f.sessionId)
 
-	err := f.innerFile.Close()
+	err := f.mmapFile.Close()
 	err2 := f.buffer.Close()
 	f.nzbReader.Close()
 
 	f.buffer = nil
-	f.innerFile = nil
+	f.mmapFile = nil
 	f.nzbReader = nil
 
 	err = errors.Join(err, err2)
@@ -145,7 +161,7 @@ func (f *file) Close() error {
 }
 
 func (f *file) Fd() uintptr {
-	return f.innerFile.Fd()
+	return f.mmapFile.File().Fd()
 }
 
 func (f *file) Name() string {
@@ -207,7 +223,7 @@ func (f *file) Readdir(n int) ([]os.FileInfo, error) {
 }
 
 func (f *file) Readdirnames(n int) ([]string, error) {
-	return f.innerFile.Readdirnames(n)
+	return f.mmapFile.File().Readdirnames(n)
 }
 
 func (f *file) Seek(offset int64, whence int) (n int64, err error) {
@@ -218,11 +234,11 @@ func (f *file) Seek(offset int64, whence int) (n int64, err error) {
 }
 
 func (f *file) SetDeadline(t time.Time) error {
-	return f.innerFile.SetDeadline(t)
+	return f.mmapFile.File().SetDeadline(t)
 }
 
 func (f *file) SetReadDeadline(t time.Time) error {
-	return f.innerFile.SetReadDeadline(t)
+	return f.mmapFile.File().SetReadDeadline(t)
 }
 
 func (f *file) SetWriteDeadline(t time.Time) error {
@@ -234,7 +250,7 @@ func (f *file) Stat() (os.FileInfo, error) {
 	defer f.fsMutex.RUnlock()
 
 	s, err := NeFileInfoWithMetadata(
-		f.innerFile.Name(),
+		f.mmapFile.File().Name(),
 		f.metadata,
 		f.fs,
 	)
@@ -251,7 +267,7 @@ func (f *file) Stat() (os.FileInfo, error) {
 }
 
 func (f *file) Sync() error {
-	return f.innerFile.Sync()
+	return f.mmapFile.File().Sync()
 }
 
 func (f *file) Truncate(size int64) error {

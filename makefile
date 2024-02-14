@@ -70,3 +70,8 @@ test-race: test
 test:
 	@echo "Running: go test $(ARGS)"
 	@$(GO) test $(ARGS) ./...
+
+.PHONY: bench
+bench:
+	@echo "Running: go test -bench ."
+	@$(GO) test -run=nonthingplease -bench . ./...
