@@ -307,7 +307,7 @@ func (b *buffer) downloadSegment(
 		err = nntpConn.Body(segment.Id, chunk)
 		if err != nil {
 			// Final segments has less bytes than chunkSize. Do not error if it's the case
-			if err != io.ErrUnexpectedEOF {
+			if err != io.ErrUnexpectedEOF && err != io.EOF {
 				return fmt.Errorf("error getting body: %w", err)
 			}
 		}

@@ -6,6 +6,8 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
+	"sync"
+	"sync/atomic"
 
 	"github.com/javi11/usenet-drive/internal/usenet"
 	"github.com/javi11/usenet-drive/pkg/nzb"
@@ -15,29 +17,34 @@ type NzbReader interface {
 	GetMetadata() (usenet.Metadata, error)
 	GetGroups() ([]string, error)
 	GetSegment(segmentIndex int) (nzb.NzbSegment, bool)
+	PreloadAllSegments()
 	Close()
+	NextSegment() (nzb.NzbSegment, bool)
+	ResetTo(segmentIndex int)
 }
 
 type nzbReader struct {
-	decoder  *xml.Decoder
-	metadata usenet.Metadata
-	groups   []string
-	segments map[int64]nzb.NzbSegment
-	close    chan struct{}
+	decoder        *xml.Decoder
+	metadata       usenet.Metadata
+	groups         []string
+	segments       sync.Map
+	close          chan struct{}
+	currentSegment atomic.Int64
 }
 
 func NewNzbReader(reader io.Reader) NzbReader {
 	return &nzbReader{
-		decoder:  xml.NewDecoder(reader),
-		segments: map[int64]nzb.NzbSegment{},
-		close:    make(chan struct{}),
+		decoder: xml.NewDecoder(reader),
+		close:   make(chan struct{}),
 	}
 }
 
 func (r *nzbReader) Close() {
 	close(r.close)
-	clear(r.segments)
-	r.segments = nil
+	r.segments.Range(func(key, value interface{}) bool {
+		r.segments.Delete(key)
+		return true
+	})
 	clear(r.groups)
 	r.groups = nil
 }
@@ -53,7 +60,7 @@ func (r *nzbReader) GetMetadata() (usenet.Metadata, error) {
 		case <-r.close:
 			return usenet.Metadata{}, fmt.Errorf("nzb file closed")
 		default:
-			token, err := r.decoder.Token()
+			token, err := r.decoder.RawToken()
 			if err != nil {
 				if err == io.EOF {
 					break
@@ -64,7 +71,7 @@ func (r *nzbReader) GetMetadata() (usenet.Metadata, error) {
 			switch se := token.(type) {
 			case xml.StartElement:
 				if se.Name.Local == "meta" {
-					var key, value string
+					var key string
 					for _, attr := range se.Attr {
 						if attr.Name.Local == "type" {
 							key = attr.Value
@@ -73,10 +80,11 @@ func (r *nzbReader) GetMetadata() (usenet.Metadata, error) {
 					if key == "" {
 						return usenet.Metadata{}, fmt.Errorf("missing type attribute in meta element")
 					}
-					if err := r.decoder.DecodeElement(&value, &se); err != nil {
+					t, err := r.decoder.RawToken()
+					if err != nil {
 						return usenet.Metadata{}, err
 					}
-					metadata[key] = value
+					metadata[key] = string(t.(xml.CharData))
 				}
 				if se.Name.Local == "file" {
 					var value string
@@ -118,7 +126,7 @@ func (r *nzbReader) GetGroups() ([]string, error) {
 		case <-r.close:
 			return nil, fmt.Errorf("nzb file closed")
 		default:
-			token, err := r.decoder.Token()
+			token, err := r.decoder.RawToken()
 			if err != nil {
 				if err == io.EOF {
 					if len(r.groups) == 0 {
@@ -134,7 +142,7 @@ func (r *nzbReader) GetGroups() ([]string, error) {
 			case xml.StartElement:
 				if se.Name.Local == "groups" {
 					for {
-						token, err := r.decoder.Token()
+						token, err := r.decoder.RawToken()
 						if err != nil {
 							return nil, err
 						}
@@ -142,10 +150,12 @@ func (r *nzbReader) GetGroups() ([]string, error) {
 						switch se := token.(type) {
 						case xml.StartElement:
 							if se.Name.Local == "group" {
-								var group string
-								if err := r.decoder.DecodeElement(&group, &se); err != nil {
+								t, err := r.decoder.RawToken()
+								if err != nil {
 									return nil, err
 								}
+								group := string(t.(xml.CharData))
+
 								r.groups = append(r.groups, group)
 							}
 						case xml.EndElement:
@@ -165,19 +175,24 @@ func (r *nzbReader) GetGroups() ([]string, error) {
 }
 
 func (r *nzbReader) GetSegment(segmentIndex int) (nzb.NzbSegment, bool) {
-	segmentNumber := int64(segmentIndex + 1)
 	// Check if the segment is already in the cache
-	if s, ok := r.segments[segmentNumber]; ok {
-		return s, true
+	if s, ok := r.segments.Load(segmentIndex); ok {
+		return s.(nzb.NzbSegment), true
 	}
 
+	if r.groups == nil {
+		_, err := r.GetGroups()
+		if err != nil {
+			return nzb.NzbSegment{}, false
+		}
+	}
 	// Check if there are more segments to read from the XML stream
 	for {
 		select {
 		case <-r.close:
 			return nzb.NzbSegment{}, false
 		default:
-			token, err := r.decoder.Token()
+			token, err := r.decoder.RawToken()
 			if err != nil {
 				return nzb.NzbSegment{}, false
 			}
@@ -185,24 +200,62 @@ func (r *nzbReader) GetSegment(segmentIndex int) (nzb.NzbSegment, bool) {
 			if se, ok := token.(xml.StartElement); ok && se.Name.Local == "segment" {
 				// Read the next segment from the XML stream
 				var segment nzb.NzbSegment
-				err := r.decoder.DecodeElement(&segment, &se)
+				err := segment.UnmarshalXML(r.decoder, se)
 				if err != nil {
 					return nzb.NzbSegment{}, false
 				}
 
-				if r.segments == nil {
-					break
-				}
+				r.segments.Store(int(segment.Number-1), segment)
 
-				r.segments[segmentNumber] = segment
-
-				if segment.Number == segmentNumber {
+				if segment.Number == int64(segmentIndex+1) {
 					return segment, true
 				}
-
-				continue
 			}
 		}
 	}
+}
 
+func (r *nzbReader) NextSegment() (nzb.NzbSegment, bool) {
+	segment, has := r.GetSegment(int(r.currentSegment.Load()))
+	if !has {
+		return nzb.NzbSegment{}, false
+	}
+	r.currentSegment.Add(1)
+	return segment, true
+}
+
+func (r *nzbReader) ResetTo(segmentIndex int) {
+	r.currentSegment.Store(int64(segmentIndex))
+}
+
+func (r *nzbReader) PreloadAllSegments() {
+	if r.groups == nil {
+		_, err := r.GetGroups()
+		if err != nil {
+			return
+		}
+	}
+
+	for {
+		select {
+		case <-r.close:
+			return
+		default:
+			token, err := r.decoder.RawToken()
+			if err != nil {
+				return
+			}
+
+			if se, ok := token.(xml.StartElement); ok && se.Name.Local == "segment" {
+				// Read the next segment from the XML stream
+				var segment nzb.NzbSegment
+				err := segment.UnmarshalXML(r.decoder, se)
+				if err != nil {
+					return
+				}
+
+				r.segments.Store(int(segment.Number-1), segment)
+			}
+		}
+	}
 }
