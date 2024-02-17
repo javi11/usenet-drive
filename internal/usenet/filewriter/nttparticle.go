@@ -6,7 +6,7 @@ import (
 	"hash/crc32"
 	"io"
 
-	"github.com/javi11/usenet-drive/pkg/yenc"
+	"github.com/mnightingale/rapidyenc"
 )
 
 type ArticleData struct {
@@ -24,7 +24,7 @@ type ArticleData struct {
 	msgId     string
 }
 
-func ArticleToReader(p []byte, data ArticleData) (io.Reader, error) {
+func ArticleToReader(p []byte, data ArticleData, encoder *rapidyenc.Encoder) (io.Reader, error) {
 	subj := fmt.Sprintf(
 		"[%d/%d] - \"%s\" yEnc (%d/%d)",
 		data.fileNum,
@@ -46,22 +46,25 @@ func ArticleToReader(p []byte, data ArticleData) (io.Reader, error) {
 		data.partEnd,
 	)
 
+	// Encoded data
+	encoded := encoder.Encode(p)
+
 	// yEnc end line
 	h := crc32.NewIEEE()
 	_, err := h.Write(p)
 	if err != nil {
 		return nil, err
 	}
-	footer := fmt.Sprintf("=yend size=%d part=%d pcrc32=%08X\r\n", data.partSize, data.partNum, h.Sum32())
+	footer := fmt.Sprintf("\r\n=yend size=%d part=%d pcrc32=%08X\r\n", data.partSize, data.partNum, h.Sum32())
 
-	buf := bytes.NewBuffer(make([]byte, 0))
+	size := len(header) + len(encoded) + len(footer)
+	buf := bytes.NewBuffer(make([]byte, 0, size))
 
 	_, err = buf.WriteString(header)
 	if err != nil {
 		return nil, err
 	}
-	// Encoded data
-	err = yenc.Encode(p, buf)
+	_, err = buf.Write(encoded)
 	if err != nil {
 		return nil, err
 	}

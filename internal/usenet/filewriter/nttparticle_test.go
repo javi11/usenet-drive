@@ -4,6 +4,7 @@ import (
 	"io"
 	"testing"
 
+	"github.com/mnightingale/rapidyenc"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -25,7 +26,9 @@ func TestArticleToReader(t *testing.T) {
 
 	p := []byte("test data1")
 
-	buff, err := ArticleToReader(p, data)
+	encoder := rapidyenc.NewEncoder()
+
+	buff, err := ArticleToReader(p, data, encoder)
 	assert.NoError(t, err)
 
 	b, err := io.ReadAll(buff)
