@@ -314,7 +314,6 @@ func (b *buffer) downloadSegment(
 
 		b.cp.Free(conn)
 		conn = nil
-		nntpConn = nil
 
 		return nil
 	},

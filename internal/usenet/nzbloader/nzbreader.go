@@ -6,7 +6,6 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
-	"sync"
 	"sync/atomic"
 
 	"github.com/javi11/usenet-drive/internal/usenet"
@@ -17,34 +16,30 @@ type NzbReader interface {
 	GetMetadata() (usenet.Metadata, error)
 	GetGroups() ([]string, error)
 	GetSegment(segmentIndex int) (nzb.NzbSegment, bool)
-	PreloadAllSegments()
 	Close()
-	NextSegment() (nzb.NzbSegment, bool)
-	ResetTo(segmentIndex int)
 }
 
 type nzbReader struct {
 	decoder        *xml.Decoder
 	metadata       usenet.Metadata
 	groups         []string
-	segments       sync.Map
+	segments       map[int64]nzb.NzbSegment
 	close          chan struct{}
 	currentSegment atomic.Int64
 }
 
 func NewNzbReader(reader io.Reader) NzbReader {
 	return &nzbReader{
-		decoder: xml.NewDecoder(reader),
-		close:   make(chan struct{}),
+		decoder:  xml.NewDecoder(reader),
+		close:    make(chan struct{}),
+		segments: map[int64]nzb.NzbSegment{},
 	}
 }
 
 func (r *nzbReader) Close() {
 	close(r.close)
-	r.segments.Range(func(key, value interface{}) bool {
-		r.segments.Delete(key)
-		return true
-	})
+	clear(r.segments)
+	r.segments = nil
 	clear(r.groups)
 	r.groups = nil
 }
@@ -176,8 +171,10 @@ func (r *nzbReader) GetGroups() ([]string, error) {
 
 func (r *nzbReader) GetSegment(segmentIndex int) (nzb.NzbSegment, bool) {
 	// Check if the segment is already in the cache
-	if s, ok := r.segments.Load(segmentIndex); ok {
-		return s.(nzb.NzbSegment), true
+	segmentNumber := int64(segmentIndex + 1)
+	// Check if the segment is already in the cache
+	if s, ok := r.segments[segmentNumber]; ok {
+		return s, true
 	}
 
 	if r.groups == nil {
@@ -205,7 +202,7 @@ func (r *nzbReader) GetSegment(segmentIndex int) (nzb.NzbSegment, bool) {
 					return nzb.NzbSegment{}, false
 				}
 
-				r.segments.Store(int(segment.Number-1), segment)
+				r.segments[segment.Number] = segment
 
 				if segment.Number == int64(segmentIndex+1) {
 					return segment, true
@@ -226,36 +223,4 @@ func (r *nzbReader) NextSegment() (nzb.NzbSegment, bool) {
 
 func (r *nzbReader) ResetTo(segmentIndex int) {
 	r.currentSegment.Store(int64(segmentIndex))
-}
-
-func (r *nzbReader) PreloadAllSegments() {
-	if r.groups == nil {
-		_, err := r.GetGroups()
-		if err != nil {
-			return
-		}
-	}
-
-	for {
-		select {
-		case <-r.close:
-			return
-		default:
-			token, err := r.decoder.RawToken()
-			if err != nil {
-				return
-			}
-
-			if se, ok := token.(xml.StartElement); ok && se.Name.Local == "segment" {
-				// Read the next segment from the XML stream
-				var segment nzb.NzbSegment
-				err := segment.UnmarshalXML(r.decoder, se)
-				if err != nil {
-					return
-				}
-
-				r.segments.Store(int(segment.Number-1), segment)
-			}
-		}
-	}
 }
