@@ -169,9 +169,6 @@ func (f *file) Name() string {
 }
 
 func (f *file) Read(b []byte) (int, error) {
-	f.fsMutex.RLock()
-	defer f.fsMutex.RUnlock()
-
 	n, err := f.buffer.Read(b)
 	if err != nil {
 		if errors.Is(err, ErrCorruptedNzb) {

@@ -17,6 +17,7 @@ type NzbReader interface {
 	GetGroups() ([]string, error)
 	GetSegment(segmentIndex int) (nzb.NzbSegment, bool)
 	Close()
+	PreloadAllSegments()
 }
 
 type nzbReader struct {
@@ -212,15 +213,27 @@ func (r *nzbReader) GetSegment(segmentIndex int) (nzb.NzbSegment, bool) {
 	}
 }
 
-func (r *nzbReader) NextSegment() (nzb.NzbSegment, bool) {
-	segment, has := r.GetSegment(int(r.currentSegment.Load()))
-	if !has {
-		return nzb.NzbSegment{}, false
-	}
-	r.currentSegment.Add(1)
-	return segment, true
-}
+func (r *nzbReader) PreloadAllSegments() {
+	for {
+		select {
+		case <-r.close:
+			return
+		default:
+			token, err := r.decoder.RawToken()
+			if err != nil {
+				return
+			}
 
-func (r *nzbReader) ResetTo(segmentIndex int) {
-	r.currentSegment.Store(int64(segmentIndex))
+			if se, ok := token.(xml.StartElement); ok && se.Name.Local == "segment" {
+				// Read the next segment from the XML stream
+				var segment nzb.NzbSegment
+				err := segment.UnmarshalXML(r.decoder, se)
+				if err != nil {
+					return
+				}
+
+				r.segments[segment.Number] = segment
+			}
+		}
+	}
 }
