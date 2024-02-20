@@ -256,14 +256,23 @@ func (b *buffer) read(p []byte, currentSegmentIndex, beginReadAt int) (int, erro
 }
 
 func (b *buffer) getSegment(ctx context.Context, segment nzb.NzbSegment, groups []string) ([]byte, error) {
-	hit, err := b.segmentsBuffer.Get(segment.Id)
-	if err == nil {
-		return hit, nil
+	for {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-b.close:
+			return nil, fmt.Errorf("buffer closed")
+		default:
+			hit, err := b.segmentsBuffer.Get(segment.Id)
+			if err == nil {
+				return hit, nil
+			}
+
+			time.Sleep(1 * time.Millisecond)
+
+			return b.getSegment(ctx, segment, groups)
+		}
 	}
-
-	time.Sleep(1 * time.Millisecond)
-
-	return b.getSegment(ctx, segment, groups)
 }
 
 func (b *buffer) downloadSegment(
@@ -291,6 +300,9 @@ func (b *buffer) downloadSegment(
 		}
 		conn = c
 		nntpConn := conn.Value()
+		if nntpConn == nil {
+			return fmt.Errorf("error getting nntp connection")
+		}
 
 		if nntpConn.Provider().JoinGroup {
 			err = usenet.JoinGroup(nntpConn, groups)
@@ -384,9 +396,6 @@ func (b *buffer) downloadWorker(ctx context.Context, cNzb corruptednzbsmanager.C
 		case <-b.close:
 			return
 		case segment := <-b.nextSegment:
-			if _, loaded := b.currentDownloading.LoadOrStore(segment.Number, true); loaded {
-				continue
-			}
 
 			ctx, cancel := context.WithCancel(ctx)
 			go func() {
@@ -394,8 +403,12 @@ func (b *buffer) downloadWorker(ctx context.Context, cNzb corruptednzbsmanager.C
 					select {
 					case <-ctx.Done():
 						return
+					case <-b.close:
+						cancel()
+						return
 					case <-b.seek:
 						cancel()
+						return
 					}
 				}
 			}()
@@ -410,15 +423,13 @@ func (b *buffer) downloadWorker(ctx context.Context, cNzb corruptednzbsmanager.C
 						b.log.Error("Error adding corrupted nzb to the database:", "error", err)
 					}
 				}
-			} else if err == nil {
-				cancel()
 			}
 
 			if err == nil {
+				cancel()
 				b.segmentsBuffer.Set(segment.Id, chunk)
 			}
 
-			b.currentDownloading.Delete(segment.Number)
 		}
 	}
 }
