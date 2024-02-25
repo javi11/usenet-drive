@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/avast/retry-go"
+	"github.com/jackc/puddle/v2"
 	"github.com/javi11/usenet-drive/internal/usenet"
 	"github.com/javi11/usenet-drive/internal/usenet/connectionpool"
 	"github.com/javi11/usenet-drive/internal/usenet/corruptednzbsmanager"
@@ -39,18 +40,20 @@ type buffer struct {
 	nzbReader              nzbloader.NzbReader
 	nzbGroups              []string
 	ptr                    int64
-	segmentsBuffer         Cache
+	segmentsBuffer         *sync.Map
 	cp                     connectionpool.UsenetConnectionPool
 	chunkSize              int
 	dc                     downloadConfig
 	log                    *slog.Logger
 	nextSegment            chan nzb.NzbSegment
 	wg                     *sync.WaitGroup
-	currentDownloading     *sync.Map
 	filePath               string
 	downloadRetryTimeoutMs int
 	chunk                  []byte
 	close                  chan struct{}
+	seek                   chan seekData
+	mx                     *sync.RWMutex
+	chunkPool              *puddle.Pool[[]byte]
 }
 
 // NewBuffer creates a new data volume based on a buffer
@@ -65,18 +68,25 @@ func NewBuffer(
 	filePath string,
 	log *slog.Logger,
 ) (Buffer, error) {
-
-	cache, err := NewCache(chunkSize, dc.maxBufferSizeInMb, true)
-	if err != nil {
-		return nil, err
-	}
-
 	nzbGroups, err := nzbReader.GetGroups()
 	if err != nil {
 		return nil, err
 	}
 
-	nzbReader.PreloadAllSegments()
+	pool, err := puddle.NewPool(
+		&puddle.Config[[]byte]{
+			Constructor: func(_ context.Context) ([]byte, error) {
+				return make([]byte, chunkSize), nil
+			},
+			Destructor: func(value []byte) {
+				// Do nothing
+			},
+			MaxSize: 200,
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
 
 	retryTimeout := time.Duration(dc.maxDownloadRetries) * time.Second
 	buffer := &buffer{
@@ -85,17 +95,19 @@ func NewBuffer(
 		fileSize:               fileSize,
 		nzbReader:              nzbReader,
 		nzbGroups:              nzbGroups,
-		segmentsBuffer:         cache,
+		segmentsBuffer:         &sync.Map{},
 		cp:                     cp,
 		dc:                     dc,
 		log:                    log,
-		nextSegment:            make(chan nzb.NzbSegment, 100),
+		nextSegment:            make(chan nzb.NzbSegment),
 		wg:                     &sync.WaitGroup{},
-		currentDownloading:     &sync.Map{},
 		filePath:               filePath,
 		downloadRetryTimeoutMs: int(retryTimeout.Milliseconds()),
 		chunk:                  make([]byte, chunkSize),
 		close:                  make(chan struct{}),
+		seek:                   make(chan seekData),
+		mx:                     &sync.RWMutex{},
+		chunkPool:              pool,
 	}
 
 	if dc.maxDownloadWorkers > 0 {
@@ -107,6 +119,36 @@ func NewBuffer(
 			}()
 		}
 	}
+
+	buffer.wg.Add(1)
+	go func() {
+		defer buffer.wg.Done()
+		ticker := time.NewTicker(time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-buffer.close:
+				return
+			case <-ticker.C:
+				buffer.mx.RLock()
+				currentSegmentIndex := buffer.calculateCurrentSegmentIndex(buffer.ptr)
+				buffer.mx.RUnlock()
+				buffer.deleteSegmentsBefore(currentSegmentIndex)
+			case s := <-buffer.seek:
+				if s.from > s.to {
+					// When seek to previous file, delete all segments after the current segment
+					// leaving the maxDownload workers number as buffer
+					buffer.deleteSegmentsAfter(s.from)
+				} else {
+					// When seek to next file, delete all segments before the current segment
+					// We won't need them anymore
+					buffer.deleteSegmentsBefore(s.to)
+				}
+			}
+		}
+	}()
 
 	return buffer, nil
 }
@@ -137,7 +179,15 @@ func (b *buffer) Seek(offset int64, whence int) (int64, error) {
 	if abs > int64(b.fileSize) {
 		return 0, ErrSeekTooFar
 	}
+	previousSegmentIndex := b.calculateCurrentSegmentIndex(b.ptr)
+	currentSegmentIndex := b.calculateCurrentSegmentIndex(b.ptr)
+	b.seek <- seekData{
+		from: previousSegmentIndex,
+		to:   currentSegmentIndex,
+	}
+	b.mx.Lock()
 	b.ptr = abs
+	b.mx.Unlock()
 
 	return abs, nil
 }
@@ -145,15 +195,27 @@ func (b *buffer) Seek(offset int64, whence int) (int64, error) {
 // Close the buffer. Currently no effect.
 func (b *buffer) Close() error {
 	close(b.close)
-
 	b.wg.Wait()
-
 	close(b.nextSegment)
 
-	b.segmentsBuffer.Close()
+	b.segmentsBuffer.Range(func(key, value interface{}) bool {
+		channel := *value.(*chunkCh)
+		_, ok := <-channel.ch
+		if ok {
+			close(channel.ch)
+		}
+		if channel.Chunk != nil {
+			channel.Chunk.Destroy()
+			channel.Chunk = nil
+		}
+		b.segmentsBuffer.Delete(key)
+		return true
+	})
+
+	b.chunkPool.Close()
+	b.chunkPool = nil
 	b.segmentsBuffer = nil
 	b.nzbReader = nil
-	b.currentDownloading = nil
 
 	return nil
 }
@@ -173,7 +235,9 @@ func (b *buffer) Read(p []byte) (int, error) {
 	beginReadAt := max((int(b.ptr) - (currentSegmentIndex * b.chunkSize)), 0)
 
 	n, err := b.read(p, currentSegmentIndex, beginReadAt)
+	b.mx.Lock()
 	b.ptr += int64(n)
+	b.mx.Unlock()
 
 	return n, err
 }
@@ -204,10 +268,9 @@ func (b *buffer) read(p []byte, currentSegmentIndex, beginReadAt int) (int, erro
 	n := 0
 	i := 0
 
-	nextSegmentIndex := currentSegmentIndex + i + 1
 	// Preload next segments
-	for j := 0; j < b.dc.maxDownloadWorkers; j++ {
-		nextSegmentIndex := nextSegmentIndex + j
+	for j := 0; j < 20; j++ {
+		nextSegmentIndex := currentSegmentIndex + j
 		// Preload next segments
 		if nextSegment, hasMore := b.nzbReader.GetSegment(nextSegmentIndex); hasMore {
 			b.nextSegment <- nextSegment
@@ -220,15 +283,20 @@ func (b *buffer) read(p []byte, currentSegmentIndex, beginReadAt int) (int, erro
 		}
 
 		var chunk []byte
-		if c, ok := b.currentDownloading.LoadAndDelete(currentSegmentIndex + i); ok {
-			cCh := <-*c.(*chan chunkCh)
-			if cCh.Err != nil {
-				close(*c.(*chan chunkCh))
-				return n, cCh.Err
+		defer func() {
+			chunk = nil
+		}()
+		if c, ok := b.segmentsBuffer.Load(currentSegmentIndex + i); ok {
+			channel := *c.(*chunkCh)
+			if !channel.downloaded {
+				<-channel.ch
+				close(channel.ch)
+			}
+			if channel.Err != nil {
+				return n, channel.Err
 			}
 
-			chunk = cCh.Chunk
-			close(*c.(*chan chunkCh))
+			chunk = channel.Chunk.Value()
 		} else {
 			segment, hasMore := b.nzbReader.GetSegment(currentSegmentIndex + i)
 			if !hasMore {
@@ -252,17 +320,44 @@ func (b *buffer) read(p []byte, currentSegmentIndex, beginReadAt int) (int, erro
 }
 
 func (b *buffer) getSegment(ctx context.Context, segment nzb.NzbSegment, groups []string) ([]byte, error) {
-	hit, err := b.segmentsBuffer.Get(segment.Id)
-	if err == nil {
-		return hit, nil
-	}
-
-	err = b.downloadSegment(ctx, segment, groups, b.chunk)
+	err := b.downloadSegment(ctx, segment, groups, b.chunk)
 	if err != nil {
 		return nil, err
 	}
 
 	return b.chunk, nil
+}
+
+func (b *buffer) deleteSegmentsBefore(index int) {
+	b.segmentsBuffer.Range(func(key, value interface{}) bool {
+		if key.(int) < index {
+			channel := *value.(*chunkCh)
+			_, ok := <-channel.ch
+			if ok {
+				close(channel.ch)
+			}
+			channel.Chunk.Release()
+			channel.Chunk = nil
+			b.segmentsBuffer.Delete(key)
+		}
+		return true
+	})
+}
+
+func (b *buffer) deleteSegmentsAfter(index int) {
+	b.segmentsBuffer.Range(func(key, value interface{}) bool {
+		if key.(int) < index+b.dc.maxDownloadWorkers {
+			channel := *value.(*chunkCh)
+			_, ok := <-channel.ch
+			if ok {
+				close(channel.ch)
+			}
+			channel.Chunk.Release()
+			channel.Chunk = nil
+			b.segmentsBuffer.Delete(key)
+		}
+		return true
+	})
 }
 
 func (b *buffer) downloadSegment(
@@ -277,7 +372,6 @@ func (b *buffer) downloadSegment(
 		if err != nil {
 			if conn != nil {
 				b.cp.Close(conn)
-				conn = nil
 			}
 
 			if errors.Is(err, context.Canceled) {
@@ -310,7 +404,6 @@ func (b *buffer) downloadSegment(
 		}
 
 		b.cp.Free(conn)
-		conn = nil
 
 		return nil
 	},
@@ -339,7 +432,6 @@ func (b *buffer) downloadSegment(
 				)
 
 				b.cp.Close(conn)
-				conn = nil
 			}
 		}),
 	)
@@ -348,7 +440,6 @@ func (b *buffer) downloadSegment(
 
 		if conn != nil {
 			b.cp.Close(conn)
-			conn = nil
 		}
 
 		var e retry.Error
@@ -374,11 +465,6 @@ func (b *buffer) downloadSegment(
 }
 
 func (b *buffer) downloadWorker(ctx context.Context, cNzb corruptednzbsmanager.CorruptedNzbsManager) {
-	chunk := make([]byte, b.chunkSize)
-	defer func() {
-		chunk = nil
-	}()
-
 	for {
 		select {
 		case <-ctx.Done():
@@ -386,22 +472,52 @@ func (b *buffer) downloadWorker(ctx context.Context, cNzb corruptednzbsmanager.C
 		case <-b.close:
 			return
 		case segment := <-b.nextSegment:
-			if b.segmentsBuffer.Has(segment.Id) {
+			ctx, cancel := context.WithCancel(ctx)
+			go func() {
+				for {
+					select {
+					case <-ctx.Done():
+						return
+					case s := <-b.seek:
+						if s.to > int(segment.Number)-1 {
+							cancel()
+						}
+					case <-b.close:
+						cancel()
+					}
+				}
+			}()
+
+			res, err := b.chunkPool.Acquire(ctx)
+			if err != nil {
+				if !errors.Is(err, context.Canceled) {
+					b.log.DebugContext(ctx, "Error acquiring chunk from pool:", "error", err)
+				}
+				cancel()
 				continue
 			}
 
-			c := make(chan chunkCh, 1)
-			if _, loaded := b.currentDownloading.LoadOrStore(int(segment.Number-1), &c); loaded {
-				close(c)
+			c := &chunkCh{
+				ch:    make(chan bool, 1),
+				Chunk: res,
+			}
+			if _, loaded := b.segmentsBuffer.LoadOrStore(int(segment.Number-1), c); loaded {
+				c.Chunk.Release()
+				c.Chunk = nil
+				close(c.ch)
+				cancel()
 				continue
 			}
 
-			err := b.downloadSegment(ctx, segment, b.nzbGroups, chunk)
-			c <- chunkCh{
-				Chunk: chunk,
-				Err:   err,
-			}
-			if err != nil && !errors.Is(err, context.Canceled) {
+			chunk := c.Chunk.Value()
+			err = b.downloadSegment(ctx, segment, b.nzbGroups, chunk)
+			chunk = nil
+			c.downloaded = true
+			c.ch <- true
+			c.Err = err
+			if err != nil {
+				c.Chunk.Release()
+				c.Chunk = nil
 				if errors.Is(err, ErrCorruptedNzb) {
 					b.log.Error("Marking file as corrupted:", "error", err, "fileName", b.filePath)
 					err := cNzb.Add(b.ctx, b.filePath, err.Error())
@@ -410,17 +526,21 @@ func (b *buffer) downloadWorker(ctx context.Context, cNzb corruptednzbsmanager.C
 					}
 				}
 			}
+			c = nil
 
-			if err == nil {
-				b.segmentsBuffer.Set(segment.Id, chunk)
-			}
-
-			b.currentDownloading.Delete(int(segment.Number - 1))
+			cancel()
 		}
 	}
 }
 
 type chunkCh struct {
-	Chunk []byte
-	Err   error
+	Chunk      *puddle.Resource[[]byte]
+	Err        error
+	ch         chan bool
+	downloaded bool
+}
+
+type seekData struct {
+	from int
+	to   int
 }
