@@ -66,24 +66,10 @@ func NewBuffer(
 	cp connectionpool.UsenetConnectionPool,
 	cNzb corruptednzbsmanager.CorruptedNzbsManager,
 	filePath string,
+	chunkPool *puddle.Pool[[]byte],
 	log *slog.Logger,
 ) (Buffer, error) {
 	nzbGroups, err := nzbReader.GetGroups()
-	if err != nil {
-		return nil, err
-	}
-
-	pool, err := puddle.NewPool(
-		&puddle.Config[[]byte]{
-			Constructor: func(_ context.Context) ([]byte, error) {
-				return make([]byte, chunkSize), nil
-			},
-			Destructor: func(value []byte) {
-				// Do nothing
-			},
-			MaxSize: 200,
-		},
-	)
 	if err != nil {
 		return nil, err
 	}
@@ -107,7 +93,7 @@ func NewBuffer(
 		close:                  make(chan struct{}),
 		seek:                   make(chan seekData),
 		mx:                     &sync.RWMutex{},
-		chunkPool:              pool,
+		chunkPool:              chunkPool,
 	}
 
 	if dc.maxDownloadWorkers > 0 {
@@ -138,11 +124,11 @@ func NewBuffer(
 				buffer.deleteSegmentsBefore(currentSegmentIndex)
 			case s := <-buffer.seek:
 				if s.from > s.to {
-					// When seek to previous file, delete all segments after the current segment
+					// When seek to previous segments, delete all segments after the current segment
 					// leaving the maxDownload workers number as buffer
 					buffer.deleteSegmentsAfter(s.from)
 				} else {
-					// When seek to next file, delete all segments before the current segment
+					// When seek to next segments, delete all segments before the current segment
 					// We won't need them anymore
 					buffer.deleteSegmentsBefore(s.to)
 				}
@@ -200,19 +186,16 @@ func (b *buffer) Close() error {
 
 	b.segmentsBuffer.Range(func(key, value interface{}) bool {
 		channel := *value.(*chunkCh)
-		_, ok := <-channel.ch
-		if ok {
-			close(channel.ch)
-		}
 		if channel.Chunk != nil {
-			channel.Chunk.Destroy()
+			channel.Chunk.Release()
 			channel.Chunk = nil
 		}
 		b.segmentsBuffer.Delete(key)
 		return true
 	})
 
-	b.chunkPool.Close()
+	fmt.Printf("chunkPool Stats: adquired: %v, idle: %v, total:%v \n", b.chunkPool.Stat().AcquiredResources(), b.chunkPool.Stat().IdleResources(), b.chunkPool.Stat().TotalResources())
+
 	b.chunkPool = nil
 	b.segmentsBuffer = nil
 	b.nzbReader = nil
@@ -283,20 +266,16 @@ func (b *buffer) read(p []byte, currentSegmentIndex, beginReadAt int) (int, erro
 		}
 
 		var chunk []byte
-		defer func() {
-			chunk = nil
-		}()
 		if c, ok := b.segmentsBuffer.Load(currentSegmentIndex + i); ok {
 			channel := *c.(*chunkCh)
 			if !channel.downloaded {
 				<-channel.ch
-				close(channel.ch)
 			}
 			if channel.Err != nil {
 				return n, channel.Err
 			}
 
-			chunk = channel.Chunk.Value()
+			chunk = channel.Chunk.Value()[0:b.chunkSize]
 		} else {
 			segment, hasMore := b.nzbReader.GetSegment(currentSegmentIndex + i)
 			if !hasMore {
@@ -332,13 +311,12 @@ func (b *buffer) deleteSegmentsBefore(index int) {
 	b.segmentsBuffer.Range(func(key, value interface{}) bool {
 		if key.(int) < index {
 			channel := *value.(*chunkCh)
-			_, ok := <-channel.ch
-			if ok {
-				close(channel.ch)
+			if channel.Chunk != nil {
+				channel.Chunk.Release()
+				channel.Chunk = nil
 			}
-			channel.Chunk.Release()
-			channel.Chunk = nil
 			b.segmentsBuffer.Delete(key)
+
 		}
 		return true
 	})
@@ -348,10 +326,6 @@ func (b *buffer) deleteSegmentsAfter(index int) {
 	b.segmentsBuffer.Range(func(key, value interface{}) bool {
 		if key.(int) < index+b.dc.maxDownloadWorkers {
 			channel := *value.(*chunkCh)
-			_, ok := <-channel.ch
-			if ok {
-				close(channel.ch)
-			}
 			channel.Chunk.Release()
 			channel.Chunk = nil
 			b.segmentsBuffer.Delete(key)
@@ -490,6 +464,9 @@ func (b *buffer) downloadWorker(ctx context.Context, cNzb corruptednzbsmanager.C
 
 			res, err := b.chunkPool.Acquire(ctx)
 			if err != nil {
+				if res != nil {
+					res.Release()
+				}
 				if !errors.Is(err, context.Canceled) {
 					b.log.DebugContext(ctx, "Error acquiring chunk from pool:", "error", err)
 				}
@@ -502,22 +479,18 @@ func (b *buffer) downloadWorker(ctx context.Context, cNzb corruptednzbsmanager.C
 				Chunk: res,
 			}
 			if _, loaded := b.segmentsBuffer.LoadOrStore(int(segment.Number-1), c); loaded {
-				c.Chunk.Release()
-				c.Chunk = nil
+				res.ReleaseUnused()
 				close(c.ch)
 				cancel()
 				continue
 			}
-
-			chunk := c.Chunk.Value()
-			err = b.downloadSegment(ctx, segment, b.nzbGroups, chunk)
-			chunk = nil
+			err = b.downloadSegment(ctx, segment, b.nzbGroups, c.Chunk.Value()[0:b.chunkSize])
 			c.downloaded = true
 			c.ch <- true
+			close(c.ch)
 			c.Err = err
+
 			if err != nil {
-				c.Chunk.Release()
-				c.Chunk = nil
 				if errors.Is(err, ErrCorruptedNzb) {
 					b.log.Error("Marking file as corrupted:", "error", err, "fileName", b.filePath)
 					err := cNzb.Add(b.ctx, b.filePath, err.Error())

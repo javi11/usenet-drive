@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/jackc/puddle/v2"
 	"github.com/javi11/usenet-drive/internal/usenet/connectionpool"
 	"github.com/javi11/usenet-drive/internal/usenet/corruptednzbsmanager"
 	status "github.com/javi11/usenet-drive/internal/usenet/statusreporter"
@@ -15,12 +16,13 @@ import (
 )
 
 type fileReader struct {
-	cp   connectionpool.UsenetConnectionPool
-	log  *slog.Logger
-	cNzb corruptednzbsmanager.CorruptedNzbsManager
-	fs   osfs.FileSystem
-	dc   downloadConfig
-	sr   status.StatusReporter
+	cp        connectionpool.UsenetConnectionPool
+	log       *slog.Logger
+	cNzb      corruptednzbsmanager.CorruptedNzbsManager
+	fs        osfs.FileSystem
+	dc        downloadConfig
+	chunkPool *puddle.Pool[[]byte]
+	sr        status.StatusReporter
 }
 
 func NewFileReader(options ...Option) (*fileReader, error) {
@@ -29,13 +31,29 @@ func NewFileReader(options ...Option) (*fileReader, error) {
 		option(config)
 	}
 
+	pool, err := puddle.NewPool(
+		&puddle.Config[[]byte]{
+			Constructor: func(_ context.Context) ([]byte, error) {
+				return make([]byte, config.segmentSize), nil
+			},
+			Destructor: func(value []byte) {
+				// Do nothing
+			},
+			MaxSize: 1400,
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
 	return &fileReader{
-		cp:   config.cp,
-		log:  config.log,
-		cNzb: config.cNzb,
-		fs:   config.fs,
-		dc:   config.getDownloadConfig(),
-		sr:   config.sr,
+		cp:        config.cp,
+		log:       config.log,
+		cNzb:      config.cNzb,
+		fs:        config.fs,
+		dc:        config.getDownloadConfig(),
+		chunkPool: pool,
+		sr:        config.sr,
 	}, nil
 }
 
@@ -49,6 +67,7 @@ func (fr *fileReader) OpenFile(ctx context.Context, path string, onClose func() 
 		fr.cNzb,
 		fr.fs,
 		fr.dc,
+		fr.chunkPool,
 		fr.sr,
 	)
 }
