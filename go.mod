@@ -40,7 +40,9 @@ require (
 	github.com/labstack/gommon v0.4.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
+	github.com/oxtoacart/bpool v0.0.0-20190530202638-03653db5a59c // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
+	github.com/rocketlaunchr/go-pool v0.0.0-20210120055323-2292025b22ae // indirect
 	github.com/rogpeppe/go-internal v1.9.0 // indirect
 	github.com/samber/lo v1.38.1 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect

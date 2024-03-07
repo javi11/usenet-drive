@@ -7,3 +7,4 @@ func (c contextKey) String() string {
 }
 
 const reqContentLengthKey = contextKey("reqContentLength")
+const reqRangeKey = contextKey("reqRangeKey")

@@ -12,8 +12,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/allegro/bigcache/v3"
 	"github.com/google/uuid"
-	"github.com/jackc/puddle/v2"
 	"github.com/javi11/usenet-drive/internal/usenet"
 	"github.com/javi11/usenet-drive/internal/usenet/connectionpool"
 	"github.com/javi11/usenet-drive/internal/usenet/corruptednzbsmanager"
@@ -47,7 +47,7 @@ func openFile(
 	cNzb corruptednzbsmanager.CorruptedNzbsManager,
 	fs osfs.FileSystem,
 	dc downloadConfig,
-	chunkPool *puddle.Pool[[]byte],
+	chunkPool *bigcache.BigCache,
 	sr status.StatusReporter,
 ) (bool, *file, error) {
 	var fileStat os.FileInfo

@@ -6,8 +6,9 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"time"
 
-	"github.com/jackc/puddle/v2"
+	"github.com/allegro/bigcache/v3"
 	"github.com/javi11/usenet-drive/internal/usenet/connectionpool"
 	"github.com/javi11/usenet-drive/internal/usenet/corruptednzbsmanager"
 	status "github.com/javi11/usenet-drive/internal/usenet/statusreporter"
@@ -21,7 +22,7 @@ type fileReader struct {
 	cNzb      corruptednzbsmanager.CorruptedNzbsManager
 	fs        osfs.FileSystem
 	dc        downloadConfig
-	chunkPool *puddle.Pool[[]byte]
+	chunkPool *bigcache.BigCache
 	sr        status.StatusReporter
 }
 
@@ -31,17 +32,29 @@ func NewFileReader(options ...Option) (*fileReader, error) {
 		option(config)
 	}
 
-	pool, err := puddle.NewPool(
-		&puddle.Config[[]byte]{
-			Constructor: func(_ context.Context) ([]byte, error) {
-				return make([]byte, config.segmentSize), nil
-			},
-			Destructor: func(value []byte) {
-				// Do nothing
-			},
-			MaxSize: 1400,
-		},
-	)
+	engine, err := bigcache.New(context.Background(), bigcache.Config{
+		// number of shards (must be a power of 2)
+		Shards: 2,
+
+		// time after which entry can be evicted
+		LifeWindow: 15 * time.Minute,
+
+		// Interval between removing expired entries (clean up).
+		// If set to <= 0 then no action is performed.
+		// Setting to < 1 second is counterproductive — bigcache has a one second resolution.
+		CleanWindow: 5 * time.Minute,
+
+		// max entry size in bytes, used only in initial memory allocation
+		MaxEntrySize: int(config.segmentSize),
+
+		// prints information about additional memory allocation
+		Verbose: true,
+
+		// cache will not allocate more memory than this limit, value in MB
+		// if value is reached then the oldest entries can be overridden for the new ones
+		// 0 value means no size limit
+		HardMaxCacheSize: 512,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -52,7 +65,7 @@ func NewFileReader(options ...Option) (*fileReader, error) {
 		cNzb:      config.cNzb,
 		fs:        config.fs,
 		dc:        config.getDownloadConfig(),
-		chunkPool: pool,
+		chunkPool: engine,
 		sr:        config.sr,
 	}, nil
 }
