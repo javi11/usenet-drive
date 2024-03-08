@@ -248,7 +248,6 @@ func (b *buffer) read(p []byte, currentSegmentIndex, beginReadAt int) (int, erro
 			c, _ := b.chunkCache.Get(segment.Id)
 			if c != nil {
 				chunk = c
-				c = nil
 			}
 		}
 

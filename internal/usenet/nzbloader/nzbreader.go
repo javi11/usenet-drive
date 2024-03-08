@@ -6,7 +6,6 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
-	"sync/atomic"
 
 	"github.com/javi11/usenet-drive/internal/usenet"
 	"github.com/javi11/usenet-drive/pkg/nzb"
@@ -21,12 +20,11 @@ type NzbReader interface {
 }
 
 type nzbReader struct {
-	decoder        *xml.Decoder
-	metadata       usenet.Metadata
-	groups         []string
-	segments       map[int64]nzb.NzbSegment
-	close          chan struct{}
-	currentSegment atomic.Int64
+	decoder  *xml.Decoder
+	metadata usenet.Metadata
+	groups   []string
+	segments map[int64]nzb.NzbSegment
+	close    chan struct{}
 }
 
 func NewNzbReader(reader io.Reader) NzbReader {
