@@ -38,24 +38,24 @@ type seekData struct {
 }
 
 type buffer struct {
-	ctx                context.Context
-	fileSize           int
-	nzbReader          nzbloader.NzbReader
-	nzbGroups          []string
-	ptr                int64
-	currentDownloading *currentDownloadingMap
-	cp                 connectionpool.UsenetConnectionPool
-	chunkSize          int
-	dc                 downloadConfig
-	log                *slog.Logger
-	nextSegment        chan nzb.NzbSegment
-	wg                 *sync.WaitGroup
-	filePath           string
-	chunk              []byte
-	close              chan struct{}
-	seek               chan seekData
-	mx                 *sync.RWMutex
-	chunkCache         Cache
+	ctx                 context.Context
+	fileSize            int
+	nzbReader           nzbloader.NzbReader
+	nzbGroups           []string
+	ptr                 int64
+	currentDownloading  *currentDownloadingMap
+	cp                  connectionpool.UsenetConnectionPool
+	chunkSize           int
+	dc                  downloadConfig
+	log                 *slog.Logger
+	nextSegment         chan nzb.NzbSegment
+	wg                  *sync.WaitGroup
+	filePath            string
+	directDownloadChunk []byte
+	close               chan struct{}
+	seek                chan seekData
+	mx                  *sync.RWMutex
+	chunkCache          Cache
 }
 
 func NewBuffer(
@@ -76,23 +76,23 @@ func NewBuffer(
 	}
 
 	buffer := &buffer{
-		ctx:                ctx,
-		chunkSize:          chunkSize,
-		fileSize:           fileSize,
-		nzbReader:          nzbReader,
-		nzbGroups:          nzbGroups,
-		currentDownloading: &currentDownloadingMap{},
-		cp:                 cp,
-		dc:                 dc,
-		log:                log,
-		nextSegment:        make(chan nzb.NzbSegment),
-		wg:                 &sync.WaitGroup{},
-		filePath:           filePath,
-		chunk:              make([]byte, chunkSize),
-		close:              make(chan struct{}),
-		seek:               make(chan seekData),
-		mx:                 &sync.RWMutex{},
-		chunkCache:         chunkCache,
+		ctx:                 ctx,
+		chunkSize:           chunkSize,
+		fileSize:            fileSize,
+		nzbReader:           nzbReader,
+		nzbGroups:           nzbGroups,
+		currentDownloading:  &currentDownloadingMap{},
+		cp:                  cp,
+		dc:                  dc,
+		log:                 log,
+		nextSegment:         make(chan nzb.NzbSegment),
+		wg:                  &sync.WaitGroup{},
+		filePath:            filePath,
+		directDownloadChunk: make([]byte, chunkSize),
+		close:               make(chan struct{}),
+		seek:                make(chan seekData),
+		mx:                  &sync.RWMutex{},
+		chunkCache:          chunkCache,
 	}
 
 	for i := 0; i < dc.maxDownloadWorkers; i++ {
@@ -139,14 +139,14 @@ func (b *buffer) Seek(offset int64, whence int) (int64, error) {
 		return 0, ErrSeekTooFar
 	}
 	previousSegmentIndex := b.calculateCurrentSegmentIndex(b.ptr)
+	b.mx.Lock()
+	b.ptr = abs
+	b.mx.Unlock()
 	currentSegmentIndex := b.calculateCurrentSegmentIndex(b.ptr)
 	b.seek <- seekData{
 		from: previousSegmentIndex,
 		to:   currentSegmentIndex,
 	}
-	b.mx.Lock()
-	b.ptr = abs
-	b.mx.Unlock()
 
 	return abs, nil
 }
@@ -254,12 +254,12 @@ func (b *buffer) read(p []byte, currentSegmentIndex, beginReadAt int) (int, erro
 
 		if chunk == nil {
 			// Fallback to direct download
-			err := b.downloadSegment(b.ctx, segment, b.nzbGroups, b.chunk)
+			err := b.downloadSegment(b.ctx, segment, b.nzbGroups, b.directDownloadChunk)
 			if err != nil {
 				return n, fmt.Errorf("error downloading segment: %w", err)
 			}
 
-			chunk = b.chunk
+			chunk = b.directDownloadChunk
 		}
 
 		n += copy(p[n:], chunk[beginReadAt:])
