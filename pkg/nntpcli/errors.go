@@ -11,6 +11,7 @@ import (
 var (
 	ErrCapabilitiesUnpopulated = errors.New("capabilities unpopulated")
 	ErrNoSuchCapability        = errors.New("no such capability")
+	ErrNilNttpConn             = errors.New("nil nntp connection")
 )
 
 const SegmentAlreadyExistsErrCode = 441
@@ -22,7 +23,8 @@ var retirableErrors = []int{
 }
 
 func IsRetryableError(err error) bool {
-	if errors.Is(err, syscall.EPIPE) ||
+	if errors.Is(err, ErrNilNttpConn) ||
+		errors.Is(err, syscall.EPIPE) ||
 		errors.Is(err, syscall.ECONNRESET) ||
 		errors.Is(err, syscall.ETIMEDOUT) ||
 		errors.Is(err, io.EOF) ||

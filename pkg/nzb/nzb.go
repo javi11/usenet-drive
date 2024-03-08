@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/xml"
 	"io"
+	"strconv"
 )
 
 func ParseFromString(data string) (*Nzb, error) {
@@ -58,6 +59,35 @@ type NzbSegment struct {
 	Bytes   int64    `xml:"bytes,attr"`
 	Number  int64    `xml:"number,attr"`
 	Id      string   `xml:",innerxml"`
+}
+
+func (s *NzbSegment) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
+	for _, attr := range start.Attr {
+		if attr.Name.Local == "bytes" {
+			b, err := strconv.ParseInt(attr.Value, 10, 64)
+			if err != nil {
+				return err
+			}
+
+			s.Bytes = b
+		} else if attr.Name.Local == "number" {
+			n, err := strconv.ParseInt(attr.Value, 10, 64)
+			if err != nil {
+				return err
+			}
+
+			s.Number = n
+		}
+	}
+
+	t, err := d.RawToken()
+	if err != nil {
+		return err
+	}
+
+	s.Id = string(t.(xml.CharData))
+
+	return nil
 }
 
 type UpdateableMetadata struct {

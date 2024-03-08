@@ -35,7 +35,6 @@ func BenchmarkGetSegmentWithMMapFile(b *testing.B) {
 		b.Fatal(err)
 	}
 	defer mmapFile.Close()
-
 	reader := NewNzbReader(bytes.NewReader(mmapFile.Bytes()))
 	defer reader.Close()
 

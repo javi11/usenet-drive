@@ -133,6 +133,7 @@ var rootCmd = &cobra.Command{
 			filereader.WithSegmentSize(config.Usenet.ArticleSizeInBytes),
 			filereader.WithDebug(config.Debug),
 			filereader.WithStatusReporter(sr),
+			filereader.WithMaxBufferSizeInMb(config.Usenet.Download.MaxBufferSizeInMb),
 		)
 		if err != nil {
 			log.ErrorContext(ctx, "Failed to create file reader: %v", err)

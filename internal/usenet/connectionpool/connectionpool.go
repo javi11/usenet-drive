@@ -64,6 +64,9 @@ func NewConnectionPool(options ...Option) (UsenetConnectionPool, error) {
 				)
 			},
 			Destructor: func(value nntpcli.Connection) {
+				if value == nil {
+					return
+				}
 				dpp.FreeProvider(value.Provider().Id)
 				err := value.Close()
 				if err != nil {
