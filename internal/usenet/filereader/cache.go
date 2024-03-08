@@ -26,7 +26,7 @@ func NewCache(segmentSize, maxCacheSize int, debug bool) (Cache, error) {
 	// Download cache
 	config := bigcache.Config{
 		// number of shards (must be a power of 2)
-		Shards: 4,
+		Shards: 2,
 
 		// time after which entry can be evicted
 		LifeWindow: 15 * time.Minute,
@@ -45,7 +45,7 @@ func NewCache(segmentSize, maxCacheSize int, debug bool) (Cache, error) {
 		// cache will not allocate more memory than this limit, value in MB
 		// if value is reached then the oldest entries can be overridden for the new ones
 		// 0 value means no size limit
-		HardMaxCacheSize: maxCacheSize,
+		HardMaxCacheSize: maxCacheSize / 2,
 	}
 
 	engine, err := bigcache.New(context.Background(), config)

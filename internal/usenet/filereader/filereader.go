@@ -6,9 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"time"
 
-	"github.com/allegro/bigcache/v3"
 	"github.com/javi11/usenet-drive/internal/usenet/connectionpool"
 	"github.com/javi11/usenet-drive/internal/usenet/corruptednzbsmanager"
 	status "github.com/javi11/usenet-drive/internal/usenet/statusreporter"
@@ -17,13 +15,13 @@ import (
 )
 
 type fileReader struct {
-	cp        connectionpool.UsenetConnectionPool
-	log       *slog.Logger
-	cNzb      corruptednzbsmanager.CorruptedNzbsManager
-	fs        osfs.FileSystem
-	dc        downloadConfig
-	chunkPool *bigcache.BigCache
-	sr        status.StatusReporter
+	cp         connectionpool.UsenetConnectionPool
+	log        *slog.Logger
+	cNzb       corruptednzbsmanager.CorruptedNzbsManager
+	fs         osfs.FileSystem
+	dc         downloadConfig
+	chunkCache Cache
+	sr         status.StatusReporter
 }
 
 func NewFileReader(options ...Option) (*fileReader, error) {
@@ -32,41 +30,19 @@ func NewFileReader(options ...Option) (*fileReader, error) {
 		option(config)
 	}
 
-	engine, err := bigcache.New(context.Background(), bigcache.Config{
-		// number of shards (must be a power of 2)
-		Shards: 2,
-
-		// time after which entry can be evicted
-		LifeWindow: 15 * time.Minute,
-
-		// Interval between removing expired entries (clean up).
-		// If set to <= 0 then no action is performed.
-		// Setting to < 1 second is counterproductive — bigcache has a one second resolution.
-		CleanWindow: 5 * time.Minute,
-
-		// max entry size in bytes, used only in initial memory allocation
-		MaxEntrySize: int(config.segmentSize),
-
-		// prints information about additional memory allocation
-		Verbose: true,
-
-		// cache will not allocate more memory than this limit, value in MB
-		// if value is reached then the oldest entries can be overridden for the new ones
-		// 0 value means no size limit
-		HardMaxCacheSize: 512,
-	})
+	cache, err := NewCache(int(config.segmentSize), config.maxBufferSizeInMb, config.debug)
 	if err != nil {
 		return nil, err
 	}
 
 	return &fileReader{
-		cp:        config.cp,
-		log:       config.log,
-		cNzb:      config.cNzb,
-		fs:        config.fs,
-		dc:        config.getDownloadConfig(),
-		chunkPool: engine,
-		sr:        config.sr,
+		cp:         config.cp,
+		log:        config.log,
+		cNzb:       config.cNzb,
+		fs:         config.fs,
+		dc:         config.getDownloadConfig(),
+		chunkCache: cache,
+		sr:         config.sr,
 	}, nil
 }
 
@@ -80,7 +56,7 @@ func (fr *fileReader) OpenFile(ctx context.Context, path string, onClose func() 
 		fr.cNzb,
 		fr.fs,
 		fr.dc,
-		fr.chunkPool,
+		fr.chunkCache,
 		fr.sr,
 	)
 }
