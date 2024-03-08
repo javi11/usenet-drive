@@ -37,7 +37,6 @@ type seekData struct {
 	to   int
 }
 
-// Buf is a Buffer working on a slice of bytes.
 type buffer struct {
 	ctx                context.Context
 	fileSize           int
@@ -59,7 +58,6 @@ type buffer struct {
 	chunkCache         Cache
 }
 
-// NewBuffer creates a new data volume based on a buffer
 func NewBuffer(
 	ctx context.Context,
 	nzbReader nzbloader.NzbReader,
@@ -153,7 +151,6 @@ func (b *buffer) Seek(offset int64, whence int) (int64, error) {
 	return abs, nil
 }
 
-// Close the buffer. Currently no effect.
 func (b *buffer) Close() error {
 	close(b.close)
 	b.wg.Wait()
@@ -219,10 +216,9 @@ func (b *buffer) read(p []byte, currentSegmentIndex, beginReadAt int) (int, erro
 	n := 0
 	i := 0
 
-	// Preload next segments
+	// Send segments to all download workers
 	for j := 0; j < b.dc.maxDownloadWorkers; j++ {
 		nextSegmentIndex := currentSegmentIndex + j
-		// Preload next segments
 		if nextSegment, hasMore := b.nzbReader.GetSegment(nextSegmentIndex); hasMore {
 			b.nextSegment <- nextSegment
 		}
@@ -257,6 +253,7 @@ func (b *buffer) read(p []byte, currentSegmentIndex, beginReadAt int) (int, erro
 		}
 
 		if chunk == nil {
+			// Fallback to direct download
 			err := b.downloadSegment(b.ctx, segment, b.nzbGroups, b.chunk)
 			if err != nil {
 				return n, fmt.Errorf("error downloading segment: %w", err)
@@ -313,7 +310,7 @@ func (b *buffer) downloadSegment(
 		conn = c
 		nntpConn := conn.Value()
 		if nntpConn == nil {
-			return fmt.Errorf("error getting nntp connection")
+			return nntpcli.ErrNilNttpConn
 		}
 
 		if nntpConn.Provider().JoinGroup {

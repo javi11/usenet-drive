@@ -23,27 +23,27 @@ func TestBuffer_Read(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
+	cache := NewMockCache(ctrl)
 	mockPool := connectionpool.NewMockUsenetConnectionPool(ctrl)
 	t.Run("TestBuffer_Read_Empty", func(t *testing.T) {
-		segmentsBuffer := &sync.Map{}
+		currentDownloading := &currentDownloadingMap{}
 		nzbReader := nzbloader.NewMockNzbReader(ctrl)
 		buf := &buffer{
-			ctx:            context.Background(),
-			fileSize:       3 * 100,
-			nzbReader:      nzbReader,
-			nzbGroups:      []string{"group1"},
-			ptr:            0,
-			segmentsBuffer: segmentsBuffer,
-			cp:             mockPool,
-			chunkSize:      5,
+			ctx:                context.Background(),
+			fileSize:           3 * 100,
+			nzbReader:          nzbReader,
+			nzbGroups:          []string{"group1"},
+			ptr:                0,
+			currentDownloading: currentDownloading,
+			cp:                 mockPool,
+			chunkSize:          5,
 			dc: downloadConfig{
 				maxDownloadRetries: 5,
 				maxDownloadWorkers: 0,
 				maxBufferSizeInMb:  30,
 			},
-			log:                    slog.Default(),
-			currentDownloading:     &sync.Map{},
-			downloadRetryTimeoutMs: 1000,
+			log:        slog.Default(),
+			chunkCache: cache,
 		}
 
 		// Test empty read
@@ -54,24 +54,24 @@ func TestBuffer_Read(t *testing.T) {
 	})
 
 	t.Run("TestBuffer_Read_PastEnd", func(t *testing.T) {
-		segmentsBuffer := &sync.Map{}
+		currentDownloading := &currentDownloadingMap{}
 		nzbReader := nzbloader.NewMockNzbReader(ctrl)
 		buf := &buffer{
-			ctx:            context.Background(),
-			fileSize:       3 * 100,
-			nzbReader:      nzbReader,
-			nzbGroups:      []string{"group1"},
-			ptr:            0,
-			segmentsBuffer: segmentsBuffer,
-			cp:             mockPool,
-			chunkSize:      5,
+			ctx:                context.Background(),
+			fileSize:           3 * 100,
+			nzbReader:          nzbReader,
+			nzbGroups:          []string{"group1"},
+			ptr:                0,
+			currentDownloading: currentDownloading,
+			cp:                 mockPool,
+			chunkSize:          5,
 			dc: downloadConfig{
 				maxDownloadRetries: 5,
 				maxDownloadWorkers: 0,
 				maxBufferSizeInMb:  30,
 			},
-			log:                    slog.Default(),
-			downloadRetryTimeoutMs: 1000,
+			log:        slog.Default(),
+			chunkCache: cache,
 		}
 
 		// Test read past end of buffer
@@ -83,36 +83,35 @@ func TestBuffer_Read(t *testing.T) {
 	})
 
 	t.Run("TestBuffer_Read_OneSegment", func(t *testing.T) {
-		segmentsBuffer := &sync.Map{}
+		currentDownloading := &currentDownloadingMap{}
 		t.Cleanup(func() {
-			segmentsBuffer.Range(func(key, value interface{}) bool {
-				segmentsBuffer.Delete(key)
+			currentDownloading.Range(func(key, value interface{}) bool {
+				currentDownloading.Delete(key)
 				return true
 			})
 		})
 		nzbReader := nzbloader.NewMockNzbReader(ctrl)
 
 		buf := &buffer{
-			ctx:            context.Background(),
-			fileSize:       3 * 100,
-			nzbReader:      nzbReader,
-			nzbGroups:      []string{"group1"},
-			ptr:            0,
-			segmentsBuffer: segmentsBuffer,
-			cp:             mockPool,
-			chunkSize:      5,
+			ctx:                context.Background(),
+			fileSize:           3 * 100,
+			nzbReader:          nzbReader,
+			nzbGroups:          []string{"group1"},
+			ptr:                0,
+			currentDownloading: currentDownloading,
+			cp:                 mockPool,
+			chunkSize:          5,
 			dc: downloadConfig{
 				maxDownloadRetries: 5,
 				maxDownloadWorkers: 0,
 				maxBufferSizeInMb:  30,
 			},
-			log:                    slog.Default(),
-			currentDownloading:     &sync.Map{},
-			downloadRetryTimeoutMs: 1000,
+			log:        slog.Default(),
+			chunkCache: cache,
 		}
 
 		expectedBody := "body1"
-		segmentsBuffer.Store(0, []byte(expectedBody))
+		currentDownloading.Store(0, []byte(expectedBody))
 
 		p := make([]byte, 5)
 		n, err := buf.Read(p)
@@ -123,32 +122,31 @@ func TestBuffer_Read(t *testing.T) {
 	})
 
 	t.Run("TestBuffer_Timeout_Reading", func(t *testing.T) {
-		segmentsBuffer := &sync.Map{}
+		currentDownloading := &currentDownloadingMap{}
 		t.Cleanup(func() {
-			segmentsBuffer.Range(func(key, _ interface{}) bool {
-				segmentsBuffer.Delete(key)
+			currentDownloading.Range(func(key, _ interface{}) bool {
+				currentDownloading.Delete(key)
 				return true
 			})
 		})
 		nzbReader := nzbloader.NewMockNzbReader(ctrl)
 
 		buf := &buffer{
-			ctx:            context.Background(),
-			fileSize:       3 * 100,
-			nzbReader:      nzbReader,
-			nzbGroups:      []string{"group1"},
-			ptr:            0,
-			segmentsBuffer: segmentsBuffer,
-			cp:             mockPool,
-			chunkSize:      5,
+			ctx:                context.Background(),
+			fileSize:           3 * 100,
+			nzbReader:          nzbReader,
+			nzbGroups:          []string{"group1"},
+			ptr:                0,
+			currentDownloading: currentDownloading,
+			cp:                 mockPool,
+			chunkSize:          5,
 			dc: downloadConfig{
 				maxDownloadRetries: 3,
 				maxDownloadWorkers: 0,
 				maxBufferSizeInMb:  30,
 			},
-			log:                    slog.Default(),
-			currentDownloading:     &sync.Map{},
-			downloadRetryTimeoutMs: 1000,
+			log:        slog.Default(),
+			chunkCache: cache,
 		}
 
 		nzbReader.EXPECT().GetSegment(0).Return(nzb.NzbSegment{Id: "1", Bytes: 5}, true).Times(1)
@@ -175,39 +173,38 @@ func TestBuffer_Read(t *testing.T) {
 	})
 
 	t.Run("TestBuffer_Read_TwoSegments", func(t *testing.T) {
-		segmentsBuffer := &sync.Map{}
+		currentDownloading := &currentDownloadingMap{}
 		t.Cleanup(func() {
-			segmentsBuffer.Range(func(key, value interface{}) bool {
-				segmentsBuffer.Delete(key)
+			currentDownloading.Range(func(key, value interface{}) bool {
+				currentDownloading.Delete(key)
 				return true
 			})
 		})
 		nzbReader := nzbloader.NewMockNzbReader(ctrl)
 
 		buf := &buffer{
-			ctx:            context.Background(),
-			fileSize:       3 * 100,
-			nzbReader:      nzbReader,
-			nzbGroups:      []string{"group1"},
-			ptr:            0,
-			segmentsBuffer: segmentsBuffer,
-			cp:             mockPool,
-			chunkSize:      5,
+			ctx:                context.Background(),
+			fileSize:           3 * 100,
+			nzbReader:          nzbReader,
+			nzbGroups:          []string{"group1"},
+			ptr:                0,
+			currentDownloading: currentDownloading,
+			cp:                 mockPool,
+			chunkSize:          5,
 			dc: downloadConfig{
 				maxDownloadRetries: 5,
 				maxDownloadWorkers: 0,
 				maxBufferSizeInMb:  30,
 			},
-			log:                    slog.Default(),
-			currentDownloading:     &sync.Map{},
-			downloadRetryTimeoutMs: 1000,
+			log:        slog.Default(),
+			chunkCache: cache,
 		}
 
 		expectedBody1 := "body1"
 		expectedBody2 := "body2"
 
-		segmentsBuffer.Store(0, []byte(expectedBody1))
-		segmentsBuffer.Store(1, []byte(expectedBody2))
+		currentDownloading.Store(0, []byte(expectedBody1))
+		currentDownloading.Store(1, []byte(expectedBody2))
 
 		p := make([]byte, 10)
 		n, err := buf.Read(p)
@@ -220,30 +217,30 @@ func TestBuffer_Read(t *testing.T) {
 
 func TestBuffer_ReadAt(t *testing.T) {
 	ctrl := gomock.NewController(t)
+	cache := NewMockCache(ctrl)
 	defer ctrl.Finish()
 
 	mockPool := connectionpool.NewMockUsenetConnectionPool(ctrl)
-	segmentsBuffer := &sync.Map{}
+	currentDownloading := &currentDownloadingMap{}
 
 	t.Run("TestBuffer_ReadAt_Empty", func(t *testing.T) {
 		nzbReader := nzbloader.NewMockNzbReader(ctrl)
 		buf := &buffer{
-			ctx:            context.Background(),
-			fileSize:       3 * 100,
-			nzbReader:      nzbReader,
-			nzbGroups:      []string{"group1"},
-			ptr:            0,
-			segmentsBuffer: segmentsBuffer,
-			cp:             mockPool,
-			chunkSize:      5,
+			ctx:                context.Background(),
+			fileSize:           3 * 100,
+			nzbReader:          nzbReader,
+			nzbGroups:          []string{"group1"},
+			ptr:                0,
+			currentDownloading: currentDownloading,
+			cp:                 mockPool,
+			chunkSize:          5,
 			dc: downloadConfig{
 				maxDownloadRetries: 5,
 				maxDownloadWorkers: 1,
 				maxBufferSizeInMb:  30,
 			},
-			log:                    slog.Default(),
-			currentDownloading:     &sync.Map{},
-			downloadRetryTimeoutMs: 1000,
+			log:        slog.Default(),
+			chunkCache: cache,
 		}
 
 		// Test empty read
@@ -256,21 +253,21 @@ func TestBuffer_ReadAt(t *testing.T) {
 	t.Run("TestBuffer_ReadAt_PastEnd", func(t *testing.T) {
 		nzbReader := nzbloader.NewMockNzbReader(ctrl)
 		buf := &buffer{
-			ctx:            context.Background(),
-			fileSize:       3 * 100,
-			nzbReader:      nzbReader,
-			nzbGroups:      []string{"group1"},
-			ptr:            0,
-			segmentsBuffer: segmentsBuffer,
-			cp:             mockPool,
-			chunkSize:      100,
+			ctx:                context.Background(),
+			fileSize:           3 * 100,
+			nzbReader:          nzbReader,
+			nzbGroups:          []string{"group1"},
+			ptr:                0,
+			currentDownloading: currentDownloading,
+			cp:                 mockPool,
+			chunkSize:          100,
 			dc: downloadConfig{
 				maxDownloadRetries: 5,
 				maxDownloadWorkers: 1,
 				maxBufferSizeInMb:  30,
 			},
-			log:                    slog.Default(),
-			downloadRetryTimeoutMs: 1000,
+			log:        slog.Default(),
+			chunkCache: cache,
 		}
 
 		// Test read past end of buffer
@@ -283,25 +280,25 @@ func TestBuffer_ReadAt(t *testing.T) {
 	t.Run("TestBuffer_ReadAt_OneSegment", func(t *testing.T) {
 		nzbReader := nzbloader.NewMockNzbReader(ctrl)
 		buf := &buffer{
-			ctx:            context.Background(),
-			fileSize:       3 * 100,
-			nzbReader:      nzbReader,
-			nzbGroups:      []string{"group1"},
-			ptr:            0,
-			segmentsBuffer: segmentsBuffer,
-			cp:             mockPool,
-			chunkSize:      5,
+			ctx:                context.Background(),
+			fileSize:           3 * 100,
+			nzbReader:          nzbReader,
+			nzbGroups:          []string{"group1"},
+			ptr:                0,
+			currentDownloading: currentDownloading,
+			cp:                 mockPool,
+			chunkSize:          5,
 			dc: downloadConfig{
 				maxDownloadRetries: 5,
 				maxDownloadWorkers: 1,
 				maxBufferSizeInMb:  30,
 			},
-			log:                nil,
-			currentDownloading: &sync.Map{},
+			log:        nil,
+			chunkCache: cache,
 		}
 
 		expectedBody1 := "body1"
-		segmentsBuffer.Store(0, []byte(expectedBody1))
+		currentDownloading.Store(0, []byte(expectedBody1))
 
 		p := make([]byte, 5)
 		n, err := buf.ReadAt(p, 0)
@@ -314,30 +311,29 @@ func TestBuffer_ReadAt(t *testing.T) {
 		nzbReader := nzbloader.NewMockNzbReader(ctrl)
 
 		buf := &buffer{
-			ctx:            context.Background(),
-			fileSize:       3 * 100,
-			nzbReader:      nzbReader,
-			nzbGroups:      []string{"group1"},
-			ptr:            0,
-			segmentsBuffer: segmentsBuffer,
-			cp:             mockPool,
-			chunkSize:      5,
+			ctx:                context.Background(),
+			fileSize:           3 * 100,
+			nzbReader:          nzbReader,
+			nzbGroups:          []string{"group1"},
+			ptr:                0,
+			currentDownloading: currentDownloading,
+			cp:                 mockPool,
+			chunkSize:          5,
 			dc: downloadConfig{
 				maxDownloadRetries: 5,
 				maxDownloadWorkers: 1,
 				maxBufferSizeInMb:  30,
 			},
-			log:                    slog.Default(),
-			currentDownloading:     &sync.Map{},
-			downloadRetryTimeoutMs: 1000,
+			log:        slog.Default(),
+			chunkCache: cache,
 		}
 
 		expectedBody1 := "body2"
 
 		expectedBody2 := "body3"
 
-		segmentsBuffer.Store(1, []byte(expectedBody1))
-		segmentsBuffer.Store(2, []byte(expectedBody2))
+		currentDownloading.Store(1, []byte(expectedBody1))
+		currentDownloading.Store(2, []byte(expectedBody2))
 
 		p := make([]byte, 9)
 		// Special attention to the offset, it will start reading from the second segment since chunkSize is 5
@@ -351,11 +347,12 @@ func TestBuffer_ReadAt(t *testing.T) {
 func TestBuffer_Seek(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
+	cache := NewMockCache(ctrl)
 
 	mockPool := connectionpool.NewMockUsenetConnectionPool(ctrl)
 	nzbReader := nzbloader.NewMockNzbReader(ctrl)
 
-	segmentsBuffer := &sync.Map{}
+	currentDownloading := &currentDownloadingMap{}
 
 	t.Run("Test seek start", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
@@ -363,22 +360,21 @@ func TestBuffer_Seek(t *testing.T) {
 			cancel()
 		})
 		buf := &buffer{
-			ctx:            ctx,
-			fileSize:       3 * 100,
-			nzbReader:      nzbReader,
-			nzbGroups:      []string{"group1"},
-			ptr:            0,
-			segmentsBuffer: segmentsBuffer,
-			cp:             mockPool,
-			chunkSize:      5,
+			ctx:                ctx,
+			fileSize:           3 * 100,
+			nzbReader:          nzbReader,
+			nzbGroups:          []string{"group1"},
+			ptr:                0,
+			currentDownloading: currentDownloading,
+			cp:                 mockPool,
+			chunkSize:          5,
 			dc: downloadConfig{
 				maxDownloadRetries: 5,
 				maxDownloadWorkers: 1,
 				maxBufferSizeInMb:  30,
 			},
-			log:                    slog.Default(),
-			currentDownloading:     &sync.Map{},
-			downloadRetryTimeoutMs: 1000,
+			log:        slog.Default(),
+			chunkCache: cache,
 		}
 
 		// Test seek start
@@ -393,22 +389,21 @@ func TestBuffer_Seek(t *testing.T) {
 			cancel()
 		})
 		buf := &buffer{
-			ctx:            ctx,
-			fileSize:       3 * 100,
-			nzbReader:      nzbReader,
-			nzbGroups:      []string{"group1"},
-			ptr:            0,
-			segmentsBuffer: segmentsBuffer,
-			cp:             mockPool,
-			chunkSize:      5,
+			ctx:                ctx,
+			fileSize:           3 * 100,
+			nzbReader:          nzbReader,
+			nzbGroups:          []string{"group1"},
+			ptr:                0,
+			currentDownloading: currentDownloading,
+			cp:                 mockPool,
+			chunkSize:          5,
 			dc: downloadConfig{
 				maxDownloadRetries: 5,
 				maxDownloadWorkers: 1,
 				maxBufferSizeInMb:  30,
 			},
-			log:                    slog.Default(),
-			currentDownloading:     &sync.Map{},
-			downloadRetryTimeoutMs: 1000,
+			log:        slog.Default(),
+			chunkCache: cache,
 		}
 
 		// Test seek current
@@ -423,22 +418,21 @@ func TestBuffer_Seek(t *testing.T) {
 			cancel()
 		})
 		buf := &buffer{
-			ctx:            ctx,
-			fileSize:       3 * 100,
-			nzbReader:      nzbReader,
-			nzbGroups:      []string{"group1"},
-			ptr:            0,
-			segmentsBuffer: segmentsBuffer,
-			cp:             mockPool,
-			chunkSize:      5,
+			ctx:                ctx,
+			fileSize:           3 * 100,
+			nzbReader:          nzbReader,
+			nzbGroups:          []string{"group1"},
+			ptr:                0,
+			currentDownloading: currentDownloading,
+			cp:                 mockPool,
+			chunkSize:          5,
 			dc: downloadConfig{
 				maxDownloadRetries: 5,
 				maxDownloadWorkers: 1,
 				maxBufferSizeInMb:  30,
 			},
-			log:                    slog.Default(),
-			currentDownloading:     &sync.Map{},
-			downloadRetryTimeoutMs: 1000,
+			log:        slog.Default(),
+			chunkCache: cache,
 		}
 
 		// Test seek end
@@ -453,22 +447,21 @@ func TestBuffer_Seek(t *testing.T) {
 			cancel()
 		})
 		buf := &buffer{
-			ctx:            ctx,
-			fileSize:       3 * 100,
-			nzbReader:      nzbReader,
-			nzbGroups:      []string{"group1"},
-			ptr:            0,
-			segmentsBuffer: segmentsBuffer,
-			cp:             mockPool,
-			chunkSize:      5,
+			ctx:                ctx,
+			fileSize:           3 * 100,
+			nzbReader:          nzbReader,
+			nzbGroups:          []string{"group1"},
+			ptr:                0,
+			currentDownloading: currentDownloading,
+			cp:                 mockPool,
+			chunkSize:          5,
 			dc: downloadConfig{
 				maxDownloadRetries: 5,
 				maxDownloadWorkers: 1,
 				maxBufferSizeInMb:  30,
 			},
-			log:                    slog.Default(),
-			currentDownloading:     &sync.Map{},
-			downloadRetryTimeoutMs: 1000,
+			log:        slog.Default(),
+			chunkCache: cache,
 		}
 
 		// Test invalid whence
@@ -482,21 +475,20 @@ func TestBuffer_Seek(t *testing.T) {
 			cancel()
 		})
 		buf := &buffer{
-			ctx:            ctx,
-			fileSize:       3 * 100,
-			nzbReader:      nzbReader,
-			ptr:            0,
-			segmentsBuffer: segmentsBuffer,
-			cp:             mockPool,
-			chunkSize:      5,
+			ctx:                ctx,
+			fileSize:           3 * 100,
+			nzbReader:          nzbReader,
+			ptr:                0,
+			currentDownloading: currentDownloading,
+			cp:                 mockPool,
+			chunkSize:          5,
 			dc: downloadConfig{
 				maxDownloadRetries: 5,
 				maxDownloadWorkers: 1,
 				maxBufferSizeInMb:  30,
 			},
-			log:                    slog.Default(),
-			currentDownloading:     &sync.Map{},
-			downloadRetryTimeoutMs: 1000,
+			log:        slog.Default(),
+			chunkCache: cache,
 		}
 
 		// Test negative position
@@ -506,21 +498,20 @@ func TestBuffer_Seek(t *testing.T) {
 
 	t.Run("Test seek too far", func(t *testing.T) {
 		buf := &buffer{
-			fileSize:       3 * 100,
-			nzbReader:      nzbReader,
-			nzbGroups:      []string{"group1"},
-			ptr:            0,
-			segmentsBuffer: segmentsBuffer,
-			cp:             mockPool,
-			chunkSize:      100,
+			fileSize:           3 * 100,
+			nzbReader:          nzbReader,
+			nzbGroups:          []string{"group1"},
+			ptr:                0,
+			currentDownloading: currentDownloading,
+			cp:                 mockPool,
+			chunkSize:          100,
 			dc: downloadConfig{
 				maxDownloadRetries: 5,
 				maxDownloadWorkers: 1,
 				maxBufferSizeInMb:  30,
 			},
-			log:                    slog.Default(),
-			currentDownloading:     &sync.Map{},
-			downloadRetryTimeoutMs: 1000,
+			log:        slog.Default(),
+			chunkCache: cache,
 		}
 
 		// Test too far
@@ -532,10 +523,11 @@ func TestBuffer_Seek(t *testing.T) {
 func TestBuffer_Close(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
+	cache := NewMockCache(ctrl)
 
 	mockPool := connectionpool.NewMockUsenetConnectionPool(ctrl)
 
-	segmentsBuffer := &sync.Map{}
+	currentDownloading := &currentDownloadingMap{}
 
 	t.Run("Test close buffer", func(t *testing.T) {
 		nzbReader := nzbloader.NewMockNzbReader(ctrl)
@@ -545,13 +537,13 @@ func TestBuffer_Close(t *testing.T) {
 			cancel()
 		})
 		buf := &buffer{
-			ctx:            ctx,
-			fileSize:       3 * 100,
-			nzbReader:      nzbReader,
-			nzbGroups:      []string{"group1"},
-			ptr:            0,
-			segmentsBuffer: segmentsBuffer,
-			cp:             mockPool,
+			ctx:                ctx,
+			fileSize:           3 * 100,
+			nzbReader:          nzbReader,
+			nzbGroups:          []string{"group1"},
+			ptr:                0,
+			currentDownloading: currentDownloading,
+			cp:                 mockPool,
 
 			chunkSize: 5,
 			dc: downloadConfig{
@@ -559,10 +551,9 @@ func TestBuffer_Close(t *testing.T) {
 				maxDownloadWorkers: 0,
 				maxBufferSizeInMb:  30,
 			},
-			log:                    slog.Default(),
-			nextSegment:            make(chan nzb.NzbSegment),
-			currentDownloading:     &sync.Map{},
-			downloadRetryTimeoutMs: 1000,
+			log:         slog.Default(),
+			nextSegment: make(chan nzb.NzbSegment),
+			chunkCache:  cache,
 		}
 
 		err := buf.Close()
@@ -578,24 +569,23 @@ func TestBuffer_Close(t *testing.T) {
 		})
 
 		buf := &buffer{
-			ctx:            ctx,
-			fileSize:       3 * 100,
-			nzbReader:      nzbReader,
-			nzbGroups:      []string{"group1"},
-			ptr:            0,
-			segmentsBuffer: segmentsBuffer,
-			cp:             mockPool,
-			chunkSize:      100,
+			ctx:                ctx,
+			fileSize:           3 * 100,
+			nzbReader:          nzbReader,
+			nzbGroups:          []string{"group1"},
+			ptr:                0,
+			currentDownloading: currentDownloading,
+			cp:                 mockPool,
+			chunkSize:          100,
 			dc: downloadConfig{
 				maxDownloadRetries: 5,
 				maxDownloadWorkers: 1,
 				maxBufferSizeInMb:  30,
 			},
-			log:                    slog.Default(),
-			nextSegment:            make(chan nzb.NzbSegment),
-			wg:                     &sync.WaitGroup{},
-			currentDownloading:     &sync.Map{},
-			downloadRetryTimeoutMs: 1000,
+			log:         slog.Default(),
+			nextSegment: make(chan nzb.NzbSegment),
+			wg:          &sync.WaitGroup{},
+			chunkCache:  cache,
 		}
 
 		wg := &sync.WaitGroup{}
@@ -620,8 +610,10 @@ func TestBuffer_downloadSegment(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
+	cache := NewMockCache(ctrl)
+
 	mockPool := connectionpool.NewMockUsenetConnectionPool(ctrl)
-	segmentsBuffer := &sync.Map{}
+	currentDownloading := &currentDownloadingMap{}
 
 	segment := nzb.NzbSegment{Id: "1", Number: 1, Bytes: 5}
 	groups := []string{"group1"}
@@ -634,22 +626,21 @@ func TestBuffer_downloadSegment(t *testing.T) {
 			cancel()
 		})
 		buf := &buffer{
-			ctx:            ctx,
-			fileSize:       3 * 100,
-			nzbReader:      nzbReader,
-			nzbGroups:      []string{"group1"},
-			ptr:            0,
-			segmentsBuffer: segmentsBuffer,
-			cp:             mockPool,
-			chunkSize:      5,
+			ctx:                ctx,
+			fileSize:           3 * 100,
+			nzbReader:          nzbReader,
+			nzbGroups:          []string{"group1"},
+			ptr:                0,
+			currentDownloading: currentDownloading,
+			cp:                 mockPool,
+			chunkSize:          5,
 			dc: downloadConfig{
 				maxDownloadRetries: 5,
 				maxDownloadWorkers: 0,
 				maxBufferSizeInMb:  30,
 			},
-			log:                    slog.Default(),
-			currentDownloading:     &sync.Map{},
-			downloadRetryTimeoutMs: 1000,
+			log:        slog.Default(),
+			chunkCache: cache,
 		}
 
 		mockConn := nntpcli.NewMockConnection(ctrl)
@@ -681,22 +672,21 @@ func TestBuffer_downloadSegment(t *testing.T) {
 			cancel()
 		})
 		buf := &buffer{
-			ctx:            ctx,
-			fileSize:       3 * 100,
-			nzbReader:      nzbReader,
-			nzbGroups:      []string{"group1"},
-			ptr:            0,
-			segmentsBuffer: segmentsBuffer,
-			cp:             mockPool,
-			chunkSize:      5,
+			ctx:                ctx,
+			fileSize:           3 * 100,
+			nzbReader:          nzbReader,
+			nzbGroups:          []string{"group1"},
+			ptr:                0,
+			currentDownloading: currentDownloading,
+			cp:                 mockPool,
+			chunkSize:          5,
 			dc: downloadConfig{
 				maxDownloadRetries: 5,
 				maxDownloadWorkers: 0,
 				maxBufferSizeInMb:  30,
 			},
-			log:                    slog.Default(),
-			currentDownloading:     &sync.Map{},
-			downloadRetryTimeoutMs: 1000,
+			log:        slog.Default(),
+			chunkCache: cache,
 		}
 		mockPool.EXPECT().GetDownloadConnection(gomock.Any()).Return(nil, errors.New("error")).Times(1)
 
@@ -714,21 +704,20 @@ func TestBuffer_downloadSegment(t *testing.T) {
 			cancel()
 		})
 		buf := &buffer{
-			ctx:            ctx,
-			fileSize:       3 * 100,
-			nzbReader:      nzbReader,
-			ptr:            0,
-			segmentsBuffer: segmentsBuffer,
-			cp:             mockPool,
-			chunkSize:      5,
+			ctx:                ctx,
+			fileSize:           3 * 100,
+			nzbReader:          nzbReader,
+			ptr:                0,
+			currentDownloading: currentDownloading,
+			cp:                 mockPool,
+			chunkSize:          5,
 			dc: downloadConfig{
 				maxDownloadRetries: 5,
 				maxDownloadWorkers: 0,
 				maxBufferSizeInMb:  30,
 			},
-			log:                    slog.Default(),
-			currentDownloading:     &sync.Map{},
-			downloadRetryTimeoutMs: 1000,
+			log:        slog.Default(),
+			chunkCache: cache,
 		}
 		mockConn := nntpcli.NewMockConnection(ctrl)
 		mockConn.EXPECT().Provider().Return(nntpcli.Provider{JoinGroup: true}).Times(1)
@@ -753,22 +742,21 @@ func TestBuffer_downloadSegment(t *testing.T) {
 			cancel()
 		})
 		buf := &buffer{
-			ctx:            ctx,
-			fileSize:       3 * 100,
-			nzbReader:      nzbReader,
-			nzbGroups:      []string{"group1"},
-			ptr:            0,
-			segmentsBuffer: segmentsBuffer,
-			cp:             mockPool,
-			chunkSize:      5,
+			ctx:                ctx,
+			fileSize:           3 * 100,
+			nzbReader:          nzbReader,
+			nzbGroups:          []string{"group1"},
+			ptr:                0,
+			currentDownloading: currentDownloading,
+			cp:                 mockPool,
+			chunkSize:          5,
 			dc: downloadConfig{
 				maxDownloadRetries: 5,
 				maxDownloadWorkers: 0,
 				maxBufferSizeInMb:  30,
 			},
-			log:                    slog.Default(),
-			currentDownloading:     &sync.Map{},
-			downloadRetryTimeoutMs: 1000,
+			log:        slog.Default(),
+			chunkCache: cache,
 		}
 		mockConn := nntpcli.NewMockConnection(ctrl)
 		mockConn.EXPECT().Provider().Return(nntpcli.Provider{JoinGroup: true}).Times(1)
@@ -794,21 +782,20 @@ func TestBuffer_downloadSegment(t *testing.T) {
 			cancel()
 		})
 		buf := &buffer{
-			ctx:            ctx,
-			fileSize:       3 * 100,
-			nzbReader:      nzbReader,
-			ptr:            0,
-			segmentsBuffer: segmentsBuffer,
-			cp:             mockPool,
-			chunkSize:      5,
+			ctx:                ctx,
+			fileSize:           3 * 100,
+			nzbReader:          nzbReader,
+			ptr:                0,
+			currentDownloading: currentDownloading,
+			cp:                 mockPool,
+			chunkSize:          5,
 			dc: downloadConfig{
 				maxDownloadRetries: 5,
 				maxDownloadWorkers: 0,
 				maxBufferSizeInMb:  30,
 			},
-			log:                    slog.Default(),
-			currentDownloading:     &sync.Map{},
-			downloadRetryTimeoutMs: 1000,
+			log:        slog.Default(),
+			chunkCache: cache,
 		}
 		mockConn := nntpcli.NewMockConnection(ctrl)
 		mockConn.EXPECT().Provider().Return(nntpcli.Provider{JoinGroup: true}).Times(2)
@@ -853,22 +840,21 @@ func TestBuffer_downloadSegment(t *testing.T) {
 			cancel()
 		})
 		buf := &buffer{
-			ctx:            ctx,
-			fileSize:       3 * 100,
-			nzbReader:      nzbReader,
-			nzbGroups:      []string{"group1"},
-			ptr:            0,
-			segmentsBuffer: segmentsBuffer,
-			cp:             mockPool,
-			chunkSize:      5,
+			ctx:                ctx,
+			fileSize:           3 * 100,
+			nzbReader:          nzbReader,
+			nzbGroups:          []string{"group1"},
+			ptr:                0,
+			currentDownloading: currentDownloading,
+			cp:                 mockPool,
+			chunkSize:          5,
 			dc: downloadConfig{
 				maxDownloadRetries: 5,
 				maxDownloadWorkers: 0,
 				maxBufferSizeInMb:  30,
 			},
-			log:                    slog.Default(),
-			currentDownloading:     &sync.Map{},
-			downloadRetryTimeoutMs: 1000,
+			log:        slog.Default(),
+			chunkCache: cache,
 		}
 		mockConn := nntpcli.NewMockConnection(ctrl)
 		mockConn.EXPECT().Provider().Return(nntpcli.Provider{JoinGroup: true}).Times(2)
