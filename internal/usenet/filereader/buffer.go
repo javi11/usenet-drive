@@ -291,8 +291,8 @@ func (b *buffer) downloadSegment(
 	retryErr := retry.Do(func() error {
 		c, err := b.cp.GetDownloadConnection(ctx)
 		if err != nil {
-			if conn != nil {
-				b.cp.Close(conn)
+			if c != nil {
+				b.cp.Close(c)
 			}
 
 			if errors.Is(err, context.Canceled) {
@@ -353,6 +353,7 @@ func (b *buffer) downloadSegment(
 				)
 
 				b.cp.Close(conn)
+				conn = nil
 			}
 		}),
 	)
