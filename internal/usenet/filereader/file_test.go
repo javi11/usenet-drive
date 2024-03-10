@@ -22,7 +22,6 @@ import (
 
 func TestOpenFile(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	cache := NewMockCache(ctrl)
 	log := slog.Default()
 	mockCNzb := corruptednzbsmanager.NewMockCorruptedNzbsManager(ctrl)
 	fs := osfs.NewMockFileSystem(ctrl)
@@ -53,7 +52,6 @@ func TestOpenFile(t *testing.T) {
 				maxDownloadWorkers: 1,
 				maxBufferSizeInMb:  30,
 			},
-			cache,
 			mockSr,
 		)
 		t.Cleanup(func() {
@@ -83,7 +81,6 @@ func TestOpenFile(t *testing.T) {
 				maxDownloadWorkers: 1,
 				maxBufferSizeInMb:  30,
 			},
-			cache,
 			mockSr,
 		)
 		t.Cleanup(func() {
@@ -125,7 +122,6 @@ func TestOpenFile(t *testing.T) {
 				maxDownloadWorkers: 0,
 				maxBufferSizeInMb:  30,
 			},
-			cache,
 			mockSr,
 		)
 		assert.NoError(t, err)
@@ -167,7 +163,6 @@ func TestOpenFile(t *testing.T) {
 				maxDownloadWorkers: 1,
 				maxBufferSizeInMb:  30,
 			},
-			cache,
 			mockSr,
 		)
 
@@ -207,7 +202,6 @@ func TestOpenFile(t *testing.T) {
 				maxDownloadWorkers: 1,
 				maxBufferSizeInMb:  30,
 			},
-			cache,
 			mockSr,
 		)
 
@@ -243,7 +237,6 @@ func TestOpenFile(t *testing.T) {
 				maxDownloadWorkers: 1,
 				maxBufferSizeInMb:  30,
 			},
-			cache,
 			mockSr,
 		)
 

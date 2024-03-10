@@ -194,7 +194,7 @@ func (f *file) ReadFrom(src io.Reader) (int64, error) {
 						f.log.DebugContext(ctx, "Error getting connection for upload. Retrying", "error", err, "segment", i, "retry", n)
 					}),
 					retry.RetryIf(func(err error) bool {
-						return nntpcli.IsRetryableError(err) || errors.Is(err, connectionpool.ErrNoProviderAvailable)
+						return nntpcli.IsRetryableError(err)
 					}),
 				)
 				if retryErr != nil {
@@ -412,6 +412,12 @@ func (f *file) addSegment(ctx context.Context, conn connectionpool.Resource, seg
 		}
 
 		nntpConn := conn.Value()
+		if nntpConn == nil {
+			f.cp.Close(conn)
+			conn = nil
+
+			return fmt.Errorf("error getting the connection %w", ErrRetryable)
+		}
 		err = nntpConn.Post(articleReader)
 		if err != nil {
 			return fmt.Errorf("error posting article: %w", err)
@@ -448,7 +454,7 @@ func (f *file) addSegment(ctx context.Context, conn connectionpool.Resource, seg
 			conn = c
 		}),
 		retry.RetryIf(func(err error) bool {
-			return nntpcli.IsRetryableError(err) || errors.Is(err, ErrRetryable) || errors.Is(err, connectionpool.ErrNoProviderAvailable)
+			return nntpcli.IsRetryableError(err) || errors.Is(err, ErrRetryable)
 		}),
 	)
 

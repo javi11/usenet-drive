@@ -43,8 +43,8 @@ func defaultConfig() *Config {
 		debug:              false,
 		fs:                 osfs.New(),
 		maxDownloadRetries: 8,
-		maxDownloadWorkers: 10,
-		maxBufferSizeInMb:  512,
+		maxDownloadWorkers: 3,
+		maxBufferSizeInMb:  30,
 	}
 }
 
