@@ -5,7 +5,6 @@ import "sync"
 type downloadNotifier struct {
 	ch         chan bool
 	downloaded bool
-	Chunk      []byte
 }
 
 type currentDownloadingMap struct {
@@ -39,4 +38,14 @@ func (cd *currentDownloadingMap) DeleteAfter(segmentIndex int) {
 
 		return true
 	})
+}
+
+func (cd *currentDownloadingMap) Len() int {
+	length := 0
+	cd.Range(func(key, value interface{}) bool {
+		length++
+		return true
+	})
+
+	return length
 }

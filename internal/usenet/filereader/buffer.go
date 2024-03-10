@@ -85,7 +85,7 @@ func NewBuffer(
 		cp:                  cp,
 		dc:                  dc,
 		log:                 log,
-		nextSegment:         make(chan nzb.NzbSegment, 1),
+		nextSegment:         make(chan nzb.NzbSegment),
 		wg:                  &sync.WaitGroup{},
 		filePath:            filePath,
 		directDownloadChunk: make([]byte, chunkSize),
@@ -220,7 +220,16 @@ func (b *buffer) read(p []byte, currentSegmentIndex, beginReadAt int) (int, erro
 	for j := 0; j < b.dc.maxDownloadWorkers; j++ {
 		nextSegmentIndex := currentSegmentIndex + j
 		if nextSegment, hasMore := b.nzbReader.GetSegment(nextSegmentIndex); hasMore {
-			b.nextSegment <- nextSegment
+			select {
+			case b.nextSegment <- nextSegment:
+				continue
+			case <-b.close:
+				return n, io.ErrUnexpectedEOF
+			case <-b.ctx.Done():
+				return n, b.ctx.Err()
+			case <-time.After(time.Millisecond * 10):
+				continue
+			}
 		}
 	}
 
@@ -269,15 +278,15 @@ func (b *buffer) read(p []byte, currentSegmentIndex, beginReadAt int) (int, erro
 }
 
 func (b *buffer) waitForDownloadWorker(n *downloadNotifier) error {
-	for {
-		select {
-		case <-n.ch:
-			return nil
-		case <-b.close:
-			return io.ErrUnexpectedEOF
-		case <-b.ctx.Done():
-			return b.ctx.Err()
-		}
+	select {
+	case <-n.ch:
+		return nil
+	case <-b.close:
+		return io.ErrUnexpectedEOF
+	case <-b.ctx.Done():
+		return b.ctx.Err()
+	case <-time.After(time.Second):
+		return nil
 	}
 }
 
@@ -305,10 +314,6 @@ func (b *buffer) downloadSegment(
 		}
 		conn = c
 		nntpConn := conn.Value()
-		if nntpConn == nil {
-			return nntpcli.ErrNilNttpConn
-		}
-
 		if nntpConn.Provider().JoinGroup {
 			err = usenet.JoinGroup(nntpConn, groups)
 			if err != nil {
@@ -332,7 +337,7 @@ func (b *buffer) downloadSegment(
 		retry.Attempts(uint(b.dc.maxDownloadRetries)),
 		retry.DelayType(retry.FixedDelay),
 		retry.RetryIf(func(err error) bool {
-			return nntpcli.IsRetryableError(err)
+			return nntpcli.IsRetryableError(err) || errors.Is(err, connectionpool.ErrNoProviderAvailable)
 		}),
 		retry.OnRetry(func(n uint, err error) {
 			b.log.DebugContext(ctx,
@@ -349,7 +354,6 @@ func (b *buffer) downloadSegment(
 					"segment", segment.Id,
 					"retry", n,
 					"error_connection_host", conn.Value().Provider().Host,
-					"error_connection_created_at", conn.CreationTime(),
 				)
 
 				b.cp.Close(conn)
@@ -369,7 +373,7 @@ func (b *buffer) downloadSegment(
 			err = errors.Join(e.WrappedErrors()...)
 		}
 
-		if nntpcli.IsRetryableError(err) || errors.Is(err, context.Canceled) {
+		if nntpcli.IsRetryableError(err) || errors.Is(err, context.Canceled) || errors.Is(err, connectionpool.ErrNoProviderAvailable) {
 			// do not mark file as corrupted if it's a retryable error
 			return err
 		}

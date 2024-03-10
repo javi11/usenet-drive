@@ -33,7 +33,7 @@ type Usenet struct {
 }
 
 type Download struct {
-	MaxBufferSizeInMb  int              `yaml:"max_buffer_size_in_mb" default:"1024"`
+	MaxBufferSizeInMb  int              `yaml:"max_buffer_size_in_mb" default:"512"`
 	MaxDownloadWorkers int              `yaml:"max_download_workers" default:"15"`
 	MaxRetries         int              `yaml:"max_retries" default:"8"`
 	Providers          []UsenetProvider `yaml:"providers"`

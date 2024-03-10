@@ -3,10 +3,13 @@ package filereader
 //go:generate mockgen -source=./cache.go -destination=./cache_mock.go -package=filereader Cache
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/allegro/bigcache/v3"
 )
+
+var ErrMaxCacheSizeTooSmall = errors.New("max cache size can not be smaller than twice a segment size")
 
 type Cache interface {
 	Get(key string) ([]byte, error)
@@ -22,7 +25,15 @@ type cache struct {
 	engine *bigcache.BigCache
 }
 
+const bytesInMB = 1024 * 1024
+
 func NewCache(segmentSize, maxCacheSize int, debug bool) (Cache, error) {
+	max := maxCacheSize * bytesInMB
+
+	if max < segmentSize*2 {
+		return nil, ErrMaxCacheSizeTooSmall
+	}
+
 	// Download cache
 	config := bigcache.Config{
 		// number of shards (must be a power of 2)
@@ -45,7 +56,7 @@ func NewCache(segmentSize, maxCacheSize int, debug bool) (Cache, error) {
 		// cache will not allocate more memory than this limit, value in MB
 		// if value is reached then the oldest entries can be overridden for the new ones
 		// 0 value means no size limit
-		HardMaxCacheSize: maxCacheSize / 2,
+		HardMaxCacheSize: (max / bytesInMB),
 	}
 
 	engine, err := bigcache.New(context.Background(), config)

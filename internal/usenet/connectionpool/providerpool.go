@@ -48,20 +48,20 @@ func NewProviderPool(providers []config.UsenetProvider, t providerType) *provide
 }
 
 func (p *providerPool) GetProvider() *Provider {
-	for i := range p.providers {
-		usedConnections := p.providers[i].usedConnections.Load()
-		if usedConnections < int64(p.providers[i].MaxConnections) {
-			p.providers[i].usedConnections.Add(1)
-			return &p.providers[i]
+	for _, provider := range p.providers {
+		usedConnections := provider.usedConnections.Load()
+		if usedConnections < int64(provider.MaxConnections) {
+			provider.usedConnections.Add(1)
+			return &provider
 		}
 	}
 	return nil
 }
 
 func (p *providerPool) FreeProvider(id string) {
-	for i := range p.providers {
-		if p.providers[i].UsenetProvider.Id == id {
-			p.providers[i].usedConnections.Add(-1)
+	for _, provider := range p.providers {
+		if provider.UsenetProvider.Id == id {
+			provider.usedConnections.Add(-1)
 			break
 		}
 	}
