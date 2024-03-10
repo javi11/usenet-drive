@@ -4,7 +4,7 @@ api_port: 8081
 db_path: /config/usenet-drive.db
 usenet:
   download:
-    max_download_workers: 5
+    max_download_workers: 20
     providers:
       - host: post.otherusenet.server
         port: 119

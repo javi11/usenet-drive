@@ -2,7 +2,6 @@
 package nntpcli
 
 import (
-	"bufio"
 	"fmt"
 	"io"
 	"net"
@@ -145,7 +144,7 @@ func (c *connection) Body(msgId string, chunk []byte) error {
 	}
 
 	defer c.decoder.Reset()
-	c.decoder.SetReader(bufio.NewReader(c.conn.R))
+	c.decoder.SetReader(c.conn.R)
 
 	_, err = io.ReadFull(c.decoder, chunk)
 

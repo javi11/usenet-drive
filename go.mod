@@ -4,6 +4,7 @@ go 1.21.6
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.0
+	github.com/allegro/bigcache/v3 v3.1.0
 	github.com/avast/retry-go v3.0.0+incompatible
 	github.com/creasty/defaults v1.7.0
 	github.com/go-faker/faker/v4 v4.1.1
@@ -39,7 +40,9 @@ require (
 	github.com/labstack/gommon v0.4.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
+	github.com/oxtoacart/bpool v0.0.0-20190530202638-03653db5a59c // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
+	github.com/rocketlaunchr/go-pool v0.0.0-20210120055323-2292025b22ae // indirect
 	github.com/rogpeppe/go-internal v1.9.0 // indirect
 	github.com/samber/lo v1.38.1 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
