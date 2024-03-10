@@ -14,8 +14,6 @@ import (
 	"github.com/javi11/usenet-drive/pkg/nntpcli"
 )
 
-var ErrNoProviderAvailable = fmt.Errorf("no provider available, because possible max connections reached")
-
 type UsenetConnectionPool interface {
 	GetDownloadConnection(ctx context.Context) (Resource, error)
 	GetUploadConnection(ctx context.Context) (Resource, error)
@@ -52,11 +50,11 @@ func NewConnectionPool(options ...Option) (UsenetConnectionPool, error) {
 			Constructor: func(ctx context.Context) (nntpcli.Connection, error) {
 				provider := dpp.GetProvider()
 				if provider == nil {
-					return nil, ErrNoProviderAvailable
+					return nil, nil
 				}
 				maxAgeTime := time.Now().Add(config.maxConnectionTTL)
 
-				c, err := dialNNTP(
+				return dialNNTP(
 					ctx,
 					config.cli,
 					config.fakeConnections,
@@ -64,11 +62,6 @@ func NewConnectionPool(options ...Option) (UsenetConnectionPool, error) {
 					provider,
 					config.log,
 				)
-				if err != nil {
-					dpp.FreeProvider(provider.Id)
-					return nil, err
-				}
-				return c, nil
 			},
 			Destructor: func(value nntpcli.Connection) {
 				dpp.FreeProvider(value.Provider().Id)
@@ -89,7 +82,7 @@ func NewConnectionPool(options ...Option) (UsenetConnectionPool, error) {
 			Constructor: func(ctx context.Context) (nntpcli.Connection, error) {
 				provider := upp.GetProvider()
 				if provider == nil {
-					return nil, ErrNoProviderAvailable
+					return nil, nil
 				}
 				maxAgeTime := time.Now().Add(config.maxConnectionTTL)
 
