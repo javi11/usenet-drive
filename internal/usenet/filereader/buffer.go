@@ -354,6 +354,7 @@ func (b *buffer) downloadSegment(
 					"segment", segment.Id,
 					"retry", n,
 					"error_connection_host", conn.Value().Provider().Host,
+					"error_connection_created_at", conn.CreationTime(),
 				)
 
 				b.cp.Close(conn)
