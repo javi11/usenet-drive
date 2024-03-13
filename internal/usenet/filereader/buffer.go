@@ -289,7 +289,7 @@ func (b *buffer) waitForDownloadWorker(n *downloadNotifier) error {
 		return io.ErrUnexpectedEOF
 	case <-b.ctx.Done():
 		return b.ctx.Err()
-	case <-time.After(600 * time.Millisecond):
+	case <-time.After(1 * time.Second):
 		return nil
 	}
 }
