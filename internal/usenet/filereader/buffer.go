@@ -68,7 +68,7 @@ func NewBuffer(
 	cp connectionpool.UsenetConnectionPool,
 	cNzb corruptednzbsmanager.CorruptedNzbsManager,
 	filePath string,
-	chunkCache Cache,
+	chunkPool *sync.Pool,
 	log *slog.Logger,
 ) (Buffer, error) {
 	nzbGroups, err := nzbReader.GetGroups()
@@ -94,13 +94,7 @@ func NewBuffer(
 		close:               make(chan struct{}),
 		seek:                make(chan seekData, 1),
 		mx:                  &sync.RWMutex{},
-		chunkPool: &sync.Pool{
-			New: func() interface{} {
-				return &downloadNotifier{
-					Chunk: make([]byte, chunkSize),
-				}
-			},
-		},
+		chunkPool:           chunkPool,
 	}
 
 	for i := 0; i < dc.maxDownloadWorkers; i++ {
@@ -164,12 +158,7 @@ func (b *buffer) Close() error {
 	b.wg.Wait()
 	close(b.nextSegment)
 
-	b.currentDownloading.Range(func(key, value interface{}) bool {
-		c := value.(*downloadNotifier)
-		b.chunkPool.Put(c)
-		b.currentDownloading.Delete(key)
-		return true
-	})
+	b.currentDownloading.DeleteAll(b.chunkPool)
 	b.indexDownloading.Range(func(key, value interface{}) bool {
 		b.indexDownloading.Delete(key)
 		return true
@@ -272,7 +261,7 @@ func (b *buffer) read(p []byte, currentSegmentIndex, beginReadAt int) (int, erro
 			}
 		}
 
-		println("downloadSegment")
+		println("Downloading segment", currentSegmentIndex+i+1, "from direct download")
 		// Fallback to direct download
 		segment, hasMore := b.nzbReader.GetSegment(currentSegmentIndex + i)
 		if !hasMore {
@@ -300,7 +289,7 @@ func (b *buffer) waitForDownloadWorker(n *downloadNotifier) error {
 		return io.ErrUnexpectedEOF
 	case <-b.ctx.Done():
 		return b.ctx.Err()
-	case <-time.After(time.Second):
+	case <-time.After(600 * time.Millisecond):
 		return nil
 	}
 }
@@ -446,6 +435,12 @@ func (b *buffer) downloadWorker(ctx context.Context, cNzb corruptednzbsmanager.C
 
 				cancel()
 				continue
+			}
+
+			if b.chunkSize > len(nf.Chunk) {
+				nf.Grow(b.chunkSize - len(nf.Chunk))
+			} else if b.chunkSize < len(nf.Chunk) {
+				nf.Reduce(b.chunkSize)
 			}
 
 			err := b.downloadSegment(ctx, segment, b.nzbGroups, nf.Chunk)

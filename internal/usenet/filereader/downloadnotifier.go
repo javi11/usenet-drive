@@ -10,6 +10,14 @@ type downloadNotifier struct {
 	Chunk      []byte
 }
 
+func (d *downloadNotifier) Grow(size int) {
+	d.Chunk = append(d.Chunk, make([]byte, size)...)
+}
+
+func (d *downloadNotifier) Reduce(size int) {
+	d.Chunk = d.Chunk[:size]
+}
+
 func (d *downloadNotifier) IsDownloaded() bool {
 	return d.downloaded
 }
@@ -79,6 +87,16 @@ func (cd *currentDownloadingMap) DeleteAfter(segmentIndex int, chunkPool *sync.P
 			cd.Delete(key)
 		}
 
+		return true
+	})
+}
+
+func (cd *currentDownloadingMap) DeleteAll(chunkPool *sync.Pool) {
+	cd.Range(func(key, value interface{}) bool {
+		nf := value.(*downloadNotifier)
+		nf.Reset()
+		chunkPool.Put(nf)
+		cd.Delete(key)
 		return true
 	})
 }

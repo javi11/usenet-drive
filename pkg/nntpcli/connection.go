@@ -2,6 +2,7 @@
 package nntpcli
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"net"
@@ -125,9 +126,7 @@ func (c *connection) JoinGroup(group string) error {
 		return err
 	}
 
-	if err == nil {
-		c.currentJoinedGroup = group
-	}
+	c.currentJoinedGroup = group
 
 	return err
 }
@@ -144,7 +143,7 @@ func (c *connection) Body(msgId string, chunk []byte) error {
 	}
 
 	defer c.decoder.Reset()
-	c.decoder.SetReader(c.conn.R)
+	c.decoder.SetReader(bufio.NewReader(c.conn.R))
 
 	_, err = io.ReadFull(c.decoder, chunk)
 

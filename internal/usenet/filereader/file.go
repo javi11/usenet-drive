@@ -46,7 +46,7 @@ func openFile(
 	cNzb corruptednzbsmanager.CorruptedNzbsManager,
 	fs osfs.FileSystem,
 	dc downloadConfig,
-	chunkCache Cache,
+	chunkPool *sync.Pool,
 	sr status.StatusReporter,
 ) (bool, *file, error) {
 	var fileStat os.FileInfo
@@ -100,7 +100,7 @@ func openFile(
 		cp,
 		cNzb,
 		path,
-		chunkCache,
+		chunkPool,
 		log,
 	)
 	if err != nil {
