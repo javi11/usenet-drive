@@ -21,9 +21,10 @@ import (
 )
 
 var (
-	ErrInvalidWhence = errors.New("seek: invalid whence")
-	ErrSeekNegative  = errors.New("seek: negative position")
-	ErrSeekTooFar    = errors.New("seek: too far")
+	ErrInvalidWhence  = errors.New("seek: invalid whence")
+	ErrSeekNegative   = errors.New("seek: negative position")
+	ErrSeekTooFar     = errors.New("seek: too far")
+	ErrTimeoutWaiting = errors.New("timeout waiting for download worker")
 )
 
 type Buffer interface {
@@ -242,43 +243,106 @@ func (b *buffer) read(p []byte, currentSegmentIndex, beginReadAt int) (int, erro
 		}
 
 		if nf := b.currentDownloading.Get(currentSegmentIndex + i); nf != nil {
-			if !nf.IsDownloaded() {
-				err := b.waitForDownloadWorker(nf)
-				if err != nil {
-					nf = nil
-					return n, err
-				}
+			nn, err := b.readFromNotificationDownloader(nf, beginReadAt, p, n)
+			if err != nil && !errors.Is(err, ErrTimeoutWaiting) {
+				return n + nn, err
 			}
 
-			// Since wait for download worker can be interrupted by a timeout, we need to check if the segment was downloaded
-			if nf.IsDownloaded() {
-				n += copy(p[n:], nf.Chunk[beginReadAt:])
-				nf = nil
-
+			if err == nil {
+				n += nn
 				beginReadAt = 0
 				i++
 				continue
 			}
 		}
 
-		println("Downloading segment", currentSegmentIndex+i+1, "from direct download")
 		// Fallback to direct download
 		segment, hasMore := b.nzbReader.GetSegment(currentSegmentIndex + i)
 		if !hasMore {
 			break
 		}
-		err := b.downloadSegment(b.ctx, segment, b.nzbGroups, b.directDownloadChunk)
+
+		nfd := b.chunkPool.Get().(*downloadNotifier)
+		err := b.downloadSegment(b.ctx, segment, b.nzbGroups, nfd)
 		if err != nil {
+			nfd.Reset()
+			b.chunkPool.Put(nfd)
+			nfd = nil
 			return n, fmt.Errorf("error downloading segment: %w", err)
 		}
 
-		n += copy(p[n:], b.directDownloadChunk[beginReadAt:])
+		nn, err := b.readFromNotificationDownloader(nfd, beginReadAt, p, n)
+		if err != nil {
+			nfd.Reset()
+			b.chunkPool.Put(nfd)
+			nfd = nil
 
+			return n + nn, err
+		}
+
+		n += nn
 		beginReadAt = 0
 		i++
+
+		nfd.Reset()
+		b.chunkPool.Put(nfd)
+		nfd = nil
 	}
 
 	return n, nil
+}
+
+func (b *buffer) readFromNotificationDownloader(nf *downloadNotifier, beginReadAt int, p []byte, n int) (int, error) {
+	// Since wait for download worker can be interrupted by a timeout, we need to check if the segment was downloaded
+	if nf.IsDownloaded() {
+		n := copy(p[n:], nf.Chunk[beginReadAt:])
+		nf = nil
+
+		return n, nil
+	}
+
+	if nf.Reader() == nil {
+		err := b.waitForDownloadWorker(nf)
+		if err != nil {
+			nf = nil
+			return 0, err
+		}
+
+		return b.readFromNotificationDownloader(nf, beginReadAt, p, n)
+	}
+
+	if nf.Reader() != nil {
+		// Chunk has been already seek to the right position so no need to seek again
+		if beginReadAt > 0 && nf.readerOffset == 0 {
+			buff := make([]byte, beginReadAt)
+			nn, err := io.ReadFull(nf.Reader(), buff)
+			if err != nil {
+				nf = nil
+				return 0, err
+			}
+			nf.readerOffset += int64(nn)
+		}
+
+		if nf.IsDownloaded() {
+			n := copy(p[n:], nf.Chunk[beginReadAt:])
+			nf = nil
+
+			return n, nil
+		}
+
+		n, err := io.ReadFull(nf.Reader(), p[n:])
+		if err != nil && err != io.ErrUnexpectedEOF && err != io.EOF {
+			nf = nil
+			return n, err
+		}
+
+		nf.readerOffset += int64(n)
+		nf = nil
+
+		return n, nil
+	}
+
+	return 0, nil
 }
 
 func (b *buffer) waitForDownloadWorker(n *downloadNotifier) error {
@@ -289,8 +353,8 @@ func (b *buffer) waitForDownloadWorker(n *downloadNotifier) error {
 		return io.ErrUnexpectedEOF
 	case <-b.ctx.Done():
 		return b.ctx.Err()
-	case <-time.After(1 * time.Second):
-		return nil
+	case <-time.After(time.Millisecond * 600):
+		return ErrTimeoutWaiting
 	}
 }
 
@@ -298,7 +362,7 @@ func (b *buffer) downloadSegment(
 	ctx context.Context,
 	segment nzb.NzbSegment,
 	groups []string,
-	chunk []byte,
+	nf *downloadNotifier,
 ) error {
 	var conn connectionpool.Resource
 	retryErr := retry.Do(func() error {
@@ -324,8 +388,7 @@ func (b *buffer) downloadSegment(
 				return fmt.Errorf("error joining group: %w", err)
 			}
 		}
-
-		err = nntpConn.Body(segment.Id, chunk)
+		s, err := nntpConn.Body(segment.Id)
 		if err != nil {
 			// Final segments has less bytes than chunkSize. Do not error if it's the case
 			if err != io.ErrUnexpectedEOF && err != io.EOF {
@@ -333,8 +396,25 @@ func (b *buffer) downloadSegment(
 			}
 		}
 
-		b.cp.Free(conn)
+		if s == nil {
+			return fmt.Errorf("error getting body, nil stream")
+		}
 
+		r1 := s.NewReader(b.ctx)
+		defer r1.Close()
+		nf.NotifyDownloading(r1)
+		r2 := s.NewReader(b.ctx)
+		s.Seal()
+
+		_, err = io.ReadFull(r2, nf.Chunk[:b.chunkSize])
+		if err != nil && err != io.ErrUnexpectedEOF && err != io.EOF {
+			return fmt.Errorf("error getting body: %w", err)
+		}
+
+		// Existing code block
+		nf.FinishDownload()
+
+		b.cp.Free(conn)
 		return nil
 	},
 		retry.Context(ctx),
@@ -370,7 +450,11 @@ func (b *buffer) downloadSegment(
 		err := retryErr
 
 		if conn != nil {
-			b.cp.Close(conn)
+			if errors.Is(err, context.Canceled) {
+				b.cp.Free(conn)
+			} else {
+				b.cp.Close(conn)
+			}
 		}
 
 		var e retry.Error
@@ -443,7 +527,7 @@ func (b *buffer) downloadWorker(ctx context.Context, cNzb corruptednzbsmanager.C
 				nf.Reduce(b.chunkSize)
 			}
 
-			err := b.downloadSegment(ctx, segment, b.nzbGroups, nf.Chunk)
+			err := b.downloadSegment(ctx, segment, b.nzbGroups, nf)
 			if err != nil {
 				nf.Reset()
 				b.chunkPool.Put(nf)
@@ -461,7 +545,6 @@ func (b *buffer) downloadWorker(ctx context.Context, cNzb corruptednzbsmanager.C
 				continue
 			}
 
-			nf.Notify()
 			nf = nil
 			b.indexDownloading.Delete(numberToSegmentIndex(segment.Number))
 			cancel()

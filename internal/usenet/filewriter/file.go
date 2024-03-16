@@ -389,7 +389,7 @@ func (f *file) addSegment(ctx context.Context, conn connectionpool.Resource, seg
 			if err != nil {
 				if c != nil {
 					f.cp.Close(c)
-					conn = nil
+					c = nil
 				}
 
 				if errors.Is(err, context.Canceled) {
@@ -437,9 +437,9 @@ func (f *file) addSegment(ctx context.Context, conn connectionpool.Resource, seg
 
 			c, e := f.cp.GetUploadConnection(ctx)
 			if e != nil {
-				if conn != nil {
-					f.cp.Close(conn)
-					conn = nil
+				if c != nil {
+					f.cp.Close(c)
+					c = nil
 				}
 
 				f.log.InfoContext(ctx, "Error getting nntp connection:", "error", err, "segment", segmentIndex)

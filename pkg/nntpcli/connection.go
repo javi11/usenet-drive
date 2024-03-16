@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/mnightingale/rapidyenc"
+	"github.com/neilotoole/streamcache"
 )
 
 const defaultBufSize = 4096
@@ -28,7 +29,7 @@ type Connection interface {
 	io.Closer
 	Authenticate() (err error)
 	JoinGroup(name string) error
-	Body(msgId string, chunk []byte) error
+	Body(msgId string) (*streamcache.Stream, error)
 	Post(r io.Reader) error
 	Provider() Provider
 	CurrentJoinedGroup() string
@@ -136,18 +137,16 @@ func (c *connection) CurrentJoinedGroup() string {
 }
 
 // Body gets the decoded body of an article
-func (c *connection) Body(msgId string, chunk []byte) error {
+func (c *connection) Body(msgId string) (*streamcache.Stream, error) {
 	_, _, err := c.sendCmd(fmt.Sprintf("BODY <%s>", msgId), 222)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	defer c.decoder.Reset()
+	c.decoder.Reset()
 	c.decoder.SetReader(bufio.NewReader(c.conn.R))
 
-	_, err = io.ReadFull(c.decoder, chunk)
-
-	return err
+	return streamcache.New(io.NopCloser(c.decoder)), nil
 }
 
 // Post a new article
