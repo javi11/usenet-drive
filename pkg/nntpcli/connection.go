@@ -2,7 +2,6 @@
 package nntpcli
 
 import (
-	"bufio"
 	"fmt"
 	"io"
 	"net"
@@ -10,7 +9,6 @@ import (
 	"time"
 
 	"github.com/mnightingale/rapidyenc"
-	"github.com/neilotoole/streamcache"
 )
 
 const defaultBufSize = 4096
@@ -29,7 +27,7 @@ type Connection interface {
 	io.Closer
 	Authenticate() (err error)
 	JoinGroup(name string) error
-	Body(msgId string) (*streamcache.Stream, error)
+	Body(msgId string) (io.ReadCloser, error)
 	Post(r io.Reader) error
 	Provider() Provider
 	CurrentJoinedGroup() string
@@ -41,7 +39,7 @@ type connection struct {
 	netconn            net.Conn
 	provider           Provider
 	currentJoinedGroup string
-	decoder            *rapidyenc.Decoder
+	dot                *DotReader
 	maxAgeTime         time.Time
 }
 
@@ -57,7 +55,6 @@ func newConnection(netconn net.Conn, provider Provider, maxAgeTime time.Time) (C
 				conn:       conn,
 				netconn:    netconn,
 				provider:   provider,
-				decoder:    rapidyenc.NewDecoder(defaultBufSize),
 				maxAgeTime: maxAgeTime,
 			}, nil
 		}
@@ -69,15 +66,13 @@ func newConnection(netconn net.Conn, provider Provider, maxAgeTime time.Time) (C
 		conn:       conn,
 		netconn:    netconn,
 		provider:   provider,
-		decoder:    rapidyenc.NewDecoder(defaultBufSize),
 		maxAgeTime: maxAgeTime,
 	}, nil
 }
 
 // Close this client.
 func (c *connection) Close() error {
-	c.decoder.Reset()
-	c.decoder = nil
+	c.closeDot()
 
 	_, _, err := c.sendCmd("QUIT", 205)
 	e := c.conn.Close()
@@ -137,16 +132,22 @@ func (c *connection) CurrentJoinedGroup() string {
 }
 
 // Body gets the decoded body of an article
-func (c *connection) Body(msgId string) (*streamcache.Stream, error) {
-	_, _, err := c.sendCmd(fmt.Sprintf("BODY <%s>", msgId), 222)
+func (c *connection) Body(msgId string) (io.ReadCloser, error) {
+	c.closeDot()
+
+	id, err := c.conn.Cmd(fmt.Sprintf("BODY <%s>", msgId))
+	if err != nil {
+		return nil, err
+	}
+	c.conn.StartResponse(id)
+	_, _, err = c.conn.ReadCodeLine(222)
 	if err != nil {
 		return nil, err
 	}
 
-	c.decoder.Reset()
-	c.decoder.SetReader(bufio.NewReader(c.conn.R))
+	c.dot = NewDotReader(c, id)
 
-	return streamcache.New(io.NopCloser(c.decoder)), nil
+	return c.dot, nil
 }
 
 // Post a new article
@@ -185,4 +186,46 @@ func (c *connection) sendCmd(cmd string, expectCode int) (int, string, error) {
 	c.conn.StartResponse(id)
 	defer c.conn.EndResponse(id)
 	return c.conn.ReadCodeLine(expectCode)
+}
+
+func (c *connection) closeDot() {
+	if c.dot == nil {
+		return
+	}
+	buf := make([]byte, 128)
+	for c.dot != nil {
+		// When Read reaches EOF or an error,
+		// it will set r.dot == nil.
+		c.dot.Read(buf)
+	}
+}
+
+type DotReader struct {
+	io.ReadCloser
+	decoder *rapidyenc.Decoder
+	conn    *connection
+	resId   uint
+}
+
+func NewDotReader(conn *connection, resId uint) *DotReader {
+	dec := rapidyenc.AcquireDecoder()
+	dec.SetReader(conn.conn.R)
+	return &DotReader{decoder: dec, conn: conn, resId: resId}
+}
+
+func (d *DotReader) Read(p []byte) (int, error) {
+	n, err := d.decoder.Read(p)
+	if err != nil {
+		rapidyenc.ReleaseDecoder(d.decoder)
+		if d.conn.dot == d {
+			d.conn.conn.EndResponse(d.resId)
+			d.conn.dot = nil
+		}
+	}
+
+	return n, err
+}
+
+func (d *DotReader) Close() error {
+	return nil
 }

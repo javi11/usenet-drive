@@ -95,7 +95,7 @@ func openFile(
 		ctx,
 		nzbReader,
 		int(metadata.FileSize),
-		int(metadata.ChunkSize),
+		metadata.ChunkSize,
 		dc,
 		cp,
 		cNzb,

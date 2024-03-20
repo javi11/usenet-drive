@@ -33,9 +33,7 @@ func NewFileReader(options ...Option) (*fileReader, error) {
 
 	pool := &sync.Pool{
 		New: func() interface{} {
-			return &downloadNotifier{
-				Chunk: make([]byte, config.segmentSize),
-			}
+			return NewDownloadManager(config.segmentSize)
 		},
 	}
 

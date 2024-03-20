@@ -3,8 +3,6 @@ package nntpcli
 import (
 	"io"
 	"time"
-
-	"github.com/neilotoole/streamcache"
 )
 
 type fakeConnection struct {
@@ -40,7 +38,7 @@ func (c *fakeConnection) Close() error {
 	return nil
 }
 
-func (c *fakeConnection) Body(msgId string) (*streamcache.Stream, error) {
+func (c *fakeConnection) Body(msgId string) (io.ReadCloser, error) {
 	return nil, nil
 }
 
