@@ -133,8 +133,6 @@ func (c *connection) CurrentJoinedGroup() string {
 
 // Body gets the decoded body of an article
 func (c *connection) Body(msgId string) (io.ReadCloser, error) {
-	c.closeDot()
-
 	id, err := c.conn.Cmd(fmt.Sprintf("BODY <%s>", msgId))
 	if err != nil {
 		return nil, err
@@ -142,12 +140,14 @@ func (c *connection) Body(msgId string) (io.ReadCloser, error) {
 	c.conn.StartResponse(id)
 	_, _, err = c.conn.ReadCodeLine(222)
 	if err != nil {
+		c.conn.EndResponse(id)
 		return nil, err
 	}
 
-	c.dot = NewDotReader(c, id)
+	r := NewDotReader(c, id)
+	c.dot = r
 
-	return c.dot, nil
+	return r, nil
 }
 
 // Post a new article
@@ -192,12 +192,8 @@ func (c *connection) closeDot() {
 	if c.dot == nil {
 		return
 	}
-	buf := make([]byte, 128)
-	for c.dot != nil {
-		// When Read reaches EOF or an error,
-		// it will set r.dot == nil.
-		c.dot.Read(buf)
-	}
+
+	c.dot.Close()
 }
 
 type DotReader struct {
@@ -205,6 +201,7 @@ type DotReader struct {
 	decoder *rapidyenc.Decoder
 	conn    *connection
 	resId   uint
+	closed  bool
 }
 
 func NewDotReader(conn *connection, resId uint) *DotReader {
@@ -217,15 +214,30 @@ func (d *DotReader) Read(p []byte) (int, error) {
 	n, err := d.decoder.Read(p)
 	if err != nil {
 		rapidyenc.ReleaseDecoder(d.decoder)
+		d.conn.conn.EndResponse(d.resId)
 		if d.conn.dot == d {
-			d.conn.conn.EndResponse(d.resId)
 			d.conn.dot = nil
 		}
+		d.closed = true
 	}
 
 	return n, err
 }
 
 func (d *DotReader) Close() error {
+	if d.closed {
+		return nil
+	}
+	d.closed = true
+	buf := make([]byte, 128)
+	for {
+		// When Read reaches EOF or an error,
+		// it will set r.dot == nil.
+		_, err := d.Read(buf)
+		if err != nil {
+			break
+		}
+	}
+
 	return nil
 }

@@ -50,6 +50,7 @@ func (d *downloadManager) Reset() {
 }
 
 func (d *downloadManager) Download(ctx context.Context, reader io.ReadCloser) error {
+	defer reader.Close()
 	s := streamcache.New(reader)
 	// We need to keep reading even if the file is closed to free the connection
 	directReader := s.NewReader(ctx)
@@ -63,6 +64,7 @@ func (d *downloadManager) Download(ctx context.Context, reader io.ReadCloser) er
 	d.ch = nil
 
 	_, err := io.ReadFull(downloadReader, d.chunk)
+	// Final segments has less bytes than chunkSize. Do not error if it's the case
 	if err != nil && err != io.ErrUnexpectedEOF && err != io.EOF {
 		return fmt.Errorf("error getting body: %w", err)
 	}

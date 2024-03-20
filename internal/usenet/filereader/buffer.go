@@ -328,10 +328,7 @@ func (b *buffer) downloadSegment(
 
 		d, err := nntpConn.Body(segment.Id)
 		if err != nil {
-			// Final segments has less bytes than chunkSize. Do not error if it's the case
-			if err != io.ErrUnexpectedEOF && err != io.EOF {
-				return fmt.Errorf("error getting body: %w", err)
-			}
+			return fmt.Errorf("error getting body: %w", err)
 		}
 
 		err = dm.Download(ctx, d)
@@ -442,6 +439,9 @@ func (b *buffer) downloadWorker(ctx context.Context, cNzb corruptednzbsmanager.C
 
 			err := b.downloadSegment(ctx, segment, b.nzbGroups, dm)
 			if err != nil {
+				if errors.Is(err, context.Canceled) {
+					return
+				}
 				dm.Reset()
 				b.chunkPool.Put(dm)
 				dm = nil
