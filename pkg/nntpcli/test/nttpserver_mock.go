@@ -42,31 +42,6 @@ type testBackendType struct {
 	articles map[string]*articleStorage
 }
 
-var testBackend = testBackendType{
-	groups:   map[string]*groupStorage{},
-	articles: map[string]*articleStorage{},
-}
-
-func init() {
-
-	testBackend.groups["alt.test"] = &groupStorage{
-		group: &nntp.Group{
-			Name:        "alt.test",
-			Description: "A test.",
-			Posting:     nntp.PostingNotPermitted},
-		articles: ring.New(maxArticles),
-	}
-
-	testBackend.groups["misc.test"] = &groupStorage{
-		group: &nntp.Group{
-			Name:        "misc.test",
-			Description: "More testing.",
-			Posting:     nntp.PostingPermitted},
-		articles: ring.New(maxArticles),
-	}
-
-}
-
 func (tb *testBackendType) ListGroups(max int) ([]*nntp.Group, error) {
 	rv := []*nntp.Group{}
 	for _, g := range tb.groups {
@@ -290,6 +265,27 @@ func NewServer() (*server, error) {
 		return nil, err
 	}
 
+	testBackend := testBackendType{
+		groups:   map[string]*groupStorage{},
+		articles: map[string]*articleStorage{},
+	}
+
+	testBackend.groups["alt.test"] = &groupStorage{
+		group: &nntp.Group{
+			Name:        "alt.test",
+			Description: "A test.",
+			Posting:     nntp.PostingNotPermitted},
+		articles: ring.New(maxArticles),
+	}
+
+	testBackend.groups["misc.test"] = &groupStorage{
+		group: &nntp.Group{
+			Name:        "misc.test",
+			Description: "More testing.",
+			Posting:     nntp.PostingPermitted},
+		articles: ring.New(maxArticles),
+	}
+
 	s := nntpserver.NewServer(&testBackend)
 
 	return &server{
@@ -303,6 +299,7 @@ func (s *server) Serve(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
+			s.l.Close()
 			return
 		default:
 			c, err := s.l.Accept()

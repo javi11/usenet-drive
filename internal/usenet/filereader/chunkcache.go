@@ -1,6 +1,18 @@
+//go:generate mockgen -source=./chunkcache.go -destination=./chunkcache_mock.go -package=filereader ChunkCache
+
 package filereader
 
 import "sync"
+
+type ChunkCache interface {
+	Get(segmentIndex int) *downloadManager
+	DeleteBefore(segmentIndex int, chunkPool *sync.Pool)
+	DeleteAfter(segmentIndex int, chunkPool *sync.Pool)
+	DeleteAll(chunkPool *sync.Pool)
+	Len() int
+	LoadOrStore(key any, value any) (any, bool)
+	Delete(segmentIndex any)
+}
 
 type chunkCache struct {
 	sync.Map

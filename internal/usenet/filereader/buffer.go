@@ -39,25 +39,24 @@ type seekData struct {
 }
 
 type buffer struct {
-	ctx                 context.Context
-	fileSize            int
-	nzbReader           nzbloader.NzbReader
-	nzbGroups           []string
-	ptr                 int64
-	chunkCache          *chunkCache
-	cp                  connectionpool.UsenetConnectionPool
-	chunkSize           int64
-	dc                  downloadConfig
-	log                 *slog.Logger
-	nextSegment         chan nzb.NzbSegment
-	wg                  *sync.WaitGroup
-	filePath            string
-	directDownloadChunk []byte
-	seek                chan seekData
-	mx                  *sync.RWMutex
-	chunkPool           *sync.Pool
-	currentDownloading  *sync.Map
-	cancel              context.CancelFunc
+	ctx                context.Context
+	fileSize           int
+	nzbReader          nzbloader.NzbReader
+	nzbGroups          []string
+	ptr                int64
+	cp                 connectionpool.UsenetConnectionPool
+	chunkSize          int64
+	dc                 downloadConfig
+	log                *slog.Logger
+	nextSegment        chan nzb.NzbSegment
+	wg                 *sync.WaitGroup
+	filePath           string
+	seek               chan seekData
+	mx                 *sync.RWMutex
+	chunkPool          *sync.Pool
+	currentDownloading *sync.Map
+	chunkCache         ChunkCache
+	cancel             context.CancelFunc
 }
 
 func NewBuffer(
@@ -79,24 +78,23 @@ func NewBuffer(
 
 	ctx, cancel := context.WithCancel(ctx)
 	buffer := &buffer{
-		ctx:                 ctx,
-		chunkSize:           chunkSize,
-		fileSize:            fileSize,
-		nzbReader:           nzbReader,
-		nzbGroups:           nzbGroups,
-		chunkCache:          &chunkCache{},
-		currentDownloading:  &sync.Map{},
-		cp:                  cp,
-		dc:                  dc,
-		log:                 log,
-		nextSegment:         make(chan nzb.NzbSegment),
-		wg:                  &sync.WaitGroup{},
-		filePath:            filePath,
-		directDownloadChunk: make([]byte, chunkSize),
-		seek:                make(chan seekData, 1),
-		mx:                  &sync.RWMutex{},
-		chunkPool:           chunkPool,
-		cancel:              cancel,
+		ctx:                ctx,
+		chunkSize:          chunkSize,
+		fileSize:           fileSize,
+		nzbReader:          nzbReader,
+		nzbGroups:          nzbGroups,
+		chunkCache:         &chunkCache{},
+		currentDownloading: &sync.Map{},
+		cp:                 cp,
+		dc:                 dc,
+		log:                log,
+		nextSegment:        make(chan nzb.NzbSegment),
+		wg:                 &sync.WaitGroup{},
+		filePath:           filePath,
+		seek:               make(chan seekData, 1),
+		mx:                 &sync.RWMutex{},
+		chunkPool:          chunkPool,
+		cancel:             cancel,
 	}
 
 	for i := 0; i < dc.maxDownloadWorkers; i++ {
