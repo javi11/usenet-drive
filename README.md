@@ -185,10 +185,9 @@ The `Download` struct defines the Usenet provider for downloading.
 
 ### Fields
 
-- `max_download_workers` (int): The maximum number of download workers. Default value is `15`. WARN the tool will use 1 connections per worker. Min value is 1. The number observed optimal for good speed is 15 depending on the number of connections, if you add more download workers than connections won't improve the speed. You must have a balance between the max_download_workers, the max_connections and the number of parallel opened files. For instance, you can have 30 connections and 30 download workers peer file, in this case one file opened for download will use the full power of the download connections achieving good speeds, but you will probably have problems if you try to open more than 1 file since connections will be split between the opened files.
+- `max_download_workers` (int): The maximum number of download workers. Default value is `15`. Min value is 1. The number observed optimal for good speed is 15 depending on the number of connections, if you add more download workers than connections won't improve the speed. You must have a balance between the max_download_workers, the max_connections and the number of parallel opened files. For instance, you can have 30 connections and 30 download workers peer file, in this case one file opened for download will use the full power of the download connections achieving good speeds, but you will probably have problems if you try to open more than 1 file since connections will be split between the opened files.
 - `max_retries` (int): The maximum number of retries to download a segment. Default value is `8`.
 - `providers` (UsenetProvider): Usenet providers to download files. (It is recommended an unlimited provider for this)
-- `max_buffer_size_in_mb` (int): The maximum memory buffer size in MB. Default value is `512`. This is the maximum size of the chunks that will be stored in memory on downloads. This value will be multiplied by 2 to fulfil the number of shards. Also, this value can not be lower than the `article_size_in_bytes * 2` or the nzb with the bigger article size multiplied by 2. If this value is to low compared off the `max_download_workers` you won't be able to achieve good speeds since there will not be space to save chunks at the cache. For instance, if we use the default vale `512` the max consumption on memory will be ~1024MB.
 
 ## Upload Struct
 
@@ -215,10 +214,15 @@ The `UsenetProvider` struct defines the Usenet provider configuration.
 - `max_connections` (int): The maximum number of connections to the Usenet provider.
 - `download_only` (bool): Whether this provider only allows downloading. Default value is `false`.
 
+## Memory limitations
+
+The application will use the system memory without any limitation, normally it should not use more than 1GB of memory, but it will depend on the number of opened files and the number of download workers. If you want to set a limit to the memory usage you can add the env variable of `GOMEMLIMIT`
+
 ## Limitations
 
 - Files uploaded to usenet can not be edited. If you need to edit a file, you need to upload a new file with the changes. This is more a limitation of usenet itself than the tool. (Future workaround can be done)
-- The number of reads by file is limited by the number of connections to the usenet provider, normally not more than 3 connections are needed peer file read.
+- The number of reads by file is limited by the number of connections to the usenet provider.
+- Currently chunked upload is not supported so it´s recommended to use rclone_vfs to cache the files before uploading them to usenet. This will change in the future.
 
 ## Profiling
 
@@ -229,5 +233,6 @@ go tool pprof -http=:8082 http://localhost:8080/debug/pprof/profile
 ## Highly inspired by
 
 - Upload feature: https://github.com/F4n4t/GoPostStuff
-- Yenc encode: https://github.com/F4n4t/GoPostStuff
+- Yenc: https://github.com/mnightingale/rapidyenc
+- streaming cache: https://github.com/neilotoole/streamcache
 - Nzb feature: https://github.com/chrisfarms/nzb
