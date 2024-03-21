@@ -4,9 +4,9 @@ go 1.21.6
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.0
-	github.com/allegro/bigcache/v3 v3.1.0
 	github.com/avast/retry-go v3.0.0+incompatible
 	github.com/creasty/defaults v1.7.0
+	github.com/dustin/go-nntp v0.0.0-20210723005859-f00d51cf8cc1
 	github.com/go-faker/faker/v4 v4.1.1
 	github.com/golang/mock v1.6.0
 	github.com/google/uuid v1.3.1
@@ -17,6 +17,7 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.20
 	github.com/mnightingale/rapidyenc v0.0.0-20240115193859-354d8545b0ff
 	github.com/natefinch/lumberjack v2.0.0+incompatible
+	github.com/neilotoole/streamcache v0.3.5
 	github.com/oxyno-zeta/gomock-extra-matcher v1.2.0
 	github.com/pressly/goose/v3 v3.15.0
 	github.com/ricochet2200/go-disk-usage/du v0.0.0-20210707232629-ac9918953285
@@ -33,7 +34,6 @@ require (
 require (
 	github.com/BurntSushi/toml v1.3.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/dustin/go-nntp v0.0.0-20210723005859-f00d51cf8cc1 // indirect
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
 	github.com/hashicorp/errwrap v1.0.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
@@ -42,10 +42,7 @@ require (
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/neilotoole/fifomu v0.1.2 // indirect
-	github.com/neilotoole/streamcache v0.3.5 // indirect
-	github.com/oxtoacart/bpool v0.0.0-20190530202638-03653db5a59c // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/rocketlaunchr/go-pool v0.0.0-20210120055323-2292025b22ae // indirect
 	github.com/rogpeppe/go-internal v1.9.0 // indirect
 	github.com/samber/lo v1.38.1 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
