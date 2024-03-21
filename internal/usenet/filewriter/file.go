@@ -389,7 +389,6 @@ func (f *file) addSegment(ctx context.Context, conn connectionpool.Resource, seg
 			if err != nil {
 				if c != nil {
 					f.cp.Close(c)
-					c = nil
 				}
 
 				if errors.Is(err, context.Canceled) {

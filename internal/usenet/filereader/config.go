@@ -21,7 +21,6 @@ type Config struct {
 	fs                 osfs.FileSystem
 	maxDownloadRetries int
 	maxDownloadWorkers int
-	maxBufferSizeInMb  int
 	segmentSize        int64
 	debug              bool
 	sr                 status.StatusReporter
