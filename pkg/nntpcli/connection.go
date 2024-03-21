@@ -11,8 +11,6 @@ import (
 	"github.com/mnightingale/rapidyenc"
 )
 
-const defaultBufSize = 4096
-
 type Provider struct {
 	Host           string
 	Port           int
@@ -39,7 +37,7 @@ type connection struct {
 	netconn            net.Conn
 	provider           Provider
 	currentJoinedGroup string
-	dot                *DotReader
+	articleBodyReader  io.ReadCloser
 	maxAgeTime         time.Time
 }
 
@@ -72,7 +70,7 @@ func newConnection(netconn net.Conn, provider Provider, maxAgeTime time.Time) (C
 
 // Close this client.
 func (c *connection) Close() error {
-	c.closeDot()
+	c.closeArticleBodyReader()
 
 	_, _, err := c.sendCmd("QUIT", 205)
 	e := c.conn.Close()
@@ -144,8 +142,9 @@ func (c *connection) Body(msgId string) (io.ReadCloser, error) {
 		return nil, err
 	}
 
-	r := NewDotReader(c, id)
-	c.dot = r
+	// We can not use DotReader because rapidyenc.Decoder needs the raw data
+	r := NewDecoderReader(c, id)
+	c.articleBodyReader = r
 
 	return r, nil
 }
@@ -188,15 +187,15 @@ func (c *connection) sendCmd(cmd string, expectCode int) (int, string, error) {
 	return c.conn.ReadCodeLine(expectCode)
 }
 
-func (c *connection) closeDot() {
-	if c.dot == nil {
+func (c *connection) closeArticleBodyReader() {
+	if c.articleBodyReader == nil {
 		return
 	}
 
-	c.dot.Close()
+	c.articleBodyReader.Close()
 }
 
-type DotReader struct {
+type DecoderReader struct {
 	io.ReadCloser
 	decoder *rapidyenc.Decoder
 	conn    *connection
@@ -204,19 +203,20 @@ type DotReader struct {
 	closed  bool
 }
 
-func NewDotReader(conn *connection, resId uint) *DotReader {
+func NewDecoderReader(conn *connection, resId uint) io.ReadCloser {
 	dec := rapidyenc.AcquireDecoder()
 	dec.SetReader(conn.conn.R)
-	return &DotReader{decoder: dec, conn: conn, resId: resId}
+	return &DecoderReader{decoder: dec, conn: conn, resId: resId}
 }
 
-func (d *DotReader) Read(p []byte) (int, error) {
+func (d *DecoderReader) Read(p []byte) (int, error) {
 	n, err := d.decoder.Read(p)
 	if err != nil {
+		// On finish reading the body, release the decoder and end the response
 		rapidyenc.ReleaseDecoder(d.decoder)
 		d.conn.conn.EndResponse(d.resId)
-		if d.conn.dot == d {
-			d.conn.dot = nil
+		if d.conn.articleBodyReader == d {
+			d.conn.articleBodyReader = nil
 		}
 		d.closed = true
 	}
@@ -224,15 +224,16 @@ func (d *DotReader) Read(p []byte) (int, error) {
 	return n, err
 }
 
-func (d *DotReader) Close() error {
+func (d *DecoderReader) Close() error {
 	if d.closed {
 		return nil
 	}
 	d.closed = true
 	buf := make([]byte, 128)
+	// Drain the current buffer before ending the response
+	// If buffer is not drained, the next response will be corrupted
 	for {
 		// When Read reaches EOF or an error,
-		// it will set r.dot == nil.
 		_, err := d.Read(buf)
 		if err != nil {
 			break

@@ -10,7 +10,6 @@ import (
 	time "time"
 
 	gomock "github.com/golang/mock/gomock"
-	rapidyenc "github.com/mnightingale/rapidyenc"
 )
 
 // MockConnection is a mock of Connection interface.
@@ -51,10 +50,10 @@ func (mr *MockConnectionMockRecorder) Authenticate() *gomock.Call {
 }
 
 // Body mocks base method.
-func (m *MockConnection) Body(msgId string) (*rapidyenc.Decoder, error) {
+func (m *MockConnection) Body(msgId string) (io.ReadCloser, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Body", msgId)
-	ret0, _ := ret[0].(*rapidyenc.Decoder)
+	ret0, _ := ret[0].(io.ReadCloser)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
