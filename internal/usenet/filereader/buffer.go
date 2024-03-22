@@ -317,11 +317,9 @@ func (b *buffer) downloadSegment(
 		}
 		conn = c
 		nntpConn := conn.Value()
-		if nntpConn.Provider().JoinGroup {
-			err = usenet.JoinGroup(nntpConn, groups)
-			if err != nil {
-				return fmt.Errorf("error joining group: %w", err)
-			}
+		err = usenet.JoinGroup(nntpConn, groups)
+		if err != nil {
+			return fmt.Errorf("error joining group: %w", err)
 		}
 
 		d, err := nntpConn.Body(segment.Id)

@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/javi11/usenet-drive/pkg/nntpcli/test"
+	"github.com/javi11/usenet-drive/pkg/nntpservermock"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/net/context"
 )
@@ -77,7 +77,7 @@ func articleReadyToDownload(t *testing.T) Connection {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	s, err := test.NewServer()
+	s, err := nntpservermock.NewServer()
 	assert.NoError(t, err)
 	port := s.Port()
 	go func() {

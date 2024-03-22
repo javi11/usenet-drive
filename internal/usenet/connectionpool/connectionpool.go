@@ -235,7 +235,6 @@ func dialNNTP(
 		Port:           p.UsenetProvider.Port,
 		Username:       p.UsenetProvider.Username,
 		Password:       p.UsenetProvider.Password,
-		JoinGroup:      p.UsenetProvider.JoinGroup,
 		MaxConnections: p.UsenetProvider.MaxConnections,
 		Id:             p.UsenetProvider.Id,
 	}
@@ -274,9 +273,11 @@ func dialNNTP(
 		}
 	}
 
-	// auth
-	if err := c.Authenticate(); err != nil {
-		return nil, err
+	if provider.Username != "" && provider.Password != "" {
+		// auth
+		if err := c.Authenticate(); err != nil {
+			return nil, err
+		}
 	}
 
 	return c, nil

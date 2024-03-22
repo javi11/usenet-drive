@@ -16,7 +16,6 @@ type Provider struct {
 	Port           int
 	Username       string
 	Password       string
-	JoinGroup      bool
 	MaxConnections int
 	Id             string
 }

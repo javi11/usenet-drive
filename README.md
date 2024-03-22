@@ -213,6 +213,7 @@ The `UsenetProvider` struct defines the Usenet provider configuration.
 - `tls` (bool): Whether to use SSL for the Usenet provider. Default value is `true`.
 - `max_connections` (int): The maximum number of connections to the Usenet provider.
 - `download_only` (bool): Whether this provider only allows downloading. Default value is `false`.
+- `insecure_ssl` (bool): Whether to allow insecure SSL connections. Default value is `false`.
 
 ## Memory limitations
 

@@ -27,7 +27,7 @@ type Usenet struct {
 	Download                       Download `yaml:"download"`
 	Upload                         Upload   `yaml:"upload"`
 	FakeConnections                bool     `yaml:"fake_connections" default:"false"`
-	ArticleSizeInBytes             int64    `yaml:"article_size_in_bytes" default:"750000"`
+	ArticleSizeInBytes             int64    `yaml:"article_size_in_bytes" default:"780000"`
 	MaxConnectionIdleTimeInMinutes int      `yaml:"max_connection_idle_time_in_minutes" default:"30"`
 	MaxConnectionTTLInMinutes      int      `yaml:"max_connection_ttl_in_minutes" default:"60"`
 }
@@ -54,7 +54,6 @@ type UsenetProvider struct {
 	TLS            bool   `yaml:"tls"`
 	MaxConnections int    `yaml:"max_connections"`
 	InsecureSSL    bool   `yaml:"insecure_ssl" default:"false"`
-	JoinGroup      bool   `yaml:"join_group" default:"false"`
 	Id             string `yaml:"id" default:""`
 }
 

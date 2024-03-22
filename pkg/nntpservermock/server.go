@@ -1,4 +1,4 @@
-package test
+package nntpservermock
 
 import (
 	"bytes"
@@ -250,12 +250,12 @@ func maybefatal(err error, f string, a ...interface{}) {
 	}
 }
 
-type server struct {
+type Server struct {
 	l net.Listener
 	s *nntpserver.Server
 }
 
-func NewServer() (*server, error) {
+func NewServer() (*Server, error) {
 	a, err := net.ResolveTCPAddr("tcp", "localhost:0")
 	if err != nil {
 		return nil, err
@@ -288,13 +288,13 @@ func NewServer() (*server, error) {
 
 	s := nntpserver.NewServer(&testBackend)
 
-	return &server{
+	return &Server{
 		l: l,
 		s: s,
 	}, nil
 }
 
-func (s *server) Serve(ctx context.Context) {
+func (s *Server) Serve(ctx context.Context) {
 	defer s.l.Close()
 	for {
 		select {
@@ -309,6 +309,6 @@ func (s *server) Serve(ctx context.Context) {
 	}
 }
 
-func (s *server) Port() int {
+func (s *Server) Port() int {
 	return s.l.Addr().(*net.TCPAddr).Port
 }
