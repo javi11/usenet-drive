@@ -38,14 +38,14 @@ func BenchmarkDownload_15_Workers_780KB(b *testing.B) {
 		Debug:      false,
 		Usenet: config.Usenet{
 			Download: config.Download{
-				MaxDownloadWorkers: 15,
+				MaxDownloadWorkers: 25,
 				MaxRetries:         8,
 				Providers: []config.UsenetProvider{
 					{
 						Host:           "localhost",
 						Port:           s.Port(),
 						TLS:            false,
-						MaxConnections: 40,
+						MaxConnections: 60,
 					},
 				},
 			},
@@ -80,14 +80,12 @@ func BenchmarkDownload_15_Workers_780KB(b *testing.B) {
 
 	b.SetBytes(filesize)
 	b.ReportAllocs()
-	chunk := make([]byte, 1024)
 
 	b.ResetTimer()
-	for {
-		_, err := resp.Body.Read(chunk)
-		if err != nil {
-			break
-		}
+
+	_, err = io.ReadAll(resp.Body)
+	if err != io.EOF {
+		log.Fatal(err)
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"sync"
 	"time"
 
 	"github.com/neilotoole/streamcache"
@@ -15,12 +16,14 @@ type downloadManager struct {
 	chunk        []byte
 	reader       io.ReadCloser
 	readerOffset int64
+	mx           *sync.RWMutex
 }
 
 func NewDownloadManager(chunkSize int64) *downloadManager {
 	return &downloadManager{
 		chunk: make([]byte, chunkSize),
 		ch:    make(chan bool, 1),
+		mx:    &sync.RWMutex{},
 	}
 }
 
@@ -35,6 +38,8 @@ func (d *downloadManager) AdjustChunkSize(chunkSize int64) {
 }
 
 func (d *downloadManager) Reset() {
+	d.mx.Lock()
+	defer d.mx.Unlock()
 	d.downloaded = false
 	if d.reader != nil {
 		d.reader.Close()
@@ -58,10 +63,12 @@ func (d *downloadManager) Download(ctx context.Context, reader io.ReadCloser) er
 	defer downloadReader.Close()
 	s.Seal()
 
+	d.mx.Lock()
 	d.reader = directReader
 	d.ch <- true
 	close(d.ch)
 	d.ch = nil
+	d.mx.Unlock()
 
 	_, err := io.ReadFull(downloadReader, d.chunk)
 	// Final segments has less bytes than chunkSize. Do not error if it's the case
@@ -69,17 +76,23 @@ func (d *downloadManager) Download(ctx context.Context, reader io.ReadCloser) er
 		return fmt.Errorf("error getting body: %w", err)
 	}
 
+	d.mx.Lock()
 	d.downloaded = true
+	d.mx.Unlock()
+
 	return nil
 }
 
 func (d *downloadManager) ReadAt(ctx context.Context, p []byte, off int64) (int, error) {
+	d.mx.RLock()
 	if d.downloaded {
+		d.mx.RUnlock()
 		n := copy(p, d.chunk[off:])
 		return n, nil
 	}
 
 	if d.reader == nil {
+		d.mx.RUnlock()
 		err := d.waitForDownloadNotification(ctx)
 		if err != nil {
 			return 0, err
@@ -89,35 +102,47 @@ func (d *downloadManager) ReadAt(ctx context.Context, p []byte, off int64) (int,
 	}
 
 	if off > 0 && d.readerOffset == 0 {
+		d.mx.RUnlock()
 		buff := make([]byte, off)
 		nn, err := io.ReadFull(d.reader, buff)
 		if err != nil {
 			return 0, err
 		}
+		d.mx.Lock()
 		d.readerOffset += int64(nn)
+		d.mx.Unlock()
+		d.mx.RLock()
 	}
 
 	if d.downloaded {
+		d.mx.RUnlock()
 		n := copy(p, d.chunk[off:])
 
 		return n, nil
 	}
 
+	d.mx.RUnlock()
 	n, err := io.ReadFull(d.reader, p)
 	if err != nil && err != io.ErrUnexpectedEOF && err != io.EOF {
 		return n, err
 	}
 
+	d.mx.Lock()
 	d.readerOffset += int64(n)
+	d.mx.Unlock()
 
 	return n, nil
 }
 
 func (d *downloadManager) grow(size int) {
+	d.mx.Lock()
+	defer d.mx.Unlock()
 	d.chunk = append(d.chunk, make([]byte, size)...)
 }
 
 func (d *downloadManager) reduce(size int) {
+	d.mx.Lock()
+	defer d.mx.Unlock()
 	d.chunk = d.chunk[:size]
 }
 
@@ -133,6 +158,8 @@ func (d *downloadManager) waitForDownloadNotification(ctx context.Context) error
 }
 
 func (d *downloadManager) wait() <-chan bool {
+	d.mx.RLock()
+	defer d.mx.RUnlock()
 	if d.ch != nil {
 		return d.ch
 	}
