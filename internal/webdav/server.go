@@ -3,7 +3,6 @@ package webdav
 import (
 	"context"
 	"fmt"
-	"log"
 	"log/slog"
 	"net/http"
 	"os"
@@ -51,6 +50,7 @@ func (s *webdavServer) Start(ctx context.Context, port string) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		r = r.WithContext(context.WithValue(r.Context(), reqContentLengthKey, r.Header.Get("Content-Length")))
+		r = r.WithContext(context.WithValue(r.Context(), reqRangeKey, r.Header.Get("Range")))
 		s.handler.ServeHTTP(w, r)
 	})
 	addr := fmt.Sprintf(":%s", port)
@@ -75,7 +75,10 @@ func (s *webdavServer) Start(ctx context.Context, port string) {
 	signal.Notify(c, os.Interrupt)
 
 	// Block until we receive our signal.
-	<-c
+	select {
+	case <-ctx.Done():
+	case <-c:
+	}
 
 	// Create a deadline to wait for.
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
@@ -85,7 +88,4 @@ func (s *webdavServer) Start(ctx context.Context, port string) {
 	if err != nil {
 		s.log.ErrorContext(ctx, "Failed to shutdown WebDav server", "err", err)
 	}
-
-	log.Println("shutting down")
-	os.Exit(0)
 }

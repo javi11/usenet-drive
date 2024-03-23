@@ -46,6 +46,7 @@ func openFile(
 	cNzb corruptednzbsmanager.CorruptedNzbsManager,
 	fs osfs.FileSystem,
 	dc downloadConfig,
+	chunkPool *sync.Pool,
 	sr status.StatusReporter,
 ) (bool, *file, error) {
 	var fileStat os.FileInfo
@@ -94,11 +95,12 @@ func openFile(
 		ctx,
 		nzbReader,
 		int(metadata.FileSize),
-		int(metadata.ChunkSize),
+		metadata.ChunkSize,
 		dc,
 		cp,
 		cNzb,
 		path,
+		chunkPool,
 		log,
 	)
 	if err != nil {
@@ -169,9 +171,6 @@ func (f *file) Name() string {
 }
 
 func (f *file) Read(b []byte) (int, error) {
-	f.fsMutex.RLock()
-	defer f.fsMutex.RUnlock()
-
 	n, err := f.buffer.Read(b)
 	if err != nil {
 		if errors.Is(err, ErrCorruptedNzb) {
