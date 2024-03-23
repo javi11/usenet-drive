@@ -162,9 +162,6 @@ var rootCmd = &cobra.Command{
 
 		// Start webdav server
 		webdav.Start(ctx, config.WebDavPort)
-
-		log.InfoContext(ctx, "shutting down")
-		os.Exit(0)
 	},
 }
 

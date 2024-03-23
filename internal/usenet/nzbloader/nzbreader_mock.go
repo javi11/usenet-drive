@@ -91,15 +91,3 @@ func (mr *MockNzbReaderMockRecorder) GetSegment(segmentIndex interface{}) *gomoc
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSegment", reflect.TypeOf((*MockNzbReader)(nil).GetSegment), segmentIndex)
 }
-
-// PreloadAllSegments mocks base method.
-func (m *MockNzbReader) PreloadAllSegments() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "PreloadAllSegments")
-}
-
-// PreloadAllSegments indicates an expected call of PreloadAllSegments.
-func (mr *MockNzbReaderMockRecorder) PreloadAllSegments() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PreloadAllSegments", reflect.TypeOf((*MockNzbReader)(nil).PreloadAllSegments))
-}
