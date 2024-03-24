@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"os/signal"
 
 	"github.com/javi11/usenet-drive/internal/adminpanel/handlers"
 	"github.com/javi11/usenet-drive/internal/serverinfo"
@@ -66,21 +65,10 @@ func New(
 }
 
 func (a *adminPanel) Start(ctx context.Context, port string) {
-	go func() {
-		if err := http.ListenAndServe(fmt.Sprintf(":%s", port), a.router.Server.Handler); err != nil {
-			a.log.ErrorContext(ctx, "Failed to start API controller", "err", err)
-		}
-	}()
 	a.log.InfoContext(ctx, fmt.Sprintf("Api controller started at http://localhost:%v", port))
-
-	c := make(chan os.Signal, 1)
-	// We'll accept graceful shutdowns when quit via SIGINT (Ctrl+C)
-	// SIGKILL, SIGQUIT or SIGTERM (Ctrl+/) will not be caught.
-	signal.Notify(c, os.Interrupt)
-
-	// Block until we receive our signal.
-	select {
-	case <-ctx.Done():
-	case <-c:
+	err := http.ListenAndServe(fmt.Sprintf(":%s", port), a.router.Server.Handler)
+	if err != nil {
+		a.log.ErrorContext(ctx, "Failed to start API controller", "err", err)
+		os.Exit(1)
 	}
 }

@@ -22,5 +22,3 @@ go.work
 example
 test-mount
 .tools
-benchmarks/nzbs/*.nzb
-benchmarks/usenet-drive.db

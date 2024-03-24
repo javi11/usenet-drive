@@ -50,18 +50,17 @@ func (mr *MockConnectionMockRecorder) Authenticate() *gomock.Call {
 }
 
 // Body mocks base method.
-func (m *MockConnection) Body(msgId string) (io.ReadCloser, error) {
+func (m *MockConnection) Body(msgId string, chunk []byte) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Body", msgId)
-	ret0, _ := ret[0].(io.ReadCloser)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret := m.ctrl.Call(m, "Body", msgId, chunk)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // Body indicates an expected call of Body.
-func (mr *MockConnectionMockRecorder) Body(msgId interface{}) *gomock.Call {
+func (mr *MockConnectionMockRecorder) Body(msgId, chunk interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Body", reflect.TypeOf((*MockConnection)(nil).Body), msgId)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Body", reflect.TypeOf((*MockConnection)(nil).Body), msgId, chunk)
 }
 
 // Close mocks base method.
