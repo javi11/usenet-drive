@@ -47,4 +47,4 @@ jobs:
         with:
           push: true
           platforms: linux/amd64
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/usenet-drive:nightly-${{github.sha}}, ${{ secrets.DOCKERHUB_USERNAME }}/usenet-drive:nightly
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/usenet-drive:nightly
