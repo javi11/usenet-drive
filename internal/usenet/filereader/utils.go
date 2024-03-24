@@ -28,7 +28,3 @@ func getOriginalNzb(fs osfs.FileSystem, name string) osfs.FileInfo {
 
 	return stat
 }
-
-func segmentIndexFromSegmentNumber(segmentNumber int64) int {
-	return int(segmentNumber) - 1
-}
