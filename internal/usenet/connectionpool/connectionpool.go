@@ -14,6 +14,8 @@ import (
 	"github.com/javi11/usenet-drive/pkg/nntpcli"
 )
 
+var ErrNoProviderAvailable = fmt.Errorf("no provider available, because possible max connections reached")
+
 type UsenetConnectionPool interface {
 	GetDownloadConnection(ctx context.Context) (Resource, error)
 	GetUploadConnection(ctx context.Context) (Resource, error)
@@ -50,11 +52,11 @@ func NewConnectionPool(options ...Option) (UsenetConnectionPool, error) {
 			Constructor: func(ctx context.Context) (nntpcli.Connection, error) {
 				provider := dpp.GetProvider()
 				if provider == nil {
-					return nil, nil
+					return nil, ErrNoProviderAvailable
 				}
 				maxAgeTime := time.Now().Add(config.maxConnectionTTL)
 
-				return dialNNTP(
+				c, err := dialNNTP(
 					ctx,
 					config.cli,
 					config.fakeConnections,
@@ -62,6 +64,11 @@ func NewConnectionPool(options ...Option) (UsenetConnectionPool, error) {
 					provider,
 					config.log,
 				)
+				if err != nil {
+					dpp.FreeProvider(provider.Id)
+					return nil, err
+				}
+				return c, nil
 			},
 			Destructor: func(value nntpcli.Connection) {
 				dpp.FreeProvider(value.Provider().Id)
@@ -82,11 +89,11 @@ func NewConnectionPool(options ...Option) (UsenetConnectionPool, error) {
 			Constructor: func(ctx context.Context) (nntpcli.Connection, error) {
 				provider := upp.GetProvider()
 				if provider == nil {
-					return nil, nil
+					return nil, ErrNoProviderAvailable
 				}
 				maxAgeTime := time.Now().Add(config.maxConnectionTTL)
 
-				return dialNNTP(
+				c, err := dialNNTP(
 					ctx,
 					config.cli,
 					config.fakeConnections,
@@ -94,6 +101,11 @@ func NewConnectionPool(options ...Option) (UsenetConnectionPool, error) {
 					provider,
 					config.log,
 				)
+				if err != nil {
+					upp.FreeProvider(provider.Id)
+					return nil, err
+				}
+				return c, nil
 			},
 			Destructor: func(value nntpcli.Connection) {
 				upp.FreeProvider(value.Provider().Id)
@@ -216,62 +228,58 @@ func dialNNTP(
 	var err error
 	var c nntpcli.Connection
 
-	for {
-		log.Debug(fmt.Sprintf("connecting to %s:%v", p.UsenetProvider.Host, p.UsenetProvider.Port))
+	log.Debug(fmt.Sprintf("connecting to %s:%v", p.UsenetProvider.Host, p.UsenetProvider.Port))
 
-		provider := nntpcli.Provider{
-			Host:           p.UsenetProvider.Host,
-			Port:           p.UsenetProvider.Port,
-			Username:       p.UsenetProvider.Username,
-			Password:       p.UsenetProvider.Password,
-			JoinGroup:      p.UsenetProvider.JoinGroup,
-			MaxConnections: p.UsenetProvider.MaxConnections,
-			Id:             p.UsenetProvider.Id,
-		}
+	provider := nntpcli.Provider{
+		Host:           p.UsenetProvider.Host,
+		Port:           p.UsenetProvider.Port,
+		Username:       p.UsenetProvider.Username,
+		Password:       p.UsenetProvider.Password,
+		MaxConnections: p.UsenetProvider.MaxConnections,
+		Id:             p.UsenetProvider.Id,
+	}
 
-		if fakeConnections {
-			return nntpcli.NewFakeConnection(provider), nil
-		}
+	if fakeConnections {
+		return nntpcli.NewFakeConnection(provider), nil
+	}
 
-		if p.TLS {
-			c, err = cli.DialTLS(
-				ctx,
-				provider,
-				p.InsecureSSL,
-				maxAgeTime,
-			)
-			if err != nil {
-				e, ok := err.(net.Error)
-				if ok && e.Timeout() {
-					log.Error(fmt.Sprintf("timeout connecting to %s:%v, retrying", provider.Host, provider.Port), "error", e)
-					continue
-				}
-				return nil, err
+	if p.TLS {
+		c, err = cli.DialTLS(
+			ctx,
+			provider,
+			p.InsecureSSL,
+			maxAgeTime,
+		)
+		if err != nil {
+			e, ok := err.(net.Error)
+			if ok && e.Timeout() {
+				log.Error(fmt.Sprintf("timeout connecting to %s:%v, retrying", provider.Host, provider.Port), "error", e)
 			}
-		} else {
-			c, err = cli.Dial(
-				ctx,
-				provider,
-				maxAgeTime,
-			)
-			if err != nil {
-				// if it's a timeout, ignore and try again
-				e, ok := err.(net.Error)
-				if ok && e.Timeout() {
-					log.Error(fmt.Sprintf("timeout connecting to %s:%v, retrying", provider.Host, provider.Port), "error", e)
-					continue
-				}
-				return nil, err
-			}
+			return nil, fmt.Errorf("error dialing to %v/%v TLS: %w", provider.Host, provider.Username, err)
 		}
+	} else {
+		c, err = cli.Dial(
+			ctx,
+			provider,
+			maxAgeTime,
+		)
+		if err != nil {
+			// if it's a timeout, ignore and try again
+			e, ok := err.(net.Error)
+			if ok && e.Timeout() {
+				log.Error(fmt.Sprintf("timeout connecting to %s:%v, retrying", provider.Host, provider.Port), "error", e)
+			}
+			return nil, fmt.Errorf("error dialing to %v/%v: %w", provider.Host, provider.Username, err)
+		}
+	}
 
+	if provider.Username != "" && provider.Password != "" {
 		// auth
 		if err := c.Authenticate(); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error authenticating to %v/%v: %w", provider.Host, provider.Username, err)
 		}
-
-		break
 	}
+
 	return c, nil
 }
 

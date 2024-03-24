@@ -38,8 +38,8 @@ func (c *fakeConnection) Close() error {
 	return nil
 }
 
-func (c *fakeConnection) Body(msgId string, chunk []byte) error {
-	return nil
+func (c *fakeConnection) Body(msgId string) (io.ReadCloser, error) {
+	return nil, nil
 }
 
 func (c *fakeConnection) Post(r io.Reader) error {

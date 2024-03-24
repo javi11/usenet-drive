@@ -50,8 +50,8 @@ func TestOpenFile(t *testing.T) {
 			downloadConfig{
 				maxDownloadRetries: 5,
 				maxDownloadWorkers: 1,
-				maxBufferSizeInMb:  30,
 			},
+			&sync.Pool{},
 			mockSr,
 		)
 		t.Cleanup(func() {
@@ -79,8 +79,8 @@ func TestOpenFile(t *testing.T) {
 			downloadConfig{
 				maxDownloadRetries: 5,
 				maxDownloadWorkers: 1,
-				maxBufferSizeInMb:  30,
 			},
+			&sync.Pool{},
 			mockSr,
 		)
 		t.Cleanup(func() {
@@ -120,8 +120,8 @@ func TestOpenFile(t *testing.T) {
 			downloadConfig{
 				maxDownloadRetries: 5,
 				maxDownloadWorkers: 0,
-				maxBufferSizeInMb:  30,
 			},
+			&sync.Pool{},
 			mockSr,
 		)
 		assert.NoError(t, err)
@@ -161,8 +161,8 @@ func TestOpenFile(t *testing.T) {
 			downloadConfig{
 				maxDownloadRetries: 5,
 				maxDownloadWorkers: 1,
-				maxBufferSizeInMb:  30,
 			},
+			&sync.Pool{},
 			mockSr,
 		)
 
@@ -200,8 +200,8 @@ func TestOpenFile(t *testing.T) {
 			downloadConfig{
 				maxDownloadRetries: 5,
 				maxDownloadWorkers: 1,
-				maxBufferSizeInMb:  30,
 			},
+			&sync.Pool{},
 			mockSr,
 		)
 
@@ -235,8 +235,8 @@ func TestOpenFile(t *testing.T) {
 			downloadConfig{
 				maxDownloadRetries: 5,
 				maxDownloadWorkers: 1,
-				maxBufferSizeInMb:  30,
 			},
+			&sync.Pool{},
 			mockSr,
 		)
 

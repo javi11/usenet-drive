@@ -2,7 +2,6 @@
 package nntpcli
 
 import (
-	"bufio"
 	"fmt"
 	"io"
 	"net"
@@ -12,14 +11,11 @@ import (
 	"github.com/mnightingale/rapidyenc"
 )
 
-const defaultBufSize = 4096
-
 type Provider struct {
 	Host           string
 	Port           int
 	Username       string
 	Password       string
-	JoinGroup      bool
 	MaxConnections int
 	Id             string
 }
@@ -28,7 +24,7 @@ type Connection interface {
 	io.Closer
 	Authenticate() (err error)
 	JoinGroup(name string) error
-	Body(msgId string, chunk []byte) error
+	Body(msgId string) (io.ReadCloser, error)
 	Post(r io.Reader) error
 	Provider() Provider
 	CurrentJoinedGroup() string
@@ -40,7 +36,7 @@ type connection struct {
 	netconn            net.Conn
 	provider           Provider
 	currentJoinedGroup string
-	decoder            *rapidyenc.Decoder
+	articleBodyReader  io.ReadCloser
 	maxAgeTime         time.Time
 }
 
@@ -56,7 +52,6 @@ func newConnection(netconn net.Conn, provider Provider, maxAgeTime time.Time) (C
 				conn:       conn,
 				netconn:    netconn,
 				provider:   provider,
-				decoder:    rapidyenc.NewDecoder(defaultBufSize),
 				maxAgeTime: maxAgeTime,
 			}, nil
 		}
@@ -68,15 +63,13 @@ func newConnection(netconn net.Conn, provider Provider, maxAgeTime time.Time) (C
 		conn:       conn,
 		netconn:    netconn,
 		provider:   provider,
-		decoder:    rapidyenc.NewDecoder(defaultBufSize),
 		maxAgeTime: maxAgeTime,
 	}, nil
 }
 
 // Close this client.
 func (c *connection) Close() error {
-	c.decoder.Reset()
-	c.decoder = nil
+	c.closeArticleBodyReader()
 
 	_, _, err := c.sendCmd("QUIT", 205)
 	e := c.conn.Close()
@@ -126,9 +119,7 @@ func (c *connection) JoinGroup(group string) error {
 		return err
 	}
 
-	if err == nil {
-		c.currentJoinedGroup = group
-	}
+	c.currentJoinedGroup = group
 
 	return err
 }
@@ -138,18 +129,23 @@ func (c *connection) CurrentJoinedGroup() string {
 }
 
 // Body gets the decoded body of an article
-func (c *connection) Body(msgId string, chunk []byte) error {
-	_, _, err := c.sendCmd(fmt.Sprintf("BODY <%s>", msgId), 222)
+func (c *connection) Body(msgId string) (io.ReadCloser, error) {
+	id, err := c.conn.Cmd(fmt.Sprintf("BODY <%s>", msgId))
 	if err != nil {
-		return err
+		return nil, err
+	}
+	c.conn.StartResponse(id)
+	_, _, err = c.conn.ReadCodeLine(222)
+	if err != nil {
+		c.conn.EndResponse(id)
+		return nil, err
 	}
 
-	defer c.decoder.Reset()
-	c.decoder.SetReader(bufio.NewReader(c.conn.R))
+	// We can not use DotReader because rapidyenc.Decoder needs the raw data
+	r := NewDecoderReader(c, id)
+	c.articleBodyReader = r
 
-	_, err = io.ReadFull(c.decoder, chunk)
-
-	return err
+	return r, nil
 }
 
 // Post a new article
@@ -188,4 +184,60 @@ func (c *connection) sendCmd(cmd string, expectCode int) (int, string, error) {
 	c.conn.StartResponse(id)
 	defer c.conn.EndResponse(id)
 	return c.conn.ReadCodeLine(expectCode)
+}
+
+func (c *connection) closeArticleBodyReader() {
+	if c.articleBodyReader == nil {
+		return
+	}
+
+	c.articleBodyReader.Close()
+}
+
+type DecoderReader struct {
+	io.ReadCloser
+	decoder *rapidyenc.Decoder
+	conn    *connection
+	resId   uint
+	closed  bool
+}
+
+func NewDecoderReader(conn *connection, resId uint) io.ReadCloser {
+	dec := rapidyenc.AcquireDecoder()
+	dec.SetReader(conn.conn.R)
+	return &DecoderReader{decoder: dec, conn: conn, resId: resId}
+}
+
+func (d *DecoderReader) Read(p []byte) (int, error) {
+	n, err := d.decoder.Read(p)
+	if err != nil {
+		// On finish reading the body, release the decoder and end the response
+		d.conn.conn.EndResponse(d.resId)
+		if d.conn.articleBodyReader == d {
+			d.conn.articleBodyReader = nil
+		}
+		d.closed = true
+		rapidyenc.ReleaseDecoder(d.decoder)
+	}
+
+	return n, err
+}
+
+func (d *DecoderReader) Close() error {
+	if d.closed {
+		return nil
+	}
+	d.closed = true
+	buf := make([]byte, 128)
+	// Drain the current buffer before ending the response
+	// If buffer is not drained, the next response will be corrupted
+	for {
+		// When Read reaches EOF or an error,
+		_, err := d.Read(buf)
+		if err != nil {
+			break
+		}
+	}
+
+	return nil
 }

@@ -72,6 +72,11 @@ func (c *client) Dial(
 		return nil, err
 	}
 
+	err = conn.(*net.TCPConn).SetNoDelay(true)
+	if err != nil {
+		return nil, err
+	}
+
 	return newConnection(conn, provider, maxAgeTime)
 }
 
@@ -98,6 +103,11 @@ func (c *client) DialTLS(
 	err = conn.(*net.TCPConn).SetKeepAlivePeriod(duration)
 	if err != nil {
 		fmt.Println(err)
+		return nil, err
+	}
+
+	err = conn.(*net.TCPConn).SetNoDelay(true)
+	if err != nil {
 		return nil, err
 	}
 

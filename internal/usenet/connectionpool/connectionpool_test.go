@@ -3,8 +3,6 @@ package connectionpool
 import (
 	"context"
 	"log/slog"
-	"net"
-	"syscall"
 	"testing"
 	"time"
 
@@ -230,44 +228,6 @@ func TestGetDownloadConnection(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 
 		assert.Equal(t, 3, getFreeConnections(cp, DownloadProviderPool))
-	})
-
-	t.Run("when dial returns timeout, retry", func(t *testing.T) {
-		mockCon := nntpcli.NewMockConnection(ctrl)
-		provider := nntpcli.Provider{
-			Host:     "download",
-			Port:     1244,
-			Username: "user",
-			Password: "pass",
-		}
-
-		mockNntpCli.EXPECT().
-			Dial(gomock.Any(), gomockextra.StructMatcher().Field("Host", "download"), gomock.Any()).
-			Return(nil, net.Error(&net.OpError{Err: syscall.ETIMEDOUT}))
-
-		mockNntpCli.EXPECT().
-			Dial(gomock.Any(), gomockextra.StructMatcher().Field("Host", "download"), gomock.Any()).
-			Return(mockCon, nil)
-		mockCon.EXPECT().Provider().Return(provider).Times(2)
-		mockCon.EXPECT().Authenticate().Return(nil)
-		mockCon.EXPECT().Close().Return(nil).Times(1)
-
-		cp, err := NewConnectionPool(
-			WithClient(mockNntpCli),
-			WithLogger(slog.Default()),
-			WithDownloadProviders(downloadProviders),
-			WithUploadProviders(uploadProviders),
-		)
-		t.Cleanup(func() {
-			cp.Quit()
-		})
-		assert.NoError(t, err)
-
-		conn, err := cp.GetDownloadConnection(context.Background())
-		assert.NoError(t, err)
-		defer cp.Free(conn)
-
-		assert.Equal(t, provider, conn.Value().Provider())
 	})
 
 	t.Run("get the first provider upload connections if available", func(t *testing.T) {

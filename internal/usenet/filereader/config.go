@@ -12,7 +12,6 @@ import (
 type downloadConfig struct {
 	maxDownloadRetries int
 	maxDownloadWorkers int
-	maxBufferSizeInMb  int
 }
 
 type Config struct {
@@ -22,7 +21,6 @@ type Config struct {
 	fs                 osfs.FileSystem
 	maxDownloadRetries int
 	maxDownloadWorkers int
-	maxBufferSizeInMb  int
 	segmentSize        int64
 	debug              bool
 	sr                 status.StatusReporter
@@ -32,7 +30,6 @@ func (c *Config) getDownloadConfig() downloadConfig {
 	return downloadConfig{
 		maxDownloadRetries: c.maxDownloadRetries,
 		maxDownloadWorkers: c.maxDownloadWorkers,
-		maxBufferSizeInMb:  c.maxBufferSizeInMb,
 	}
 }
 
@@ -43,8 +40,7 @@ func defaultConfig() *Config {
 		debug:              false,
 		fs:                 osfs.New(),
 		maxDownloadRetries: 8,
-		maxDownloadWorkers: 3,
-		maxBufferSizeInMb:  30,
+		maxDownloadWorkers: 10,
 	}
 }
 
@@ -69,12 +65,6 @@ func WithMaxDownloadRetries(maxDownloadRetries int) Option {
 func WithMaxDownloadWorkers(maxDownloadWorkers int) Option {
 	return func(c *Config) {
 		c.maxDownloadWorkers = maxDownloadWorkers
-	}
-}
-
-func WithMaxBufferSizeInMb(maxBufferSizeInMb int) Option {
-	return func(c *Config) {
-		c.maxBufferSizeInMb = maxBufferSizeInMb
 	}
 }
 
