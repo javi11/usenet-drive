@@ -231,6 +231,30 @@ The application will use the system memory without any limitation, normally it s
 go tool pprof -http=:8082 http://localhost:8080/debug/pprof/profile
 ```
 
+## Benchmark
+
+Considerations:
+
+- The benchmark was done with a 1GB file.
+- The benchmark was done to a local usenet server so it's not considering the network overhead.
+
+```
+goos: darwin
+goarch: arm64
+pkg: github.com/javi11/usenet-drive/benchmarks
+BenchmarkDownload_15Workers_780KB_40Conn-8             1        2552575250 ns/op         536.21 MB/s    9927146040 B/op  6001648 allocs/op
+BenchmarkDownload_15Workers_1MB_40Conn-8               1        2149841917 ns/op         636.66 MB/s    7722399768 B/op  7197768 allocs/op
+BenchmarkDownload_25Workers_1MB_40Conn-8               1        2455225166 ns/op         557.47 MB/s    7880149376 B/op 12665624 allocs/op
+BenchmarkDownload_15Workers_3MB_40Conn-8               1        1335302459 ns/op        1025.02 MB/s    3607304416 B/op  7936783 allocs/op
+PASS
+ok      github.com/javi11/usenet-drive/benchmarks       16.939s
+```
+
+Conclusions:
+
+- We can see that the best speeds are achieved with 15 workers and 3MB files.
+- Since we can not rely on articles of 3MB because Usenet limitations, the best speed is achieved with 1MB files.
+
 ## Highly inspired by
 
 - Upload feature: https://github.com/F4n4t/GoPostStuff

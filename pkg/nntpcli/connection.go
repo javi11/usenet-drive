@@ -212,12 +212,12 @@ func (d *DecoderReader) Read(p []byte) (int, error) {
 	n, err := d.decoder.Read(p)
 	if err != nil {
 		// On finish reading the body, release the decoder and end the response
-		rapidyenc.ReleaseDecoder(d.decoder)
 		d.conn.conn.EndResponse(d.resId)
 		if d.conn.articleBodyReader == d {
 			d.conn.articleBodyReader = nil
 		}
 		d.closed = true
+		rapidyenc.ReleaseDecoder(d.decoder)
 	}
 
 	return n, err

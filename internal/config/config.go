@@ -27,7 +27,7 @@ type Usenet struct {
 	Download                       Download `yaml:"download"`
 	Upload                         Upload   `yaml:"upload"`
 	FakeConnections                bool     `yaml:"fake_connections" default:"false"`
-	ArticleSizeInBytes             int64    `yaml:"article_size_in_bytes" default:"780000"`
+	ArticleSizeInBytes             int64    `yaml:"article_size_in_bytes" default:"1048576"`
 	MaxConnectionIdleTimeInMinutes int      `yaml:"max_connection_idle_time_in_minutes" default:"30"`
 	MaxConnectionTTLInMinutes      int      `yaml:"max_connection_ttl_in_minutes" default:"60"`
 }

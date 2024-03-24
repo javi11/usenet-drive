@@ -255,7 +255,7 @@ func dialNNTP(
 			if ok && e.Timeout() {
 				log.Error(fmt.Sprintf("timeout connecting to %s:%v, retrying", provider.Host, provider.Port), "error", e)
 			}
-			return nil, err
+			return nil, fmt.Errorf("error dialing to %v/%v TLS: %w", provider.Host, provider.Username, err)
 		}
 	} else {
 		c, err = cli.Dial(
@@ -269,14 +269,14 @@ func dialNNTP(
 			if ok && e.Timeout() {
 				log.Error(fmt.Sprintf("timeout connecting to %s:%v, retrying", provider.Host, provider.Port), "error", e)
 			}
-			return nil, err
+			return nil, fmt.Errorf("error dialing to %v/%v: %w", provider.Host, provider.Username, err)
 		}
 	}
 
 	if provider.Username != "" && provider.Password != "" {
 		// auth
 		if err := c.Authenticate(); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error authenticating to %v/%v: %w", provider.Host, provider.Username, err)
 		}
 	}
 

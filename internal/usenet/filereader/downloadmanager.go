@@ -17,6 +17,7 @@ type downloadManager struct {
 	reader       io.ReadCloser
 	readerOffset int64
 	mx           *sync.RWMutex
+	reading      bool
 }
 
 func NewDownloadManager(chunkSize int64) *downloadManager {
@@ -28,12 +29,12 @@ func NewDownloadManager(chunkSize int64) *downloadManager {
 }
 
 func (d *downloadManager) AdjustChunkSize(chunkSize int64) {
-	cz := int(chunkSize)
+	cl := int64(len(d.chunk))
 
-	if cz > len(d.chunk) {
-		d.grow(cz - len(d.chunk))
-	} else if cz < len(d.chunk) {
-		d.reduce(cz)
+	if chunkSize > cl {
+		d.grow(chunkSize - cl)
+	} else if chunkSize < cl {
+		d.reduce(chunkSize)
 	}
 }
 
@@ -41,6 +42,7 @@ func (d *downloadManager) Reset() {
 	d.mx.Lock()
 	defer d.mx.Unlock()
 	d.downloaded = false
+	d.reading = false
 	if d.reader != nil {
 		d.reader.Close()
 		d.reader = nil
@@ -68,16 +70,21 @@ func (d *downloadManager) Download(ctx context.Context, reader io.ReadCloser) er
 	d.ch <- true
 	close(d.ch)
 	d.ch = nil
+	d.reading = true
 	d.mx.Unlock()
 
 	_, err := io.ReadFull(downloadReader, d.chunk)
 	// Final segments has less bytes than chunkSize. Do not error if it's the case
 	if err != nil && err != io.ErrUnexpectedEOF && err != io.EOF {
+		d.mx.Lock()
+		d.reading = false
+		d.mx.Unlock()
 		return fmt.Errorf("error getting body: %w", err)
 	}
 
 	d.mx.Lock()
 	d.downloaded = true
+	d.reading = false
 	d.mx.Unlock()
 
 	return nil
@@ -134,13 +141,13 @@ func (d *downloadManager) ReadAt(ctx context.Context, p []byte, off int64) (int,
 	return n, nil
 }
 
-func (d *downloadManager) grow(size int) {
+func (d *downloadManager) grow(size int64) {
 	d.mx.Lock()
 	defer d.mx.Unlock()
 	d.chunk = append(d.chunk, make([]byte, size)...)
 }
 
-func (d *downloadManager) reduce(size int) {
+func (d *downloadManager) reduce(size int64) {
 	d.mx.Lock()
 	defer d.mx.Unlock()
 	d.chunk = d.chunk[:size]

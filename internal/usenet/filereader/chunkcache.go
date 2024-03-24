@@ -6,9 +6,9 @@ import "sync"
 
 type ChunkCache interface {
 	Get(segmentIndex int) *downloadManager
-	DeleteBefore(segmentIndex int, chunkPool *sync.Pool)
-	DeleteAfter(segmentIndex int, chunkPool *sync.Pool)
-	DeleteAll(chunkPool *sync.Pool)
+	DeleteBefore(segmentIndex int)
+	DeleteAfter(segmentIndex int)
+	Close()
 	Len() int
 	LoadOrStore(key any, value any) (any, bool)
 	Delete(segmentIndex any)
@@ -16,6 +16,13 @@ type ChunkCache interface {
 
 type chunkCache struct {
 	sync.Map
+	pool *sync.Pool
+}
+
+func NewChunkCache(p *sync.Pool) ChunkCache {
+	return &chunkCache{
+		pool: p,
+	}
 }
 
 func (cd *chunkCache) Get(segmentIndex int) *downloadManager {
@@ -27,12 +34,19 @@ func (cd *chunkCache) Get(segmentIndex int) *downloadManager {
 	return v.(*downloadManager)
 }
 
-func (cd *chunkCache) DeleteBefore(segmentIndex int, chunkPool *sync.Pool) {
+func (cd *chunkCache) DeleteBefore(segmentIndex int) {
 	cd.Range(func(key, value interface{}) bool {
-		if key.(int) < segmentIndex-1 {
+		if key.(int) < segmentIndex {
 			nf := value.(*downloadManager)
+			nf.mx.RLock()
+			if nf.reading {
+				nf.mx.RUnlock()
+				return true
+			}
+			nf.mx.RUnlock()
+
 			nf.Reset()
-			chunkPool.Put(nf)
+			cd.pool.Put(nf)
 			cd.Delete(key)
 		}
 
@@ -40,12 +54,19 @@ func (cd *chunkCache) DeleteBefore(segmentIndex int, chunkPool *sync.Pool) {
 	})
 }
 
-func (cd *chunkCache) DeleteAfter(segmentIndex int, chunkPool *sync.Pool) {
+func (cd *chunkCache) DeleteAfter(segmentIndex int) {
 	cd.Range(func(key, value interface{}) bool {
 		if key.(int) > segmentIndex {
 			nf := value.(*downloadManager)
+			nf.mx.RLock()
+			if nf.reading {
+				nf.mx.RUnlock()
+				return true
+			}
+			nf.mx.RUnlock()
+
 			nf.Reset()
-			chunkPool.Put(nf)
+			cd.pool.Put(nf)
 			cd.Delete(key)
 		}
 
@@ -53,11 +74,11 @@ func (cd *chunkCache) DeleteAfter(segmentIndex int, chunkPool *sync.Pool) {
 	})
 }
 
-func (cd *chunkCache) DeleteAll(chunkPool *sync.Pool) {
+func (cd *chunkCache) Close() {
 	cd.Range(func(key, value interface{}) bool {
 		nf := value.(*downloadManager)
 		nf.Reset()
-		chunkPool.Put(nf)
+		cd.pool.Put(nf)
 		cd.Delete(key)
 		return true
 	})

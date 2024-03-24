@@ -2,16 +2,14 @@ package test
 
 import (
 	"context"
-	"io"
 	"log/slog"
 	"net/http"
 	"os"
 	"time"
 
+	"github.com/golang/mock/gomock"
 	"github.com/javi11/usenet-drive/db"
-	"github.com/javi11/usenet-drive/internal/adminpanel"
 	"github.com/javi11/usenet-drive/internal/config"
-	"github.com/javi11/usenet-drive/internal/serverinfo"
 	"github.com/javi11/usenet-drive/internal/usenet/connectionpool"
 	"github.com/javi11/usenet-drive/internal/usenet/corruptednzbsmanager"
 	"github.com/javi11/usenet-drive/internal/usenet/filereader"
@@ -22,30 +20,13 @@ import (
 	"github.com/javi11/usenet-drive/pkg/nntpcli"
 	"github.com/javi11/usenet-drive/pkg/osfs"
 	"github.com/javi11/usenet-drive/pkg/rclonecli"
-	"github.com/natefinch/lumberjack"
 
 	_ "github.com/mattn/go-sqlite3"
 )
 
-func InitWebDav(ctx context.Context, config *config.Config) {
-
-	// Setup logger
-	options := &slog.HandlerOptions{}
-
-	if config.Debug {
-		options.Level = slog.LevelDebug
-	}
-
-	jsonHandler := slog.NewJSONHandler(
-		io.MultiWriter(
-			os.Stdout,
-			&lumberjack.Logger{
-				Filename:   config.LogPath,
-				MaxSize:    5,
-				MaxAge:     14,
-				MaxBackups: 5,
-			}), options)
-	log := slog.New(jsonHandler)
+func InitWebDav(ctx context.Context, ctrl *gomock.Controller, config *config.Config) {
+	log := slog.Default()
+	log.Enabled(ctx, slog.LevelDebug)
 	osFs := osfs.New()
 
 	nntpCli := nntpcli.New(
@@ -79,15 +60,12 @@ func InitWebDav(ctx context.Context, config *config.Config) {
 	cNzbs := corruptednzbsmanager.New(sqlLite, osFs)
 
 	// Status reporter
-	sr := status.NewStatusReporter()
-	ticker := time.NewTicker(5 * time.Second)
-	go sr.Start(ctx, ticker)
-
-	// Server info
-	serverInfo := serverinfo.NewServerInfo(connPool, sr, config.RootPath)
-
-	adminPanel := adminpanel.New(serverInfo, cNzbs, log, config.Debug)
-	go adminPanel.Start(ctx, config.ApiPort)
+	sr := status.NewMockStatusReporter(ctrl)
+	sr.EXPECT().AddTimeData(gomock.Any(), gomock.Any()).AnyTimes()
+	sr.EXPECT().StartUpload(gomock.Any(), gomock.Any()).AnyTimes()
+	sr.EXPECT().StartDownload(gomock.Any(), gomock.Any()).AnyTimes()
+	sr.EXPECT().FinishUpload(gomock.Any()).AnyTimes()
+	sr.EXPECT().FinishDownload(gomock.Any()).AnyTimes()
 
 	nzbWriter := nzbloader.NewNzbWriter(osFs)
 

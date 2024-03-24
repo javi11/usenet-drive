@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
 	"github.com/javi11/usenet-drive/internal/config"
 	"github.com/javi11/usenet-drive/internal/test"
 	"github.com/javi11/usenet-drive/pkg/nntpcli"
@@ -22,7 +23,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func BenchmarkDownload_15_Workers_780KB(b *testing.B) {
+func BenchmarkDownload_15Workers_780KB_40Conn(b *testing.B) {
 	cli := nntpcli.New()
 	s := runUsenetServer(b)
 	articleReadyToDownload(b, s, cli)
@@ -38,14 +39,14 @@ func BenchmarkDownload_15_Workers_780KB(b *testing.B) {
 		Debug:      false,
 		Usenet: config.Usenet{
 			Download: config.Download{
-				MaxDownloadWorkers: 25,
+				MaxDownloadWorkers: 15,
 				MaxRetries:         8,
 				Providers: []config.UsenetProvider{
 					{
 						Host:           "localhost",
 						Port:           s.Port(),
 						TLS:            false,
-						MaxConnections: 60,
+						MaxConnections: 40,
 					},
 				},
 			},
@@ -66,8 +67,10 @@ func BenchmarkDownload_15_Workers_780KB(b *testing.B) {
 	defer func() {
 		cancel()
 	}()
-	go test.InitWebDav(ctx, config)
+	ctrl := gomock.NewController(b)
+	go test.InitWebDav(ctx, ctrl, config)
 
+	// Wait for server to start
 	time.Sleep(2 * time.Second)
 
 	url := fmt.Sprintf("http://localhost:%s/test.txt", webdavPort)
@@ -81,15 +84,18 @@ func BenchmarkDownload_15_Workers_780KB(b *testing.B) {
 	b.SetBytes(filesize)
 	b.ReportAllocs()
 
-	b.ResetTimer()
+	chunk := make([]byte, 1024)
 
-	_, err = io.ReadAll(resp.Body)
-	if err != io.EOF {
-		log.Fatal(err)
+	b.ResetTimer()
+	for {
+		_, err := resp.Body.Read(chunk)
+		if err != nil {
+			break
+		}
 	}
 }
 
-func BenchmarkDownload_15_Workers_1MB(b *testing.B) {
+func BenchmarkDownload_15Workers_1MB_40Conn(b *testing.B) {
 	cli := nntpcli.New()
 	s := runUsenetServer(b)
 	articleReadyToDownload(b, s, cli)
@@ -133,8 +139,10 @@ func BenchmarkDownload_15_Workers_1MB(b *testing.B) {
 	defer func() {
 		cancel()
 	}()
-	go test.InitWebDav(ctx, config)
+	ctrl := gomock.NewController(b)
+	go test.InitWebDav(ctx, ctrl, config)
 
+	// Wait for server to start
 	time.Sleep(2 * time.Second)
 
 	url := fmt.Sprintf("http://localhost:%s/test.txt", webdavPort)
@@ -158,7 +166,7 @@ func BenchmarkDownload_15_Workers_1MB(b *testing.B) {
 	}
 }
 
-func BenchmarkDownload_25_Workers_1MB(b *testing.B) {
+func BenchmarkDownload_25Workers_1MB_40Conn(b *testing.B) {
 	cli := nntpcli.New()
 	s := runUsenetServer(b)
 	articleReadyToDownload(b, s, cli)
@@ -202,8 +210,81 @@ func BenchmarkDownload_25_Workers_1MB(b *testing.B) {
 	defer func() {
 		cancel()
 	}()
-	go test.InitWebDav(ctx, config)
+	ctrl := gomock.NewController(b)
+	go test.InitWebDav(ctx, ctrl, config)
 
+	// Wait for server to start
+	time.Sleep(2 * time.Second)
+
+	url := fmt.Sprintf("http://localhost:%s/test.txt", webdavPort)
+
+	resp, err := http.Get(url)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	b.SetBytes(filesize)
+	b.ReportAllocs()
+	chunk := make([]byte, 1024)
+
+	b.ResetTimer()
+	for {
+		_, err := resp.Body.Read(chunk)
+		if err != nil {
+			break
+		}
+	}
+}
+
+func BenchmarkDownload_15Workers_3MB_40Conn(b *testing.B) {
+	cli := nntpcli.New()
+	s := runUsenetServer(b)
+	articleReadyToDownload(b, s, cli)
+	filesize := int64(1368709120)
+
+	generateNzb(b, filesize, 3145728, "1234", "misc.test")
+
+	webdavPort := "8080"
+	config := &config.Config{
+		RootPath:   "./nzbs",
+		DBPath:     "./usenet-drive.db",
+		WebDavPort: webdavPort,
+		Debug:      false,
+		Usenet: config.Usenet{
+			Download: config.Download{
+				MaxDownloadWorkers: 15,
+				MaxRetries:         8,
+				Providers: []config.UsenetProvider{
+					{
+						Host:           "localhost",
+						Port:           s.Port(),
+						TLS:            false,
+						MaxConnections: 40,
+					},
+				},
+			},
+			Upload: config.Upload{
+				Groups: []string{"misc.test"},
+				Providers: []config.UsenetProvider{
+					{
+						Host:           "localhost",
+						Port:           s.Port(),
+						TLS:            false,
+						MaxConnections: 40,
+					},
+				},
+			},
+		},
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer func() {
+		cancel()
+	}()
+	ctrl := gomock.NewController(b)
+	go test.InitWebDav(ctx, ctrl, config)
+
+	// Wait for server to start
 	time.Sleep(2 * time.Second)
 
 	url := fmt.Sprintf("http://localhost:%s/test.txt", webdavPort)

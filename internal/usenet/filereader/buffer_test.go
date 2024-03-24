@@ -800,7 +800,7 @@ func TestBuffer_Close(t *testing.T) {
 			wg:          &sync.WaitGroup{},
 		}
 
-		cache.EXPECT().DeleteAll(buf.chunkPool).Times(1)
+		cache.EXPECT().Close().Times(1)
 
 		err := buf.Close()
 		assert.NoError(t, err)
@@ -841,7 +841,7 @@ func TestBuffer_Close(t *testing.T) {
 		}
 
 		wg := &sync.WaitGroup{}
-		cache.EXPECT().DeleteAll(buf.chunkPool).Times(1)
+		cache.EXPECT().Close().Times(1)
 
 		wg.Add(1)
 		go func() {

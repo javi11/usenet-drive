@@ -6,7 +6,6 @@ package filereader
 
 import (
 	reflect "reflect"
-	sync "sync"
 
 	gomock "github.com/golang/mock/gomock"
 )
@@ -34,6 +33,18 @@ func (m *MockChunkCache) EXPECT() *MockChunkCacheMockRecorder {
 	return m.recorder
 }
 
+// Close mocks base method.
+func (m *MockChunkCache) Close() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Close")
+}
+
+// Close indicates an expected call of Close.
+func (mr *MockChunkCacheMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockChunkCache)(nil).Close))
+}
+
 // Delete mocks base method.
 func (m *MockChunkCache) Delete(segmentIndex any) {
 	m.ctrl.T.Helper()
@@ -47,39 +58,27 @@ func (mr *MockChunkCacheMockRecorder) Delete(segmentIndex interface{}) *gomock.C
 }
 
 // DeleteAfter mocks base method.
-func (m *MockChunkCache) DeleteAfter(segmentIndex int, chunkPool *sync.Pool) {
+func (m *MockChunkCache) DeleteAfter(segmentIndex int) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "DeleteAfter", segmentIndex, chunkPool)
+	m.ctrl.Call(m, "DeleteAfter", segmentIndex)
 }
 
 // DeleteAfter indicates an expected call of DeleteAfter.
-func (mr *MockChunkCacheMockRecorder) DeleteAfter(segmentIndex, chunkPool interface{}) *gomock.Call {
+func (mr *MockChunkCacheMockRecorder) DeleteAfter(segmentIndex interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAfter", reflect.TypeOf((*MockChunkCache)(nil).DeleteAfter), segmentIndex, chunkPool)
-}
-
-// DeleteAll mocks base method.
-func (m *MockChunkCache) DeleteAll(chunkPool *sync.Pool) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "DeleteAll", chunkPool)
-}
-
-// DeleteAll indicates an expected call of DeleteAll.
-func (mr *MockChunkCacheMockRecorder) DeleteAll(chunkPool interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAll", reflect.TypeOf((*MockChunkCache)(nil).DeleteAll), chunkPool)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAfter", reflect.TypeOf((*MockChunkCache)(nil).DeleteAfter), segmentIndex)
 }
 
 // DeleteBefore mocks base method.
-func (m *MockChunkCache) DeleteBefore(segmentIndex int, chunkPool *sync.Pool) {
+func (m *MockChunkCache) DeleteBefore(segmentIndex int) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "DeleteBefore", segmentIndex, chunkPool)
+	m.ctrl.Call(m, "DeleteBefore", segmentIndex)
 }
 
 // DeleteBefore indicates an expected call of DeleteBefore.
-func (mr *MockChunkCacheMockRecorder) DeleteBefore(segmentIndex, chunkPool interface{}) *gomock.Call {
+func (mr *MockChunkCacheMockRecorder) DeleteBefore(segmentIndex interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteBefore", reflect.TypeOf((*MockChunkCache)(nil).DeleteBefore), segmentIndex, chunkPool)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteBefore", reflect.TypeOf((*MockChunkCache)(nil).DeleteBefore), segmentIndex)
 }
 
 // Get mocks base method.

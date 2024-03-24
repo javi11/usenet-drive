@@ -94,7 +94,7 @@ func openFile(
 	buffer, err := NewBuffer(
 		ctx,
 		nzbReader,
-		int(metadata.FileSize),
+		metadata.FileSize,
 		metadata.ChunkSize,
 		dc,
 		cp,

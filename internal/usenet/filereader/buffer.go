@@ -40,7 +40,7 @@ type seekData struct {
 
 type buffer struct {
 	ctx                context.Context
-	fileSize           int
+	fileSize           int64
 	nzbReader          nzbloader.NzbReader
 	nzbGroups          []string
 	ptr                int64
@@ -62,7 +62,7 @@ type buffer struct {
 func NewBuffer(
 	ctx context.Context,
 	nzbReader nzbloader.NzbReader,
-	fileSize int,
+	fileSize int64,
 	chunkSize int64,
 	dc downloadConfig,
 	cp connectionpool.UsenetConnectionPool,
@@ -83,7 +83,7 @@ func NewBuffer(
 		fileSize:           fileSize,
 		nzbReader:          nzbReader,
 		nzbGroups:          nzbGroups,
-		chunkCache:         &chunkCache{},
+		chunkCache:         NewChunkCache(chunkPool),
 		currentDownloading: &sync.Map{},
 		cp:                 cp,
 		dc:                 dc,
@@ -158,7 +158,7 @@ func (b *buffer) Close() error {
 	b.wg.Wait()
 	close(b.nextSegment)
 
-	b.chunkCache.DeleteAll(b.chunkPool)
+	b.chunkCache.Close()
 	b.currentDownloading.Range(func(key, value interface{}) bool {
 		b.currentDownloading.Delete(key)
 		return true
@@ -473,16 +473,16 @@ func (b *buffer) segmentCleaner(ctx context.Context) {
 			b.mx.RLock()
 			currentSegmentIndex := b.calculateCurrentSegmentIndex(b.ptr)
 			b.mx.RUnlock()
-			b.chunkCache.DeleteBefore(currentSegmentIndex, b.chunkPool)
+			b.chunkCache.DeleteBefore(currentSegmentIndex)
 		case s := <-b.seek:
 			if s.from > s.to {
 				// When seek to previous segments, delete all segments after the current segment
 				// leaving the maxDownload workers number as buffer
-				b.chunkCache.DeleteAfter(s.from+b.dc.maxDownloadWorkers, b.chunkPool)
+				b.chunkCache.DeleteAfter(s.from + b.dc.maxDownloadWorkers)
 			} else {
 				// When seek to next segments, delete all segments before the current segment
 				// We won't need them anymore
-				b.chunkCache.DeleteBefore(s.to, b.chunkPool)
+				b.chunkCache.DeleteBefore(s.to)
 			}
 		}
 	}
